@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react" // Added useEffect for potential early check, though not strictly used in this version for redirection
 import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,13 +12,13 @@ import { Switch } from "@/components/ui/switch"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Separator } from "@/components/ui/separator"
 import { ArrowLeft, Link2, Mail, QrCode, Shield, FileText, Check, Loader2 } from "lucide-react"
-import { shareService, type ShareOptions } from "@/lib/share-service"
+import { shareService, type ShareOptions } from "@/lib/share-service" // Assuming share-service is now correctly importing supabase
 import { useToast } from "@/components/ui/use-toast"
 import { QRCodeCanvas } from "qrcode.react"
 
 // Mock document data - En una implementación real, esto vendría de la base de datos
 const documentData = {
-  id: "1",
+  id: "1", // This will be overridden by actual params.id if used for display
   name: "Factura de luz - Marzo 2025",
   type: "pdf",
   category: "Hogar",
@@ -28,6 +28,7 @@ export default function CompartirDocumentoPage() {
   const router = useRouter()
   const params = useParams()
   const { toast } = useToast()
+
   const [shareMethod, setShareMethod] = useState<"link" | "email" | "qr">("link")
   const [accessDuration, setAccessDuration] = useState<"1day" | "7days" | "30days" | "unlimited">("7days")
   const [permissions, setPermissions] = useState({
@@ -46,179 +47,274 @@ export default function CompartirDocumentoPage() {
   const [loading, setLoading] = useState(false)
   const [generatingQR, setGeneratingQR] = useState(false)
 
-  const documentId = Array.isArray(params.id) ? params.id[0] : params.id
+  // Get the document ID from params.
+  // This can be string | string[] | undefined initially.
+  const getDocumentIdFromParams = () => {
+    return Array.isArray(params.id) ? params.id[0] : params.id;
+  }
+
+  // You could also fetch actual document details here based on documentId
+  // For now, we'll use the mock data for display name, but the ID for sharing.
+  const pageDocumentId = getDocumentIdFromParams();
+  const displayedDocumentName = pageDocumentId ? `Documento ID: ${pageDocumentId}` : documentData.name; // Or fetch actual name
 
   const handleGenerateLink = async () => {
-    setLoading(true)
+    const documentId = getDocumentIdFromParams();
+    if (!documentId) {
+      toast({ title: "Error", description: "ID de documento no válido o faltante.", variant: "destructive" });
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
     try {
       const shareOptions: ShareOptions = {
-        documentId,
+        documentId, // Now this is confirmed to be a string
         accessDuration,
         permissions,
         password: usePassword ? password : undefined,
-      }
+      };
 
-      const result = await shareService.generateShareLink(shareOptions)
+      const result = await shareService.generateShareLink(shareOptions);
 
       if (result.success && result.shareLink) {
-        setShareLink(result.shareLink)
+        setShareLink(result.shareLink);
         toast({
           title: "Enlace generado",
           description: "El enlace de compartir se ha generado correctamente.",
-        })
+        });
       } else {
         toast({
           title: "Error",
           description: result.error || "No se pudo generar el enlace de compartir.",
           variant: "destructive",
-        })
+        });
       }
     } catch (error) {
-      console.error("Error al generar enlace:", error)
+      console.error("Error al generar enlace:", error);
       toast({
         title: "Error",
         description: "Ocurrió un error al generar el enlace de compartir.",
         variant: "destructive",
-      })
+      });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
   const handleCopyLink = () => {
-    navigator.clipboard.writeText(shareLink)
-    setCopied(true)
+    if (!shareLink) return;
+    navigator.clipboard.writeText(shareLink);
+    setCopied(true);
     toast({
       title: "Enlace copiado",
       description: "El enlace se ha copiado al portapapeles.",
-    })
-    setTimeout(() => setCopied(false), 2000)
+    });
+    setTimeout(() => setCopied(false), 2000);
   }
 
   const handleGenerateQR = async () => {
-    setGeneratingQR(true)
+    const documentId = getDocumentIdFromParams();
+    if (!documentId) {
+      toast({ title: "Error", description: "ID de documento no válido o faltante.", variant: "destructive" });
+      setGeneratingQR(false);
+      return;
+    }
+
+    setGeneratingQR(true);
     try {
       const shareOptions: ShareOptions = {
-        documentId,
+        documentId, // Confirmed string
         accessDuration,
         permissions,
         password: usePassword ? password : undefined,
-      }
+      };
 
-      const result = await shareService.generateQRCode(shareOptions)
+      // Assuming generateQRCode might internally call generateShareLink or similar logic
+      // that returns qrCodeData based on a generated link.
+      // If shareService.generateQRCode generates its own link/data, this is fine.
+      // For this example, let's assume it uses the same shareOptions.
+      const result = await shareService.generateQRCode(shareOptions); // Or generateShareLink then make QR
 
-      if (result.success && result.qrCodeData) {
-        setQrCodeData(result.qrCodeData)
+      if (result.success && result.qrCodeData) { // Ensure your service returns qrCodeData
+        setQrCodeData(result.qrCodeData);
+        // If generateQRCode implicitly creates a share link, you might want to set it too
+        if(result.shareLink) setShareLink(result.shareLink);
         toast({
           title: "Código QR generado",
           description: "El código QR se ha generado correctamente.",
-        })
+        });
       } else {
         toast({
           title: "Error",
           description: result.error || "No se pudo generar el código QR.",
           variant: "destructive",
-        })
+        });
       }
     } catch (error) {
-      console.error("Error al generar QR:", error)
+      console.error("Error al generar QR:", error);
       toast({
         title: "Error",
         description: "Ocurrió un error al generar el código QR.",
         variant: "destructive",
-      })
+      });
     } finally {
-      setGeneratingQR(false)
+      setGeneratingQR(false);
     }
   }
 
   const handleSendEmail = async () => {
-    setLoading(true)
-    try {
-      if (!emails.trim()) {
-        toast({
-          title: "Error",
-          description: "Por favor, ingresa al menos una dirección de correo electrónico.",
-          variant: "destructive",
-        })
-        return
-      }
+    const documentId = getDocumentIdFromParams();
+    if (!documentId) {
+      toast({ title: "Error", description: "ID de documento no válido o faltante.", variant: "destructive" });
+      setLoading(false); // Assuming general loading state for this button
+      return;
+    }
 
+    if (!emails.trim()) {
+      toast({
+        title: "Error",
+        description: "Por favor, ingresa al menos una dirección de correo electrónico.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
       const emailList = emails
         .split(",")
         .map((email) => email.trim())
-        .filter(Boolean)
+        .filter(Boolean);
+
+      if (emailList.length === 0) {
+        toast({
+            title: "Error",
+            description: "Por favor, ingresa direcciones de correo válidas.",
+            variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
 
       const shareOptions: ShareOptions = {
-        documentId,
+        documentId, // Confirmed string
         accessDuration,
         permissions,
         password: usePassword ? password : undefined,
         emails: emailList,
         message: message.trim() || undefined,
-      }
+      };
 
-      const result = await shareService.shareViaEmail(shareOptions)
+      const result = await shareService.shareViaEmail(shareOptions);
 
       if (result.success) {
         toast({
           title: "Correo enviado",
           description: `El documento se ha compartido por correo con ${emailList.length} destinatario(s).`,
-        })
+        });
+         // If shareViaEmail implicitly creates a share link, you might want to set it
+        if(result.shareLink) setShareLink(result.shareLink);
       } else {
         toast({
           title: "Error",
           description: result.error || "No se pudo enviar el correo.",
           variant: "destructive",
-        })
+        });
       }
     } catch (error) {
-      console.error("Error al enviar correo:", error)
+      console.error("Error al enviar correo:", error);
       toast({
         title: "Error",
         description: "Ocurrió un error al enviar el correo.",
         variant: "destructive",
-      })
+      });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
+  // Main share button handler (optional, if you have a single "Compartir" button that decides action based on tab)
   const handleShare = async () => {
-    setLoading(true)
+    const documentId = getDocumentIdFromParams();
+    if (!documentId) {
+        toast({ title: "Error", description: "ID de documento no válido o faltante.", variant: "destructive" });
+        return;
+    }
+
+    setLoading(true);
     try {
-      let result
+        let result; // Define result type more accurately if possible based on your service
+        let success = false;
+        let finalShareLink = shareLink; // Keep existing link if already generated
 
-      if (shareMethod === "link") {
-        if (!shareLink) {
-          await handleGenerateLink()
+        if (shareMethod === "link") {
+            if (!finalShareLink) {
+                const linkResult = await shareService.generateShareLink({
+                    documentId, accessDuration, permissions, password: usePassword ? password : undefined
+                });
+                if (linkResult.success && linkResult.shareLink) {
+                    setShareLink(linkResult.shareLink);
+                    finalShareLink = linkResult.shareLink;
+                    success = true;
+                } else {
+                    toast({ title: "Error", description: linkResult.error || "No se pudo generar el enlace.", variant: "destructive" });
+                    setLoading(false);
+                    return;
+                }
+            } else {
+                success = true; // Link already exists
+            }
+        } else if (shareMethod === "email") {
+            const emailResult = await shareService.shareViaEmail({
+                documentId, accessDuration, permissions, password: usePassword ? password : undefined,
+                emails: emails.split(",").map(e => e.trim()).filter(Boolean),
+                message: message.trim() || undefined
+            });
+             if (emailResult.success) {
+                success = true;
+                if(emailResult.shareLink) setShareLink(emailResult.shareLink); // Update link if service returns it
+            } else {
+                 toast({ title: "Error", description: emailResult.error || "No se pudo enviar el correo.", variant: "destructive" });
+                 setLoading(false);
+                 return;
+            }
+        } else if (shareMethod === "qr") {
+            if (!qrCodeData) { // Generate QR if not already done
+                const qrResult = await shareService.generateQRCode({ // Assuming this function returns qrCodeData and potentially the shareLink
+                    documentId, accessDuration, permissions, password: usePassword ? password : undefined
+                });
+                if (qrResult.success && qrResult.qrCodeData) {
+                    setQrCodeData(qrResult.qrCodeData);
+                    if(qrResult.shareLink) setShareLink(qrResult.shareLink); // Update link
+                    success = true;
+                } else {
+                    toast({ title: "Error", description: qrResult.error || "No se pudo generar el código QR.", variant: "destructive" });
+                    setLoading(false);
+                    return;
+                }
+            } else {
+                success = true; // QR already generated
+            }
         }
-        result = { success: true }
-      } else if (shareMethod === "email") {
-        result = await handleSendEmail()
-      } else if (shareMethod === "qr") {
-        if (!qrCodeData) {
-          await handleGenerateQR()
-        }
-        result = { success: true }
-      }
 
-      if (result?.success) {
-        toast({
-          title: "Documento compartido",
-          description: "El documento se ha compartido exitosamente.",
-        })
-        router.push("/dashboard/compartidos")
-      }
+        if (success) {
+            toast({
+                title: "Documento compartido",
+                description: "El documento se ha compartido exitosamente.",
+            });
+            router.push("/dashboard/compartidos"); // Navigate on success
+        }
+        // If not success, specific toasts should have already been shown by sub-handlers
     } catch (error) {
-      console.error("Error al compartir documento:", error)
-      toast({
-        title: "Error",
-        description: "Ocurrió un error al compartir el documento.",
-        variant: "destructive",
-      })
+        console.error("Error al compartir documento:", error);
+        toast({
+            title: "Error General",
+            description: "Ocurrió un error al compartir el documento.",
+            variant: "destructive",
+        });
     } finally {
-      setLoading(false)
+        setLoading(false);
     }
   }
 
@@ -235,7 +331,7 @@ export default function CompartirDocumentoPage() {
         <Card>
           <CardHeader>
             <CardTitle>Opciones de compartir</CardTitle>
-            <CardDescription>Configura cómo quieres compartir "{documentData.name}"</CardDescription>
+            <CardDescription>Configura cómo quieres compartir "{displayedDocumentName}"</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <Tabs value={shareMethod} onValueChange={(v) => setShareMethod(v as any)} className="w-full">
@@ -256,9 +352,9 @@ export default function CompartirDocumentoPage() {
 
               <TabsContent value="link" className="space-y-4 pt-4">
                 <div className="space-y-2">
-                  <Label>Enlace de compartir</Label>
+                  <Label htmlFor="shareLinkInput">Enlace de compartir</Label>
                   <div className="flex gap-2">
-                    <Input value={shareLink} readOnly placeholder="Genera un enlace para compartir" />
+                    <Input id="shareLinkInput" value={shareLink} readOnly placeholder="Genera un enlace para compartir" />
                     {shareLink ? (
                       <Button variant="outline" onClick={handleCopyLink} disabled={loading}>
                         {copied ? (
@@ -309,20 +405,8 @@ export default function CompartirDocumentoPage() {
                     onChange={(e) => setMessage(e.target.value)}
                   />
                 </div>
-
-                <Button onClick={handleSendEmail} disabled={loading || !emails.trim()} className="w-full">
-                  {loading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Enviando...
-                    </>
-                  ) : (
-                    <>
-                      <Mail className="mr-2 h-4 w-4" />
-                      Enviar por correo
-                    </>
-                  )}
-                </Button>
+                {/* Button to send email, can be part of the main "Compartir" button logic or standalone */}
+                {/* <Button onClick={handleSendEmail} disabled={loading || !emails.trim()} className="w-full"> ... </Button> */}
               </TabsContent>
 
               <TabsContent value="qr" className="space-y-4 pt-4">
@@ -392,16 +476,16 @@ export default function CompartirDocumentoPage() {
                 <h3 className="text-lg font-medium mb-2">Permisos</h3>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="view">Ver documento</Label>
+                    <Label htmlFor="view" className="cursor-pointer">Ver documento</Label>
                     <Switch
                       id="view"
                       checked={permissions.view}
                       onCheckedChange={(checked) => setPermissions({ ...permissions, view: checked })}
-                      disabled
+                      disabled // Usually view is always true and disabled
                     />
                   </div>
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="download">Permitir descarga</Label>
+                    <Label htmlFor="download" className="cursor-pointer">Permitir descarga</Label>
                     <Switch
                       id="download"
                       checked={permissions.download}
@@ -409,7 +493,7 @@ export default function CompartirDocumentoPage() {
                     />
                   </div>
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="print">Permitir impresión</Label>
+                    <Label htmlFor="print" className="cursor-pointer">Permitir impresión</Label>
                     <Switch
                       id="print"
                       checked={permissions.print}
@@ -417,7 +501,7 @@ export default function CompartirDocumentoPage() {
                     />
                   </div>
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="edit">Permitir edición</Label>
+                    <Label htmlFor="edit" className="cursor-pointer">Permitir edición</Label>
                     <Switch
                       id="edit"
                       checked={permissions.edit}
@@ -457,11 +541,11 @@ export default function CompartirDocumentoPage() {
             </div>
           </CardContent>
           <CardFooter className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => router.back()} disabled={loading}>
+            <Button variant="outline" onClick={() => router.back()} disabled={loading || generatingQR}>
               Cancelar
             </Button>
-            <Button onClick={handleShare} disabled={loading}>
-              {loading ? (
+            <Button onClick={handleShare} disabled={loading || generatingQR || (shareMethod === 'email' && !emails.trim())}>
+              {(loading || generatingQR) ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Procesando...
@@ -485,7 +569,7 @@ export default function CompartirDocumentoPage() {
                   <FileText className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <h3 className="font-medium">{documentData.name}</h3>
+                  <h3 className="font-medium">{displayedDocumentName}</h3>
                   <p className="text-sm text-muted-foreground">{documentData.category}</p>
                 </div>
               </div>
@@ -497,7 +581,7 @@ export default function CompartirDocumentoPage() {
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Compartido por:</span>
-                  <span>Juan Pérez</span>
+                  <span>Juan Pérez</span>{/* Replace with actual user data */}
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Método:</span>
