@@ -57,6 +57,16 @@ function getCategoryColor(category: string): string {
   return categoryColors[category] || categoryColors["Sin categoría"]; // Fallback to default
 }
 
+// Define a more specific type for documents used in expense calculations
+interface ExpenseDocumentData {
+    id: string; // Assuming ID is a string, adjust if it's a number
+    category: string | null;
+    amount: string | null; // Supabase might return numbers as strings or numbers
+    currency: string | null;
+    date: string | null; // Dates are often strings from DB, then parsed
+}
+
+
 /**
  * Service object for generating reports based on user documents.
  * Assumes these methods are called from a context where supabaseBrowserClient is valid (client-side).
@@ -130,16 +140,17 @@ export const reportsService = {
       const totalDocuments = totalDocumentsResult.count ?? 0;
       const recentDocuments = recentDocumentsResult.count ?? 0;
       const expiringDocuments = expiringDocumentsResult.count ?? 0;
-      const storageDocuments = storageDocumentsResult.data ?? [];
-      const categories = categoriesResult.data ?? [];
+      const storageDocumentsData = storageDocumentsResult.data ?? []; // Renamed to avoid conflict
+      const categoriesData = categoriesResult.data ?? []; // Renamed to avoid conflict
+
 
       // Count unique categories from the fetched (potentially filtered) list
-      const uniqueCategories = new Set(categories.map((doc) => doc.category || "Sin categoría"));
+      const uniqueCategories = new Set(categoriesData.map((doc: {category: string | null}) => doc.category || "Sin categoría"));
       const categoriesCount = uniqueCategories.size;
 
       // Calculate estimated storage used based on fetched (potentially filtered) documents
       let estimatedStorageBytes = 0;
-      storageDocuments.forEach((doc) => {
+      storageDocumentsData.forEach((doc: {file_type: string | null}) => {
          switch (doc.file_type?.toLowerCase()) {
             case "pdf": estimatedStorageBytes += 2 * 1024 * 1024; break; // ~2MB
             case "jpg": case "jpeg": case "png": estimatedStorageBytes += 1.5 * 1024 * 1024; break; // ~1.5MB
@@ -213,7 +224,7 @@ export const reportsService = {
 
       // Count documents per category
       const categoryCounts: Record<string, number> = {};
-      (data || []).forEach((doc) => {
+      (data || []).forEach((doc: {category: string | null}) => {
         const category = doc.category || "Sin categoría"; // Group null/empty categories
         categoryCounts[category] = (categoryCounts[category] || 0) + 1;
       });
@@ -275,8 +286,12 @@ export const reportsService = {
 
 
       // Count documents per month based on created_at
-      (data || []).forEach((doc) => {
+      (data || []).forEach((doc: { created_at: string | null }) => {
         try {
+            if (!doc.created_at) {
+                console.warn(`Skipping document due to missing created_at date`);
+                return;
+            }
             const date = new Date(doc.created_at);
             const monthIndex = date.getMonth(); // 0-11
             if (monthIndex >= 0 && monthIndex < 12) {
@@ -286,7 +301,7 @@ export const reportsService = {
                  console.warn(`Invalid month index derived from created_at: ${doc.created_at}`);
             }
         } catch(e) {
-            console.warn(`Could not parse created_at date: ${doc.created_at}`);
+            console.warn(`Could not parse created_at date: ${doc.created_at}`, e);
         }
       });
 
@@ -326,9 +341,10 @@ export const reportsService = {
       const endDate = `${year}-12-31`;
 
       // Fetch documents with amount and date within the year range
+      // *** FIX: Added 'id' to the select statement ***
       const { data, error } = await supabase
         .from("documents")
-        .select("category, amount, currency, date") // Select relevant fields
+        .select("id, category, amount, currency, date") // Select relevant fields including id
         .eq("user_id", userId)
         .gte("date", startDate)
         .lte("date", endDate)
@@ -348,18 +364,21 @@ export const reportsService = {
       }));
 
       // Process documents and aggregate amounts by category and month
-      (data || []).forEach((doc) => {
-        if (!doc.amount || !doc.date) return; // Skip if amount or date is missing
+      (data || []).forEach((doc: ExpenseDocumentData) => { // Use the specific type here
+        if (!doc.amount || !doc.date) {
+            console.warn(`Skipping document id=${doc.id} due to missing amount or date.`);
+            return; // Skip if amount or date is missing
+        }
 
-        let amount: number;
-        let date: Date;
+        let amountValue: number; // Renamed to avoid conflict with doc.amount
+        let dateValue: Date; // Renamed to avoid conflict with doc.date
         try {
             // Attempt to parse amount and date
-            amount = Number.parseFloat(doc.amount);
-            date = new Date(doc.date);
+            amountValue = Number.parseFloat(doc.amount); // doc.amount is string | null
+            dateValue = new Date(doc.date); // doc.date is string | null
 
             // Check if parsing was successful
-            if (isNaN(amount) || isNaN(date.getTime())) {
+            if (isNaN(amountValue) || isNaN(dateValue.getTime())) {
                  console.warn(`Skipping document due to invalid amount or date: id=${doc.id}, amount=${doc.amount}, date=${doc.date}`);
                 return;
             }
@@ -369,7 +388,7 @@ export const reportsService = {
         }
 
 
-        const monthIndex = date.getMonth(); // 0-11
+        const monthIndex = dateValue.getMonth(); // 0-11
 
         // Map document category to one of the predefined expense categories
         let mappedCategory = "Otros"; // Default category
@@ -383,7 +402,14 @@ export const reportsService = {
 
         // Add the amount to the correct month and category
         if (monthIndex >= 0 && monthIndex < 12) {
-            result[monthIndex][mappedCategory] = (result[monthIndex][mappedCategory] as number) + amount;
+            // Ensure the category exists on the result object before adding to it
+            if (typeof result[monthIndex][mappedCategory] === 'number') {
+                 result[monthIndex][mappedCategory] = (result[monthIndex][mappedCategory] as number) + amountValue;
+            } else {
+                // This case should ideally not happen if expenseCategories are initialized correctly
+                console.warn(`Category ${mappedCategory} not initialized for month ${monthNames[monthIndex]}. Initializing to 0.`);
+                result[monthIndex][mappedCategory] = amountValue;
+            }
         }
       });
 

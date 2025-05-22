@@ -11,6 +11,9 @@ import { es } from "date-fns/locale"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AlertCircle, CalendarIcon } from "lucide-react"
 
+// Definimos el tipo para las variantes permitidas del Badge
+type BadgeVariantType = "default" | "destructive" | "secondary" | "outline" | null | undefined;
+
 export function UpcomingReminders() {
   const [upcomingDocs, setUpcomingDocs] = useState<Document[]>([])
   const [expirationDates, setExpirationDates] = useState<Date[]>([])
@@ -27,7 +30,7 @@ export function UpcomingReminders() {
           documentService.getExpirationDates(),
         ])
         setUpcomingDocs(docs)
-        setExpirationDates(dates.map((d) => new Date(d)))
+        setExpirationDates(dates.map((d) => new Date(d))) // Asegurarse que sean objetos Date
         setError(null)
       } catch (err) {
         console.error("Error al cargar vencimientos:", err)
@@ -41,7 +44,8 @@ export function UpcomingReminders() {
   }, [])
 
   // Función para calcular días restantes
-  const getDaysLeft = (dateString: string): number => {
+  const getDaysLeft = (dateString: string | null | undefined): number => {
+    if (!dateString) return Number.MAX_SAFE_INTEGER; // O algún valor alto para que no se marque como urgente
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 
@@ -53,29 +57,36 @@ export function UpcomingReminders() {
   }
 
   // Función para obtener la variante de badge según los días restantes
-  const getBadgeVariant = (daysLeft: number) => {
-    if (daysLeft <= 7) return "outline" // Clase para urgente (rojo)
-    if (daysLeft <= 30) return "outline" // Clase para próximo (amarillo)
-    return "outline" // Clase para normal (azul/gris)
+  // CORREGIDO: Añadido el tipo de retorno explícito
+  const getBadgeVariant = (daysLeft: number): BadgeVariantType => {
+    if (daysLeft <= 7) return "outline" // Siempre "outline", el color se maneja con getBadgeClass
+    if (daysLeft <= 30) return "outline"
+    return "outline"
   }
 
   // Función para obtener el texto del badge según los días restantes
   const getBadgeText = (daysLeft: number) => {
-    if (daysLeft <= 7) return "Urgente"
-    if (daysLeft <= 30) return "Próximo"
-    return "Pendiente"
+    if (daysLeft <= 0) return "Vencido Hoy/Antes" // Modificado para mayor claridad
+    if (daysLeft <= 7) return `Vence en ${daysLeft}d`
+    if (daysLeft <= 30) return `Próximo (${daysLeft}d)`
+    return "Pendiente" // O `En ${daysLeft}d` si prefieres
   }
 
   // Función para obtener la clase de color del badge según los días restantes
   const getBadgeClass = (daysLeft: number) => {
-    if (daysLeft <= 7) {
-      return "bg-destructive/10 text-destructive border-destructive"
+    if (daysLeft <= 0) { // Vencido
+      return "bg-destructive/20 text-destructive border-destructive" // Rojo más intenso
     }
-    if (daysLeft <= 30) {
-      return "bg-warning/10 text-warning border-warning"
+    if (daysLeft <= 7) { // Urgente (menos de 7 días)
+      return "bg-destructive/10 text-destructive-foreground border-destructive" // Ejemplo: texto más legible sobre rojo
     }
+    if (daysLeft <= 30) { // Próximo (menos de 30 días)
+      return "bg-yellow-400/20 text-yellow-700 border-yellow-500 dark:bg-yellow-700/20 dark:text-yellow-300 dark:border-yellow-600" // Asumiendo que tienes colores 'warning' o usa yellow
+    }
+    // Normal
     return "bg-primary/10 text-primary border-primary"
   }
+
 
   if (loading) {
     return (
@@ -92,9 +103,16 @@ export function UpcomingReminders() {
 
   if (error) {
     return (
-      <div className="p-4 bg-red-50 text-red-800 rounded-md">
-        {error}. Por favor, recarga la página para intentar nuevamente.
-      </div>
+      <Card className="border-destructive bg-destructive/10">
+        <CardHeader>
+          <CardTitle className="text-destructive flex items-center">
+            <AlertCircle className="mr-2 h-5 w-5" /> Error
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="text-destructive">
+          {error}. Por favor, recarga la página para intentar nuevamente.
+        </CardContent>
+      </Card>
     )
   }
 
@@ -115,33 +133,43 @@ export function UpcomingReminders() {
             className="border rounded-md"
             locale={es}
             modifiers={{
-              highlighted: expirationDates,
+              highlighted: expirationDates.filter(date => !isNaN(date.getTime())), // Filtrar fechas inválidas
             }}
             modifiersStyles={{
               highlighted: {
-                backgroundColor: "hsl(var(--warning) / 0.2)",
+                backgroundColor: "hsl(var(--yellow-400, var(--warning)) / 0.2)", // Usar variable CSS si existe o fallback
                 color: "hsl(var(--foreground))",
                 fontWeight: "bold",
               },
             }}
+            month={selectedDate} // Controlar el mes visible
+            onMonthChange={setSelectedDate} // Permitir cambiar el mes y que se refleje en selectedDate
+            footer={
+              expirationDates.length > 0 ? (
+                <p className="text-xs text-muted-foreground pt-2 text-center">
+                  Fechas con vencimientos resaltadas.
+                </p>
+              ) : null
+            }
           />
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Próximos vencimientos</CardTitle>
+          <CardTitle className="text-lg">Próximos vencimientos ({upcomingDocs.slice(0, 5).length})</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
             {upcomingDocs.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-6 text-muted-foreground">
                 <AlertCircle className="h-8 w-8 mb-2 opacity-40" />
-                <p>No hay documentos próximos a vencer</p>
+                <p>No hay documentos próximos a vencer en los siguientes 30 días.</p>
               </div>
             ) : (
               upcomingDocs.slice(0, 5).map((doc) => {
-                const daysLeft = getDaysLeft(doc.expiry_date || "")
+                if (!doc.expiry_date) return null; // No mostrar si no hay fecha de expiración
+                const daysLeft = getDaysLeft(doc.expiry_date)
                 return (
                   <Link
                     key={doc.id}
@@ -151,8 +179,7 @@ export function UpcomingReminders() {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{doc.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        Vence {daysLeft === 0 ? "hoy" : `en ${daysLeft} días`} (
-                        {format(new Date(doc.expiry_date || ""), "dd/MM/yyyy")})
+                        {daysLeft <= 0 ? `Venció ${format(new Date(doc.expiry_date), "PPP", { locale: es })}` : `Vence en ${daysLeft} día(s) (${format(new Date(doc.expiry_date), "PPP", { locale: es })})`}
                       </p>
                     </div>
                     <Badge

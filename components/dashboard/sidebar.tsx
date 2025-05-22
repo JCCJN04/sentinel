@@ -2,11 +2,18 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { cn } from "@/lib/utils"
-import { AlertCircle, Shield, BarChart3, FileText, Home, Settings, Share2, Upload, Users } from "lucide-react"
-import { Logo } from "@/components/icons"
+import { cn } from "@/lib/utils" // Ya estás importando cn, ¡genial!
+import { AlertCircle, Shield, BarChart3, FileText, Home, Settings, Share2, Upload, Users, type LucideIcon } from "lucide-react"
+// import { Logo } from "@/components/icons" // Logo no se usa en este archivo, se podría quitar si no se va a usar.
 
-const sidebarItems = [
+// Definimos una interfaz para los items de la barra lateral para mejor tipado
+interface SidebarItem {
+  title: string;
+  href: string;
+  icon: LucideIcon; // Usamos el tipo LucideIcon para el icono
+}
+
+const sidebarItems: SidebarItem[] = [
   {
     title: "Dashboard",
     href: "/dashboard",
@@ -21,7 +28,8 @@ const sidebarItems = [
     title: "Subir documento",
     href: "/dashboard/subir",
     icon: Upload,
-  },/*
+  },
+  /*
   {
     title: "Alertas",
     href: "/dashboard/alertas",
@@ -49,11 +57,18 @@ const sidebarItems = [
   },
 ]
 
-export function Sidebar() {
+// 1. Define una interfaz para las props del Sidebar
+interface SidebarProps {
+  className?: string; // className es opcional y de tipo string
+}
+
+// 2. Actualiza la firma de la función para aceptar props y desestructura className
+export function Sidebar({ className }: SidebarProps) {
   const pathname = usePathname()
 
   return (
-    <div className="hidden border-r bg-muted/40 md:block md:w-64">
+    // 3. Usa `cn` para fusionar las clases existentes con la prop className
+    <div className={cn("hidden border-r bg-muted/40 md:block md:w-64", className)}>
       <div className="flex h-full max-h-screen flex-col gap-2">
         <div className="flex items-center gap-2 p-4">
           <Shield className="h-6 w-6 text-primary" />

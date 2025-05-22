@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { Separator } from "@/components/ui/separator"
 import { FileEdit, FileText, Loader2, Share2, Trash2, Upload } from "lucide-react"
-import { supabase } from "@/lib/supabase"
+import { supabaseBrowserClient as supabase } from "@/lib/supabase"
 
 // Tipo para el historial
 interface HistoryItem {

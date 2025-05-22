@@ -2,7 +2,7 @@
 
 import { useEffect } from "react"
 import { useAuth } from "@/hooks/use-auth"
-import { supabase } from "@/lib/supabase"
+import { supabaseBrowserClient as supabase } from "@/lib/supabase";
 
 export function DatabaseInitializer() {
   const { user } = useAuth()

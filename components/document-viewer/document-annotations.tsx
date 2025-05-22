@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
 import { Loader2, MessageSquare, Edit, Trash2, Plus } from "lucide-react"
-import { supabase } from "@/lib/supabase"
+import { supabaseBrowserClient as supabase } from "@/lib/supabase"
 import { useAuth } from "@/hooks/use-auth"
 
 interface Annotation {

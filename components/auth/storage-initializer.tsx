@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useAuth } from "@/hooks/use-auth"
-import { supabase } from "@/lib/supabase"
+import { supabaseBrowserClient as supabase } from "@/lib/supabase"; // Asumimos que esto es correcto ahora
 
 export function StorageInitializer() {
   const { user } = useAuth()
@@ -18,45 +18,49 @@ export function StorageInitializer() {
 
         if (bucketsError) {
           console.error("Error listing buckets:", bucketsError)
-          // Continuamos con el resto del código
-        } else {
-          const documentsBucketExists = buckets.some((bucket) => bucket.name === "documents")
+          // Considerar si se debe detener la inicialización aquí o no.
+          // Por ahora, se intentará crear el bucket de todas formas si hay error listando.
+        }
 
-          // Si no existe, crearlo
-          if (!documentsBucketExists) {
-            try {
-              const { error: createError } = await supabase.storage.createBucket("documents", {
-                public: true, // Para simplificar, en producción debería ser false con políticas adecuadas
-              })
+        let documentsBucketExists = false;
+        if (buckets) { // Solo proceder si la lista de buckets se obtuvo
+            documentsBucketExists = buckets.some((bucket) => bucket.name === "documents")
+        }
 
-              if (createError) {
-                console.error("Error creating documents bucket:", createError)
+
+        // Si no existe, crearlo
+        if (!documentsBucketExists) {
+          try {
+            console.log("Attempting to create 'documents' bucket...");
+            const { error: createError } = await supabase.storage.createBucket("documents", {
+              public: true, // Bucket público. Para control granular, usar public: false y RLS.
+              // file_size_limit: 1024 * 1024 * 10, // Ejemplo: Límite de 10MB por archivo
+              // allowed_mime_types: ['image/png', 'application/pdf'], // Ejemplo: Tipos MIME permitidos
+            })
+
+            if (createError) {
+              // Manejar errores comunes como "Bucket already exists" si la lógica de 'documentsBucketExists' falló
+              if (createError.message.includes("already exists")) {
+                console.warn("Documents bucket creation reported error, but it might already exist:", createError.message);
               } else {
-                console.log("Documents bucket created successfully")
+                console.error("Error creating documents bucket:", createError);
               }
-            } catch (bucketError) {
-              console.error("Exception creating bucket:", bucketError)
+            } else {
+              console.log("Documents bucket created successfully or already existed.")
             }
-          } else {
-            console.log("Documents bucket already exists")
+          } catch (bucketError) {
+            console.error("Exception creating bucket:", bucketError)
           }
+        } else {
+          console.log("Documents bucket already exists")
         }
 
-        // En lugar de usar la función RPC, aplicamos las políticas directamente
-        try {
-          // Aplicar políticas de almacenamiento básicas
-          const { error: policyError } = await supabase.storage.from("documents").setAccessControl({
-            bucket: "documents",
-            owner: user.id,
-            public: false,
-          })
-
-          if (policyError) {
-            console.error("Error setting storage access control:", policyError)
-          }
-        } catch (policyError) {
-          console.error("Exception setting storage policies:", policyError)
-        }
+        // La sección de setAccessControl ha sido eliminada porque no es un método válido
+        // en StorageFileApi y las políticas de acceso granular se manejan mejor con RLS
+        // directamente en Supabase (SQL) o al definir el bucket como no público.
+        // Si el bucket se creó con public: true, ya es accesible públicamente.
+        // Para políticas específicas (ej. solo el propietario puede leer/escribir),
+        // configura RLS en la tabla storage.objects en tu panel de Supabase.
 
         setInitialized(true)
       } catch (error) {
@@ -64,7 +68,9 @@ export function StorageInitializer() {
       }
     }
 
-    initializeStorage()
+    if (user && !initialized) { // Asegurarse de que el usuario exista y no se haya inicializado
+        initializeStorage()
+    }
   }, [initialized, user])
 
   return null

@@ -62,11 +62,12 @@ export default function RecuperarPasswordPage() {
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-            {success && (
-              <Alert variant="success" className="bg-success/20 text-success border-success">
-                <AlertDescription>{success}</AlertDescription>
-              </Alert>
-            )}
+              {success && (
+                // Quita variant="success" y deja que className maneje el estilo
+                <Alert className="bg-success/20 text-success border-success"> 
+                  <AlertDescription>{success}</AlertDescription>
+                </Alert>
+              )}
             <div className="space-y-2">
               <Label htmlFor="email">Correo electrónico</Label>
               <Input

@@ -33,6 +33,10 @@ export interface DocumentUpload {
   currency?: string;
   notes?: string;
   file: File;
+  // 👇 CAMPOS AÑADIDOS COMO OPCIONALES
+  patient_name?: string;
+  doctor_name?: string;
+  specialty?: string;
 }
 
 export interface ShareOptions {
@@ -47,6 +51,18 @@ export interface ShareOptions {
   method: "link" | "email" | "qr";
   password?: string;
 }
+
+// ❗ ADDED: Define and export MEDICAL_CATEGORIES
+// Replace the empty array with your actual categories
+export const MEDICAL_CATEGORIES: string[] = [
+  "General",
+  "Cardiology",
+  "Neurology",
+  "Pediatrics",
+  "Radiology",
+  // Add your medical categories here
+];
+
 
 /**
  * Fetches user statistics related to documents.
@@ -216,7 +232,7 @@ export const documentService = {
    */
   async getRecentDocuments(limit = 5): Promise<Document[]> {
     const { data: userData, error: userError } = await supabase.auth.getUser();
-     if (userError || !userData?.user) {
+      if (userError || !userData?.user) {
       console.error("getRecentDocuments: User not authenticated.", userError);
       throw new Error("User not authenticated");
     }
@@ -233,7 +249,7 @@ export const documentService = {
       throw error;
     }
 
-     // Populate file URLs
+      // Populate file URLs
     return data?.map(doc => ({
         ...doc,
         file_url: getPublicUrl(doc.file_path)
@@ -245,7 +261,7 @@ export const documentService = {
    * @param id - The ID of the document to fetch.
    */
   async getDocumentById(id: string): Promise<Document | null> {
-     // No auth check needed here if RLS policies handle authorization
+      // No auth check needed here if RLS policies handle authorization
     const { data, error } = await supabase
       .from("documents")
       .select("*")
@@ -302,7 +318,7 @@ export const documentService = {
    */
   async getReminders(): Promise<any[]> {
     const { data: userData, error: userError } = await supabase.auth.getUser();
-     if (userError || !userData?.user) {
+      if (userError || !userData?.user) {
       console.error("getReminders: User not authenticated.", userError);
       throw new Error("User not authenticated");
     }
@@ -423,7 +439,7 @@ export const documentService = {
    * @param updates - An object containing the fields to update.
    */
   async updateSharedDocument(shareId: string, updates: any): Promise<any> {
-     // RLS should handle authorization check
+      // RLS should handle authorization check
     const { data, error } = await supabase
       .from("document_shares")
       .update(updates)
@@ -443,7 +459,7 @@ export const documentService = {
    * @param shareId - The ID of the share record to delete.
    */
   async deleteSharedDocument(shareId: string): Promise<void> {
-     // RLS should handle authorization check
+      // RLS should handle authorization check
     const { error } = await supabase
       .from("document_shares")
       .delete()
@@ -463,7 +479,7 @@ export const documentService = {
    */
   async getUpcomingExpirations(limit = 5): Promise<Document[]> {
     const { data: userData, error: userError } = await supabase.auth.getUser();
-     if (userError || !userData?.user) {
+      if (userError || !userData?.user) {
       console.error("getUpcomingExpirations: User not authenticated.", userError);
       throw new Error("User not authenticated");
     }
@@ -483,7 +499,7 @@ export const documentService = {
       throw error;
     }
 
-     // Populate file URLs
+      // Populate file URLs
     return data?.map(doc => ({
         ...doc,
         file_url: getPublicUrl(doc.file_path)
@@ -561,10 +577,10 @@ export const documentService = {
 
       // 2. Get public URL (handle potential errors)
       const fileUrl = getPublicUrl(filePath);
-       if (!fileUrl) {
-           console.warn(`Could not get public URL for uploaded file: ${filePath}`);
-           // Decide if this is critical - maybe proceed without URL or throw error
-       }
+        if (!fileUrl) {
+            console.warn(`Could not get public URL for uploaded file: ${filePath}`);
+            // Decide if this is critical - maybe proceed without URL or throw error
+        }
 
       // 3. Determine document status based on expiry date
       let status = "vigente"; // Default status
@@ -687,11 +703,11 @@ export const documentService = {
     console.log(`Attempting to delete document with ID: ${id}`);
     try {
       const { data: userData, error: userError } = await supabase.auth.getUser();
-       if (userError || !userData?.user) {
-           console.error("deleteDocument: User not authenticated.", userError);
-           throw new Error("User not authenticated");
-       }
-       const userId = userData.user.id;
+        if (userError || !userData?.user) {
+            console.error("deleteDocument: User not authenticated.", userError);
+            throw new Error("User not authenticated");
+        }
+        const userId = userData.user.id;
 
       // 1. Fetch document to get file_path before deleting the record
       const { data: document, error: fetchError } = await supabase
@@ -790,11 +806,11 @@ export const documentService = {
    * @param category - The category name to filter by.
    */
   async getDocumentsByCategory(category: string): Promise<Document[]> {
-     const { data: userData, error: userError } = await supabase.auth.getUser();
-     if (userError || !userData?.user) {
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData?.user) {
         console.error("getDocumentsByCategory: User not authenticated.", userError);
         throw new Error("User not authenticated");
-     }
+      }
 
     const { data, error } = await supabase
       .from("documents")
@@ -820,11 +836,11 @@ export const documentService = {
    * @param query - The search term.
    */
   async searchDocuments(query: string): Promise<Document[]> {
-     const { data: userData, error: userError } = await supabase.auth.getUser();
-     if (userError || !userData?.user) {
-         console.error("searchDocuments: User not authenticated.", userError);
-         throw new Error("User not authenticated");
-     }
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData?.user) {
+          console.error("searchDocuments: User not authenticated.", userError);
+          throw new Error("User not authenticated");
+      }
 
     // Use textSearch for potentially better performance if you have tsvector columns,
     // otherwise use ilike for case-insensitive partial matching.
@@ -840,15 +856,10 @@ export const documentService = {
       throw error;
     }
 
-     // Populate file URLs
+      // Populate file URLs
     return data?.map(doc => ({
         ...doc,
         file_url: getPublicUrl(doc.file_path)
     })) || [];
   },
 };
-
-// Remove redundant function declarations if they are fully implemented within the service object
-// export async function getDocuments(userId: string) { ... }
-// export async function getDocumentById(documentId: string) { ... }
-// ... etc.

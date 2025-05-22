@@ -104,8 +104,9 @@ export default function RegisterPage() {
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-            {success && (
-              <Alert variant="success" className="bg-success/20 text-success border-success">
+              {success && (
+              // Quita variant="success" y deja que className maneje el estilo
+              <Alert className="bg-success/20 text-success border-success">
                 <AlertDescription>{success}</AlertDescription>
               </Alert>
             )}

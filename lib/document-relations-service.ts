@@ -1,4 +1,4 @@
-import { supabase } from "./supabase"
+import { supabaseBrowserClient as supabase } from "./supabase"
 
 export interface RelatedDocument {
   id: string
@@ -6,7 +6,7 @@ export interface RelatedDocument {
   category: string
   tags: string[]
   file_type: string
-  file_url?: string
+  file_url?: string // This means string | undefined
   similarity_score: number
 }
 
@@ -57,27 +57,35 @@ export const documentRelationsService = {
         }
 
         // Procesar los resultados del fallback
-        const relatedDocs = fallbackData.map((doc) => {
+        // Assuming fallbackData is an array of objects from Supabase.
+        // docFromDb will be 'any' if fallbackData is not strongly typed.
+        const relatedDocs = (fallbackData || []).map((docFromDb: any): RelatedDocument => {
           // Calcular puntuación de similitud basada en etiquetas coincidentes
-          const commonTags = (doc.tags || []).filter((tag) => tags.includes(tag))
-          const similarityScore = commonTags.length / Math.max(tags.length, doc.tags?.length || 1)
+          // Ensure 'tag' parameter has an explicit type (string)
+          const commonTags = (docFromDb.tags || []).filter((tag: string) => tags.includes(tag))
+          const similarityScore = commonTags.length / Math.max(tags.length, (docFromDb.tags || []).length || 1)
 
           // Generar URL del archivo
-          let fileUrl = null
-          if (doc.file_path) {
-            const { data: urlData } = supabase.storage.from("documents").getPublicUrl(doc.file_path)
-            fileUrl = urlData.publicUrl
+          let publicFileUrl: string | null = null
+          // Ensure docFromDb.file_path is a string before using it
+          if (docFromDb.file_path && typeof docFromDb.file_path === 'string') {
+            const { data: urlData } = supabase.storage.from("documents").getPublicUrl(docFromDb.file_path)
+            publicFileUrl = urlData?.publicUrl || null // Safely access publicUrl, default to null
           }
 
-          return {
-            id: doc.id,
-            name: doc.name,
-            category: doc.category,
-            tags: doc.tags || [],
-            file_type: doc.file_type,
-            file_url: fileUrl,
-            similarity_score: similarityScore,
-          }
+          // Construct an object that strictly matches the RelatedDocument interface
+          const relatedDocItem: RelatedDocument = {
+            id: String(docFromDb.id), // Coerce to string to satisfy RelatedDocument.id
+            name: String(docFromDb.name), // Coerce to string
+            category: String(docFromDb.category), // Coerce to string
+            // Ensure tags is string[]
+            tags: Array.isArray(docFromDb.tags) ? docFromDb.tags.map(String).filter((tag:string) => typeof tag === 'string') : [],
+            file_type: String(docFromDb.file_type), // Coerce to string
+            // CRITICAL FIX: Convert null to undefined for file_url
+            file_url: publicFileUrl === null ? undefined : publicFileUrl,
+            similarity_score: Number(similarityScore), // Coerce to number
+          };
+          return relatedDocItem;
         })
 
         // Ordenar por puntuación de similitud
@@ -85,17 +93,21 @@ export const documentRelationsService = {
       }
 
       // Procesar los resultados de la función RPC
-      return data.map((doc: any) => ({
-        id: doc.id,
-        name: doc.name,
-        category: doc.category,
-        tags: doc.tags || [],
-        file_type: doc.file_type,
-        file_url: doc.file_url,
-        similarity_score: doc.similarity_score,
-      }))
-    } catch (error) {
-      console.error("Error in getRelatedDocuments:", error)
+      // Ensure the objects returned by the RPC also conform to RelatedDocument
+      return (data || []).map((docFromRpc: any): RelatedDocument => {
+        let rpcFileUrl: string | null = docFromRpc.file_url; // Assume file_url might be null
+        return {
+            id: String(docFromRpc.id),
+            name: String(docFromRpc.name),
+            category: String(docFromRpc.category),
+            tags: Array.isArray(docFromRpc.tags) ? docFromRpc.tags.map(String).filter((tag:string) => typeof tag === 'string') : [],
+            file_type: String(docFromRpc.file_type),
+            file_url: rpcFileUrl === null ? undefined : rpcFileUrl, // Convert null to undefined
+            similarity_score: Number(docFromRpc.similarity_score),
+        };
+      })
+    } catch (err) { // Changed error variable name to avoid conflict if 'error' is used above
+      console.error("Error in getRelatedDocuments:", err)
       return []
     }
   },

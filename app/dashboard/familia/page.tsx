@@ -64,7 +64,7 @@ export default function FamiliaPage() {
       view_all: true,
       download: false,
       edit: false,
-      categories: [],
+      categories: [] as string[], // Ensure type consistency
     },
   })
   const [isInviting, setIsInviting] = useState(false)
@@ -81,7 +81,7 @@ export default function FamiliaPage() {
       view_all: true,
       download: false,
       edit: false,
-      categories: [],
+      categories: [] as string[], // Corrected: Explicitly type as string[]
     },
   })
   const [isEditing, setIsEditing] = useState(false)
@@ -137,7 +137,7 @@ export default function FamiliaPage() {
           view_all: true,
           download: false,
           edit: false,
-          categories: [],
+          categories: [] as string[], // Ensure type consistency
         },
       })
 
@@ -211,7 +211,7 @@ export default function FamiliaPage() {
   const startEditMember = (member: FamilyMember) => {
     setMemberToEdit(member)
     setEditForm({
-      permissions: { ...member.permissions },
+      permissions: { ...member.permissions }, // This spread should now work correctly
     })
     setEditDialogOpen(true)
   }
