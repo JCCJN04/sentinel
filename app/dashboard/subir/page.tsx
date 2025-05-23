@@ -1,316 +1,399 @@
-"use client";
+// startupv2/app/dashboard/subir/page.tsx
+'use client'
 
-import type React from "react";
-import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-// AQUÍ ESTÁ EL CAMBIO: Renombramos el ícono 'File' a 'FileIcon'
-import { Camera, File as FileIcon, Upload, X, AlertCircle, CheckCircle, Loader2 } from "lucide-react";
-// Corrected: Ensure MEDICAL_CATEGORIES is exported from document-service.ts
-import { documentService, type DocumentUpload, MEDICAL_CATEGORIES } from "@/lib/document-service";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Slider } from "@/components/ui/slider"; // Assuming Slider is used, kept for completeness
-import { useToast } from "@/components/ui/use-toast";
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useForm } from 'react-hook-form'
+import { z } from 'zod'
+import { Button } from '@/components/ui/button'
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { toast } from '@/components/ui/use-toast'
+import { UploadCloud, X, FileText, Loader2 } from 'lucide-react'
+import React from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { getUserProfile as getUser } from '@/lib/user-service'
+import { uploadDocument, type DocumentUpload } from '@/lib/document-service';
+import { getCategoriesForUser, Category } from '@/lib/category-service';
 
-interface FormData {
-  name: string;
-  category: string;
-  date: string;
-  expiry_date?: string;
-  provider?: string;
-  amount?: string;
-  currency?: string;
-  tags: string;
-  notes?: string;
-  patient_name?: string;
-  doctor_name?: string;
-  specialty?: string;
-}
+const ACCEPTED_FILE_TYPES = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'image/jpeg',
+  'image/png',
+  'image/heic',
+  'image/heif',
+]
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 
-export default function SubirDocumentoMedicoPage() {
+const formSchema = z.object({
+  documentName: z.string().optional(),
+  category: z.string().optional(),
+  description: z.string().optional(),
+  tags: z.string().optional(),
+  file: z
+    .custom<File | null>((val) => val instanceof File || val === null, 'Debes seleccionar un archivo.')
+    .refine(
+      (file) => file === null || file.size <= MAX_FILE_SIZE,
+      `El tamaño máximo del archivo es ${MAX_FILE_SIZE / (1024 * 1024)}MB.`
+    )
+    .refine(
+      (file) => file === null || ACCEPTED_FILE_TYPES.includes(file.type),
+      'Tipo de archivo no soportado. Sube PDF, DOC, DOCX, JPG, PNG, HEIC.'
+    ),
+  date: z.string().refine((val) => val === '' || !val || !isNaN(Date.parse(val)), { message: "Fecha inválida" }).optional(),
+  expiry_date: z.string().optional(),
+  notes: z.string().optional(),
+  provider: z.string().optional(),
+  amount: z.string().optional(),
+  currency: z.string().optional(),
+  patient_name: z.string().optional(),
+  doctor_name: z.string().optional(),
+  specialty: z.string().optional(),
+  reminderDate: z.string().optional(),
+  reminderNote: z.string().optional(),
+});
+
+type FormValues = z.infer<typeof formSchema>;
+
+export default function SubirDocumentoPage() {
+  const [filePreview, setFilePreview] = React.useState<string | null>(null);
+  const [fileName, setFileName] = React.useState<string>('');
+  const [isUploading, setIsUploading] = React.useState(false);
   const router = useRouter();
-  const { toast } = useToast();
-  const [files, setFiles] = useState<File[]>([]); // Esta 'File' es la global del DOM, ahora no hay conflicto
-  const [dragActive, setDragActive] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadSuccess, setUploadSuccess] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [formData, setFormData] = useState<FormData>({
-    name: "", category: "", date: "", expiry_date: "", provider: "", amount: "",
-    currency: "MXN", tags: "", notes: "", patient_name: "", doctor_name: "", specialty: "",
+  const searchParams = useSearchParams();
+
+  const [categories, setCategories] = React.useState<Category[]>([]);
+  const [isLoadingCategories, setIsLoadingCategories] = React.useState(true);
+  const [categoryError, setCategoryError] = React.useState<string | null>(null);
+  const [categoryFromUrl, setCategoryFromUrl] = React.useState<string | null>(null);
+
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      documentName: '',
+      category: '',
+      description: '',
+      tags: '',
+      file: null,
+      date: new Date().toISOString().split('T')[0],
+      expiry_date: '',
+      provider: '',
+      amount: '',
+      currency: '',
+      patient_name: '',
+      doctor_name: '',
+      specialty: '',
+      reminderDate: '',
+      reminderNote: '',
+    },
   });
 
-  // --- Camera States and Logic ---
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const photoRef = useRef<HTMLCanvasElement>(null); // For processed/final image
-  const [hasCamera, setHasCamera] = useState(false);
-  const [cameraActive, setCameraActive] = useState(false);
-  const [photoTaken, setPhotoTaken] = useState(false); // True when a raw photo is snapped
-  const [isCropMode, setIsCropMode] = useState(false);
-  const [cropPoints, setCropPoints] = useState<{ top: number; left: number; right: number; bottom: number }>({ top: 20, left: 20, right: 80, bottom: 80 });
-  const [brightness, setBrightness] = useState(100); // Percentage
-  const [contrast, setContrast] = useState(100); // Percentage
-  const [isProcessing, setIsProcessing] = useState(false);
-
-
-  useEffect(() => {
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      navigator.mediaDevices.getUserMedia({ video: true })
-        .then(() => setHasCamera(true))
-        .catch(() => setHasCamera(false));
+  const fetchUserCategories = React.useCallback(async () => {
+    try {
+      setIsLoadingCategories(true);
+      const fetchedCategories = await getCategoriesForUser();
+      setCategories(fetchedCategories);
+      setCategoryError(null);
+    } catch (error) {
+      console.error('Failed to fetch categories:', error);
+      const errorMessage = error instanceof Error ? error.message : 'No se pudieron cargar las categorías.';
+      setCategoryError(errorMessage);
+      toast({
+        title: 'Error al cargar categorías',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingCategories(false);
     }
   }, []);
 
-  const startCamera = async () => {
-      if (!hasCamera) return;
+  React.useEffect(() => {
+    fetchUserCategories();
+  }, [fetchUserCategories]);
+
+  React.useEffect(() => {
+    const categoryNameFromQuery = searchParams.get('categoria');
+    if (categoryNameFromQuery) {
+      const categoryExists = categories.some(cat => cat.name === categoryNameFromQuery);
+      if (categoryExists) {
+        form.setValue('category', categoryNameFromQuery, { shouldValidate: true });
+        setCategoryFromUrl(categoryNameFromQuery);
+      } else if (!isLoadingCategories && categories.length > 0) {
+        toast({
+          title: 'Categoría no encontrada',
+          description: `La categoría "${categoryNameFromQuery}" no existe. Puedes seleccionar otra o subir sin categoría.`,
+          variant: 'warning',
+        });
+      } else if (!isLoadingCategories && categories.length === 0 && categoryNameFromQuery) {
+         toast({
+          title: 'Sin Categorías',
+          description: `No hay categorías disponibles. La categoría "${categoryNameFromQuery}" no se pudo preseleccionar.`,
+          variant: 'warning',
+        });
+      }
+    }
+  }, [searchParams, categories, form, isLoadingCategories]);
+
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      form.setValue('file', file, { shouldValidate: true });
+      setFileName(file.name);
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setFilePreview(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        setFilePreview(null);
+      }
+    } else {
+      form.setValue('file', null, { shouldValidate: true });
+      setFileName('');
+      setFilePreview(null);
+    }
+  };
+
+  const removeFile = () => {
+    form.setValue('file', null, { shouldValidate: true });
+    setFileName('');
+    setFilePreview(null);
+    const fileInput = document.getElementById('file-upload') as HTMLInputElement;
+    if (fileInput) {
+      fileInput.value = '';
+    }
+  };
+
+  async function onSubmit(values: FormValues) {
+    if (!values.file) {
+      toast({ title: 'Archivo Requerido', description: 'Por favor, selecciona un archivo para subir.', variant: 'destructive' });
+      form.setError('file', { type: 'manual', message: 'Debes seleccionar un archivo.' });
+      return;
+    }
+
+    setIsUploading(true);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } } });
-      if (videoRef.current) { videoRef.current.srcObject = stream; setCameraActive(true); setPhotoTaken(false); }
-    } catch (err) { console.error("Error starting camera:", err); toast({ title: "Error", description: "No se pudo acceder a la cámara.", variant: "destructive" }); }
-  };
-  const stopCamera = () => {
-      if (videoRef.current && videoRef.current.srcObject) { const stream = videoRef.current.srcObject as MediaStream; stream.getTracks().forEach(track => track.stop()); videoRef.current.srcObject = null; setCameraActive(false); }
-  };
-  const takePhoto = () => {
-      if (!videoRef.current || !canvasRef.current) return; const video = videoRef.current; const canvas = canvasRef.current; const context = canvas.getContext("2d"); if (!context) return; canvas.width = video.videoWidth; canvas.height = video.videoHeight; context.drawImage(video, 0, 0, canvas.width, canvas.height); setPhotoTaken(true); stopCamera();
-  };
-  const discardPhoto = () => { setPhotoTaken(false); setIsCropMode(false); startCamera(); }; // Restart camera on discard
-  const truncateColor = (value: number): number => { if (value < 0) return 0; if (value > 255) return 255; return value; };
-  const processImage = () => {
-      if (!canvasRef.current || !photoRef.current) return; setIsProcessing(true); const sourceCanvas = canvasRef.current; const targetCanvas = photoRef.current; const sourceContext = sourceCanvas.getContext("2d"); const targetContext = targetCanvas.getContext("2d"); if (!sourceContext || !targetContext) { setIsProcessing(false); return; } const width = sourceCanvas.width; const height = sourceCanvas.height; targetCanvas.width = width; targetCanvas.height = height; const imageData = sourceContext.getImageData(0, 0, width, height); const data = imageData.data; const brightnessValue = (brightness - 100) * 2.55; const contrastFactor = (259 * (contrast + 255)) / (255 * (259 - contrast)); for (let i = 0; i < data.length; i += 4) { data[i] += brightnessValue; data[i + 1] += brightnessValue; data[i + 2] += brightnessValue; data[i] = truncateColor(contrastFactor * (data[i] - 128) + 128); data[i + 1] = truncateColor(contrastFactor * (data[i + 1] - 128) + 128); data[i + 2] = truncateColor(contrastFactor * (data[i + 2] - 128) + 128); } if (isCropMode) { const cropX = Math.floor((width * cropPoints.left) / 100); const cropY = Math.floor((height * cropPoints.top) / 100); const cropWidth = Math.floor((width * (cropPoints.right - cropPoints.left)) / 100); const cropHeight = Math.floor((height * (cropPoints.bottom - cropPoints.top)) / 100); const croppedImageData = sourceContext.getImageData(cropX, cropY, cropWidth, cropHeight); targetCanvas.width = cropWidth; targetCanvas.height = cropHeight; targetContext.putImageData(croppedImageData, 0, 0); } else { targetContext.putImageData(imageData, 0, 0); } targetCanvas.toBlob((blob) => { if (blob) {
-        // Ahora 'new File' se refiere al constructor global del DOM sin ambigüedad
-        const file = new File([blob], "scan.jpg", { type: "image/jpeg" });
-        setFiles([file]); toast({ title: "Éxito", description: "Imagen procesada y lista para subir." }); } setIsProcessing(false); setIsCropMode(false); setPhotoTaken(false); }, "image/jpeg", 0.95); // Reset states after processing
-  };
-  const toggleCropMode = () => setIsCropMode(!isCropMode);
-  // --- End Camera Logic ---
+      const user = await getUser();
+      if (!user) {
+        toast({ title: 'Error', description: 'Usuario no autenticado.', variant: 'destructive' });
+        setIsUploading(false);
+        router.push('/login');
+        return;
+      }
 
-  // --- File Drag & Drop Handlers ---
-  const handleDrag = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); if (e.type === "dragenter" || e.type === "dragover") setDragActive(true); else if (e.type === "dragleave") setDragActive(false); };
-  const handleDrop = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); setDragActive(false); if (e.dataTransfer.files && e.dataTransfer.files[0]) { validateAndAddFiles(Array.from(e.dataTransfer.files)); } };
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { if (e.target.files && e.target.files.length > 0) { validateAndAddFiles(Array.from(e.target.files)); e.target.value = ''; } }; // Clear input value
-  // --- End File Drag & Drop ---
+      const docName = values.documentName?.trim() || values.file?.name || "Documento sin título";
+      const categoryToAssign = values.category?.trim() || null;
 
-  // --- File Validation ---
-  const validateAndAddFiles = (newFiles: File[]) => { // Esta 'File' es la global del DOM
-    if (newFiles.length > 1) { setUploadError("Por favor, sube solo un archivo a la vez."); return; }
-    if (files.length >= 1) { setUploadError("Ya has seleccionado un archivo. Elimina el actual para subir otro."); return; } // Allow only one file
-    const file = newFiles[0];
-    if (file.size > 10 * 1024 * 1024) { setUploadError("El archivo es demasiado grande (máx 10MB)."); return; }
-    const allowedTypes = ["application/pdf", "image/jpeg", "image/png", "image/tiff", "image/dicom", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "text/plain", "text/csv"];
-    if (!allowedTypes.includes(file.type)) { setUploadError("Tipo de archivo no soportado (PDF, JPG, PNG, TIFF, DOCX, TXT, CSV)."); return; }
-    setFiles([file]); setUploadError(null);
-  };
-  const removeFile = (index: number) => { setFiles((prevFiles) => prevFiles.filter((_, i) => i !== index)); };
-  // --- End File Validation ---
-
-  // --- Form Input Handlers ---
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => { const { name, value } = e.target; setFormData((prev) => ({ ...prev, [name]: value })); };
-  const handleSelectChange = (name: keyof FormData, value: string) => { setFormData((prev) => ({ ...prev, [name]: value })); };
-  // --- End Form Input Handlers ---
-
-  // --- Form Submission ---
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (files.length === 0) { setUploadError("Por favor, selecciona o captura un archivo para subir."); return; }
-    if (!formData.name || !formData.category || !formData.date) { setUploadError("Por favor, completa los campos obligatorios: nombre, categoría y fecha."); return; }
-    setIsUploading(true); setUploadError(null); setUploadSuccess(false);
-    try {
-      const tags = formData.tags.split(",").map(tag => tag.trim()).filter(tag => tag); // Ensure no empty tags
-      const documentData: DocumentUpload = {
-        name: formData.name, category: formData.category, tags, date: formData.date,
-        expiry_date: formData.expiry_date || undefined, provider: formData.provider || undefined,
-        amount: formData.amount || undefined, currency: formData.currency || undefined,
-        notes: formData.notes || undefined, patient_name: formData.patient_name || undefined,
-        doctor_name: formData.doctor_name || undefined, specialty: formData.specialty || undefined,
-        file: files[0],
+      const documentDataForUpload: DocumentUpload = {
+        name: docName,
+        category: categoryToAssign,
+        tags: values.tags?.split(',').map((tag) => tag.trim()).filter(tag => tag) || [],
+        date: values.date || new Date().toISOString().split('T')[0],
+        expiry_date: values.expiry_date || null,
+        notes: values.description || null,
+        file: values.file,
+        provider: values.provider || null,
+        amount: values.amount || null,
+        currency: values.currency || null,
+        patient_name: values.patient_name || null,
+        doctor_name: values.doctor_name || null,
+        specialty: values.specialty || null,
       };
-      await documentService.uploadDocument(documentData);
-      setUploadSuccess(true); setFiles([]); // Clear files after successful upload
-      setFormData({ name: "", category: "", date: "", expiry_date: "", provider: "", amount: "", currency: "MXN", tags: "", notes: "", patient_name: "", doctor_name: "", specialty: "" }); // Reset form
-      toast({ title: "Éxito", description: "Documento médico guardado correctamente." });
-      setTimeout(() => router.push("/dashboard/documentos"), 1500); // Redirect after success
-    } catch (error) { console.error("Error uploading document:", error); setUploadError("Error al subir el documento. Por favor, inténtalo de nuevo."); setUploadSuccess(false); }
-    finally { setIsUploading(false); }
-  };
-  const handleCancel = () => { router.back(); }; // Or router.push('/dashboard/documentos');
-  // --- End Form Submission ---
+      
+      console.log("Enviando a uploadDocument:", documentDataForUpload);
+      const uploadedDoc = await uploadDocument(documentDataForUpload);
 
-  // --- Render Component ---
+      if (uploadedDoc) {
+        toast({ title: 'Éxito', description: 'Documento subido y procesándose.' });
+        form.reset(); 
+        setFilePreview(null);
+        setFileName('');
+        setCategoryFromUrl(null);
+        router.push(`/dashboard/documentos/${uploadedDoc.id}`);
+      }
+    } catch (error: any) {
+      console.error('Error en onSubmit al subir documento:', error);
+      toast({
+        title: 'Error al subir',
+        description: error.message || 'Ocurrió un problema al intentar subir el documento.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  }
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Subir Documento Médico</h1>
-        <p className="text-muted-foreground">Añade nuevos resultados, recetas o informes a tu historial médico digital.</p>
-      </div>
+    <div className="container mx-auto p-4 md:p-8 max-w-3xl">
+      <h1 className="text-3xl font-bold mb-8 text-center">Subir Nuevo Documento</h1>
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+          <FormField
+            control={form.control}
+            name="documentName"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Nombre del Documento (Opcional)</FormLabel>
+                <FormControl><Input placeholder="Ej: Radiografía de Tórax - Juan Pérez" {...field} /></FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-      {/* Alerts */}
-      {uploadSuccess && ( <Alert className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700"><CheckCircle className="h-4 w-4" /><AlertDescription>Documento subido exitosamente. Redirigiendo...</AlertDescription></Alert> )}
-      {uploadError && ( <Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertDescription>{uploadError}</AlertDescription></Alert> )}
-
-      <Tabs defaultValue="archivo" className="space-y-4">
-        <TabsList>
-          {/* AQUÍ ESTÁ EL CAMBIO: Usamos FileIcon en lugar de File */}
-          <TabsTrigger value="archivo" className="flex items-center gap-2"><FileIcon className="h-4 w-4" /><span>Archivo</span></TabsTrigger>
-          <TabsTrigger value="camara" className="flex items-center gap-2" disabled={!hasCamera}><Camera className="h-4 w-4" /><span>Escanear</span></TabsTrigger>
-        </TabsList>
-
-        {/* File Upload Tab */}
-        <TabsContent value="archivo" className="space-y-4">
-          <Card>
-            <CardContent className="pt-6">
-              {/* Drag and Drop Area */}
-              <div className={`border-2 border-dashed rounded-lg p-8 text-center ${dragActive ? "border-primary bg-primary/5" : "border-muted-foreground/25"}`} onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop}>
-                  <div className="mx-auto flex max-w-[420px] flex-col items-center justify-center gap-2">
-                    <Upload className="h-10 w-10 text-muted-foreground" />
-                    <h3 className="text-xl font-semibold">Arrastra tu archivo aquí</h3>
-                    <p className="text-sm text-muted-foreground">o haz clic para seleccionar</p>
-                    <p className="text-xs text-muted-foreground">PDF, JPG, PNG, DOCX, TXT, CSV (Máx 10MB)</p>
-                    <Input id="file-upload" type="file" className="hidden" onChange={handleFileChange} accept=".pdf,.jpg,.jpeg,.png,.tiff,.doc,.docx,.txt,.csv" />
-                    <Button type="button" variant="outline" onClick={() => document.getElementById("file-upload")?.click()}>Seleccionar archivo</Button>
+          <FormField
+            control={form.control}
+            name="category"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Categoría (Opcional)</FormLabel>
+                <Select
+                  onValueChange={(selectedValue) => {
+                    if (selectedValue === "_NONE_") {
+                      field.onChange(""); 
+                    } else {
+                      field.onChange(selectedValue);
+                    }
+                  }}
+                  value={field.value || ''} 
+                  disabled={isLoadingCategories || !!categoryError || !!categoryFromUrl}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder={
+                        isLoadingCategories ? "Cargando categorías..."
+                        : categoryError ? "Error al cargar"
+                        : categoryFromUrl ? categoryFromUrl
+                        : "Selecciona una categoría (Opcional)"
+                      } />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="_NONE_">-- Ninguna --</SelectItem> 
+                    {isLoadingCategories ? <SelectItem value="loading_cats" disabled>Cargando...</SelectItem>
+                      : categoryError ? <SelectItem value="error_cats" disabled>{categoryError}</SelectItem>
+                      : categories.length > 0 ? categories.map((cat) => (
+                          <SelectItem key={cat.id} value={cat.name}>
+                            {cat.name} {cat.user_id === null ? '(global)' : ''}
+                          </SelectItem>
+                        ))
+                      : <SelectItem value="no_cat_avail" disabled>No hay categorías disponibles.</SelectItem>}
+                  </SelectContent>
+                </Select>
+                {categoryFromUrl && (
+                  <FormDescription className="mt-1 text-xs text-muted-foreground">
+                    Categoría preseleccionada. Puedes cambiarla si es necesario.
+                  </FormDescription>
+                )}
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="file"
+            render={({ fieldState }) => (
+              <FormItem>
+                <FormLabel>Archivo (Requerido para subir)</FormLabel>
+                <FormControl>
+                  <div className="flex flex-col items-center justify-center w-full">
+                    <label htmlFor="file-upload" className={`flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-lg cursor-pointer bg-gray-50 dark:hover:bg-bray-800 dark:bg-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:hover:border-gray-500 dark:hover:bg-gray-600 ${fieldState.error ? 'border-destructive' : ''}`}>
+                      {filePreview && fileName.match(/\.(jpeg|jpg|png|gif|heic|heif)$/i) ? (
+                        <div className="relative w-full h-full"><img src={filePreview} alt="Vista previa" className="object-contain w-full h-full rounded-lg" /><button type="button" onClick={removeFile} className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600" aria-label="Remove file"><X size={16} /></button></div>
+                      ) : fileName ? (
+                        <div className="flex flex-col items-center justify-center pt-5 pb-6"><FileText size={32} className="text-gray-500 dark:text-gray-400 mb-2" /><p className="mb-2 text-sm text-gray-500 dark:text-gray-400"><span className="font-semibold">{fileName}</span></p><p className="text-xs text-gray-500 dark:text-gray-400">PDF, DOC, DOCX, JPG, PNG, HEIC (MAX. 10MB)</p><button type="button" onClick={removeFile} className="mt-2 text-sm text-red-500 hover:text-red-700">Quitar archivo</button></div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center pt-5 pb-6"><UploadCloud size={32} className="mb-4 text-gray-500 dark:text-gray-400" /><p className="mb-2 text-sm text-gray-500 dark:text-gray-400"><span className="font-semibold">Haz clic para subir</span> o arrastra y suelta</p><p className="text-xs text-gray-500 dark:text-gray-400">PDF, DOC, DOCX, JPG, PNG, HEIC (MAX. 10MB)</p></div>
+                      )}
+                      <input id="file-upload" type="file" className="hidden" onChange={handleFileChange} accept={ACCEPTED_FILE_TYPES.join(',')} />
+                    </label>
                   </div>
-              </div>
-              {/* Display Selected File */}
-              {files.length > 0 && (
-                <div className="mt-6 space-y-2">
-                  <h4 className="text-sm font-medium">Archivo seleccionado</h4>
-                  {files.map((file, index) => ( <div key={index} className="flex items-center justify-between rounded-md border p-3"> <div className="flex items-center gap-3 overflow-hidden">
-                    {/* AQUÍ ESTÁ EL CAMBIO: Usamos FileIcon en lugar de File */}
-                    <FileIcon className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-                    <div className="overflow-hidden"> <p className="text-sm font-medium truncate">{file.name}</p> <p className="text-xs text-muted-foreground">{(file.size / 1024 / 1024).toFixed(2)} MB</p> </div> </div> <Button variant="ghost" size="icon" onClick={() => removeFile(index)} className="flex-shrink-0"><X className="h-4 w-4" /></Button> </div> ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+                </FormControl>
+                <FormDescription>Selecciona el documento que deseas subir.</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-        {/* Camera Scan Tab */}
-        <TabsContent value="camara">
-            <Card>
-              <CardContent className="pt-6">
-                {/* Camera UI Logic */}
-                {!hasCamera ? ( <div className="text-center p-8 border-2 border-dashed rounded-lg"><div className="mx-auto flex max-w-[420px] flex-col items-center justify-center gap-2"><Camera className="h-10 w-10 text-muted-foreground" /><h3 className="text-xl font-semibold">Cámara no disponible</h3><p className="text-sm text-muted-foreground">No se pudo acceder a la cámara. Verifica los permisos.</p></div></div> ) : ( <div className="space-y-4"> <div className={`relative ${photoTaken ? "hidden" : "block"}`}> <video ref={videoRef} autoPlay playsInline className="w-full rounded-lg border" style={{ maxHeight: "60vh" }} /> {cameraActive && ( <div className="absolute bottom-4 left-0 right-0 flex justify-center"><Button onClick={takePhoto} className="bg-primary text-primary-foreground">Capturar</Button></div> )} </div> <div className={`relative ${photoTaken ? "block" : "hidden"}`}> <div className="relative"> <canvas ref={canvasRef} className="w-full rounded-lg border" /> {isCropMode && ( <div className="absolute top-0 left-0 right-0 bottom-0 border-2 border-dashed border-primary pointer-events-none" style={{ top: `${cropPoints.top}%`, left: `${cropPoints.left}%`, right: `${100 - cropPoints.right}%`, bottom: `${100 - cropPoints.bottom}%`}} /> )} </div> <canvas ref={photoRef} className="hidden" /> <div className="mt-4 space-y-4"> <div className="flex flex-wrap gap-2 justify-center"><Button onClick={discardPhoto} variant="outline">Descartar</Button><Button onClick={toggleCropMode} variant="outline">{isCropMode ? "Cancelar Recorte" : "Recortar"}</Button><Button onClick={processImage} disabled={isProcessing}>{isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Procesar</Button></div> {isCropMode && ( <div className="space-y-2 border p-3 rounded-md"> {/* Crop sliders UI - Add Slider components here */} </div> )} <div className="space-y-2 border p-3 rounded-md"> {/* Brightness/Contrast sliders UI - Add Slider components here */} </div> </div> </div> {!cameraActive && !photoTaken && ( <div className="flex justify-center pt-4"><Button onClick={startCamera} className="bg-primary text-primary-foreground">Iniciar Cámara</Button></div> )} </div> )}
-              </CardContent>
-            </Card>
-        </TabsContent>
-      </Tabs>
+          <FormField
+            control={form.control}
+            name="date"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Fecha del Documento (Opcional)</FormLabel>
+                <FormControl><Input type="date" {...field} /></FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-      {/* Metadata Form */}
-      {files.length > 0 && (
-        <Card>
-          <CardContent className="pt-6">
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* --- Core Fields --- */}
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Nombre del Documento <span className="text-destructive">*</span></Label>
-                  <Input id="name" name="name" value={formData.name} onChange={handleInputChange} placeholder="Ej. Resultados Biometría Hemática" required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="date">Fecha del Documento <span className="text-destructive">*</span></Label>
-                  <Input id="date" name="date" type="date" value={formData.date} onChange={handleInputChange} required />
-                </div>
-              </div>
+          <FormField
+            control={form.control}
+            name="description" 
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Descripción / Notas (Opcional)</FormLabel>
+                <FormControl><Textarea placeholder="Añade una breve descripción o notas..." className="resize-none" {...field} /></FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="category">Categoría <span className="text-destructive">*</span></Label>
-                    <Select value={formData.category} onValueChange={(value) => handleSelectChange("category", value)} name="category" required>
-                      <SelectTrigger id="category">
-                        <SelectValue placeholder="Selecciona una categoría médica" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {/* Safeguard and Map Medical Categories */}
-                        {Array.isArray(MEDICAL_CATEGORIES) && MEDICAL_CATEGORIES.length > 0 ? (
-                          MEDICAL_CATEGORIES.map((category) => (
-                            <SelectItem key={category} value={category}>
-                              {category}
-                            </SelectItem>
-                          ))
-                        ) : (
-                          <SelectItem value="general" disabled>General (cargar categorías)</SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="expiry_date">Fecha de Vencimiento/Próxima Cita (Opcional)</Label>
-                    <Input id="expiry_date" name="expiry_date" type="date" value={formData.expiry_date} onChange={handleInputChange} />
-                  </div>
-              </div>
+          <FormField
+            control={form.control}
+            name="tags"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Etiquetas (Opcional)</FormLabel>
+                <FormControl><Input placeholder="Ej: importante, urgente, personal" {...field} /></FormControl>
+                <FormDescription>Separa las etiquetas con comas.</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-                {/* --- New Medical Fields --- */}
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                    <div className="space-y-2">
-                        <Label htmlFor="patient_name">Nombre del Paciente (Opcional)</Label>
-                        <Input id="patient_name" name="patient_name" value={formData.patient_name ?? ''} onChange={handleInputChange} placeholder="Ej. Juan Pérez" />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="doctor_name">Nombre del Médico (Opcional)</Label>
-                        <Input id="doctor_name" name="doctor_name" value={formData.doctor_name ?? ''} onChange={handleInputChange} placeholder="Ej. Dra. Martínez" />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="specialty">Especialidad Médica (Opcional)</Label>
-                        <Input id="specialty" name="specialty" value={formData.specialty ?? ''} onChange={handleInputChange} placeholder="Ej. Cardiología" />
-                    </div>
-                </div>
+          <h2 className="text-xl font-semibold pt-4 border-t mt-6">Información Adicional (Opcional)</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <FormField control={form.control} name="patient_name" render={({ field }) => (<FormItem><FormLabel>Nombre del Paciente</FormLabel><FormControl><Input placeholder="Nombre completo del paciente" {...field} /></FormControl><FormMessage /></FormItem>)} />
+            <FormField control={form.control} name="doctor_name" render={({ field }) => (<FormItem><FormLabel>Nombre del Médico</FormLabel><FormControl><Input placeholder="Nombre del médico tratante" {...field} /></FormControl><FormMessage /></FormItem>)} />
+            <FormField control={form.control} name="specialty" render={({ field }) => (<FormItem><FormLabel>Especialidad Médica</FormLabel><FormControl><Input placeholder="Ej: Cardiología, Pediatría" {...field} /></FormControl><FormMessage /></FormItem>)} />
+            <FormField control={form.control} name="provider" render={({ field }) => (<FormItem><FormLabel>Proveedor/Clínica</FormLabel><FormControl><Input placeholder="Nombre del hospital o clínica" {...field} /></FormControl><FormMessage /></FormItem>)} />
+            <FormField control={form.control} name="expiry_date" render={({ field }) => (<FormItem><FormLabel>Fecha de Expiración del Documento</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>)} />
+            <FormField control={form.control} name="amount" render={({ field }) => (<FormItem><FormLabel>Monto (si aplica)</FormLabel><FormControl><Input type="number" step="0.01" placeholder="0.00" {...field} /></FormControl><FormMessage /></FormItem>)} />
+            <FormField control={form.control} name="currency" render={({ field }) => (<FormItem><FormLabel>Moneda</FormLabel><FormControl><Input placeholder="Ej: MXN, USD" {...field} /></FormControl><FormMessage /></FormItem>)} />
+          </div>
 
-                {/* --- Optional General Fields --- */}
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <div className="space-y-2">
-                  <Label htmlFor="provider">Laboratorio / Clínica / Aseguradora (Opcional)</Label>
-                  <Input id="provider" name="provider" value={formData.provider ?? ''} onChange={handleInputChange} placeholder="Ej. Laboratorio Salud Digna" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="amount">Costo (Opcional)</Label>
-                  <Input id="amount" name="amount" type="number" step="0.01" value={formData.amount ?? ''} onChange={handleInputChange} placeholder="Ej. 150.00" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="currency">Moneda</Label>
-                  <Select value={formData.currency} onValueChange={(value) => handleSelectChange("currency", value)} name="currency">
-                    <SelectTrigger id="currency"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="MXN">MXN - Peso Mexicano</SelectItem>
-                      <SelectItem value="USD">USD - Dólar Americano</SelectItem>
-                      <SelectItem value="EUR">EUR - Euro</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+          <h2 className="text-xl font-semibold pt-4 border-t mt-6">Programar Recordatorio (Opcional)</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <FormField control={form.control} name="reminderDate" render={({ field }) => (<FormItem><FormLabel>Fecha del Recordatorio</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>)} />
+            <FormField control={form.control} name="reminderNote" render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel>Nota del Recordatorio</FormLabel><FormControl><Textarea placeholder="Ej: Programar cita de seguimiento, renovar receta" {...field} /></FormControl><FormMessage /></FormItem>)} />
+          </div>
 
-              {/* --- Tags and Notes --- */}
-              <div className="space-y-2">
-                <Label htmlFor="tags">Etiquetas (separadas por comas)</Label>
-                <Input id="tags" name="tags" value={formData.tags} onChange={handleInputChange} placeholder="Ej. anual, chequeo, dr_lopez, diabetes" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="notes">Notas Adicionales</Label>
-                <Textarea
-                  id="notes" name="notes" value={formData.notes ?? ''} onChange={handleInputChange}
-                  className="min-h-[100px]"
-                  placeholder="Añade indicaciones, resultados clave o información relevante..."
-                />
-              </div>
-
-              {/* --- Buttons --- */}
-              <div className="flex justify-end gap-2 pt-4">
-                <Button variant="outline" type="button" onClick={handleCancel} disabled={isUploading}>Cancelar</Button>
-                <Button type="submit" disabled={isUploading || files.length === 0}>
-                  {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  {isUploading ? "Guardando..." : "Guardar Documento Médico"}
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      )}
+          <Button type="submit" className="w-full" disabled={isUploading || isLoadingCategories}>
+            {isUploading ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Subiendo...</>) : ('Subir Documento')}
+          </Button>
+        </form>
+      </Form>
     </div>
-  );
+  )
 }

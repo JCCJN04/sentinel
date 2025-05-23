@@ -24,12 +24,13 @@ const sidebarItems: SidebarItem[] = [
     href: "/dashboard/documentos",
     icon: FileText,
   },
+  /*
   {
     title: "Subir documento",
     href: "/dashboard/subir",
     icon: Upload,
   },
-  /*
+  
   {
     title: "Alertas",
     href: "/dashboard/alertas",
