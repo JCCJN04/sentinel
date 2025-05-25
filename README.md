@@ -1,6 +1,6 @@
-# Database - Sistema de Gestión Documental Personal
+# Database - Sentinel
 
-Database es una aplicación web para almacenar, organizar y gestionar todos tus documentos importantes en un entorno seguro y accesible desde cualquier dispositivo.
+Sentinel es una aplicación web para almacenar, organizar y gestionar documentos medicos en un entorno seguro y accesible desde cualquier dispositivo.
 
 ## Características
 
@@ -26,11 +26,3 @@ Database es una aplicación web para almacenar, organizar y gestionar todos tus 
 - Node.js 18 o superior
 - npm o pnpm
 - Cuenta de Supabase
-
-## Configuración
-
-1. Clona este repositorio:
-
-\`\`\`bash
-git clone https://github.com/tu-usuario/docuvault.git
-cd docuvault
