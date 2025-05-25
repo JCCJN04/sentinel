@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { toast } from '@/components/ui/use-toast'
+import { toast } from '@/components/ui/use-toast' // This is the hook being used
 import { UploadCloud, X, FileText, Loader2 } from 'lucide-react'
 import React from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -140,13 +140,13 @@ export default function SubirDocumentoPage() {
         toast({
           title: 'Categoría no encontrada',
           description: `La categoría "${categoryNameFromQuery}" no existe. Puedes seleccionar otra o subir sin categoría.`,
-          variant: 'warning',
+          variant: 'default', // Changed from 'warning'
         });
       } else if (!isLoadingCategories && categories.length === 0 && categoryNameFromQuery) {
          toast({
           title: 'Sin Categorías',
           description: `No hay categorías disponibles. La categoría "${categoryNameFromQuery}" no se pudo preseleccionar.`,
-          variant: 'warning',
+          variant: 'default', // Changed from 'warning'
         });
       }
     }
@@ -210,7 +210,7 @@ export default function SubirDocumentoPage() {
         tags: values.tags?.split(',').map((tag) => tag.trim()).filter(tag => tag) || [],
         date: values.date || new Date().toISOString().split('T')[0],
         expiry_date: values.expiry_date || null,
-        notes: values.description || null,
+        notes: values.description || null, // Ensure 'notes' from form (description) is passed to 'notes' in DocumentUpload
         file: values.file,
         provider: values.provider || null,
         amount: values.amount || null,
@@ -228,7 +228,7 @@ export default function SubirDocumentoPage() {
         form.reset(); 
         setFilePreview(null);
         setFileName('');
-        setCategoryFromUrl(null);
+        setCategoryFromUrl(null); // Reset category from URL after successful upload
         router.push(`/dashboard/documentos/${uploadedDoc.id}`);
       }
     } catch (error: any) {
@@ -275,14 +275,14 @@ export default function SubirDocumentoPage() {
                     }
                   }}
                   value={field.value || ''} 
-                  disabled={isLoadingCategories || !!categoryError || !!categoryFromUrl}
+                  disabled={isLoadingCategories || !!categoryError || !!categoryFromUrl} // Disable if category came from URL
                 >
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder={
                         isLoadingCategories ? "Cargando categorías..."
                         : categoryError ? "Error al cargar"
-                        : categoryFromUrl ? categoryFromUrl
+                        : categoryFromUrl ? categoryFromUrl // Show category from URL if present
                         : "Selecciona una categoría (Opcional)"
                       } />
                     </SelectTrigger>
@@ -299,7 +299,7 @@ export default function SubirDocumentoPage() {
                       : <SelectItem value="no_cat_avail" disabled>No hay categorías disponibles.</SelectItem>}
                   </SelectContent>
                 </Select>
-                {categoryFromUrl && (
+                {categoryFromUrl && ( // Show message if category is from URL
                   <FormDescription className="mt-1 text-xs text-muted-foreground">
                     Categoría preseleccionada. Puedes cambiarla si es necesario.
                   </FormDescription>
@@ -312,7 +312,7 @@ export default function SubirDocumentoPage() {
           <FormField
             control={form.control}
             name="file"
-            render={({ fieldState }) => (
+            render={({ fieldState }) => ( // field is not directly used here, but fieldState.error is
               <FormItem>
                 <FormLabel>Archivo (Requerido para subir)</FormLabel>
                 <FormControl>
@@ -349,7 +349,7 @@ export default function SubirDocumentoPage() {
 
           <FormField
             control={form.control}
-            name="description" 
+            name="description" // This field is for description/notes
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Descripción / Notas (Opcional)</FormLabel>

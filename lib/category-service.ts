@@ -1,8 +1,10 @@
 // startupv2/lib/category-service.ts
 // VERSIÓN CON 'updated_at' ELIMINADO (Opción 2)
 
-import { createBrowserClient, SupabaseClient } from '@supabase/ssr';
-import { type Document } from './document-service';
+import { createBrowserClient } from '@supabase/ssr';
+// MODIFIED: Import SupabaseClient from '@supabase/supabase-js'
+import { SupabaseClient } from '@supabase/supabase-js';
+import { type Document } from './document-service'; // Assuming this path is correct
 
 export interface Category {
   id: string;
@@ -13,14 +15,28 @@ export interface Category {
   // updated_at?: string; // Eliminado
 }
 
+// Variable to store the Supabase client instance
+// It's initialized as null and set when getSupabaseClient is called
+let supabaseInstance: SupabaseClient | null = null;
+
 const getSupabaseClient = (): SupabaseClient => {
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+  // Check if the instance already exists
+  if (supabaseInstance) {
+    return supabaseInstance;
+  }
+
+  // Ensure environment variables are available
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error("Supabase URL or Anon Key is not defined. Check your .env.local file.");
   }
-  return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+
+  // Create the Supabase client using createBrowserClient from @supabase/ssr
+  // This is suitable for client-side (browser) use
+  supabaseInstance = createBrowserClient(supabaseUrl, supabaseAnonKey);
+  return supabaseInstance;
 };
 
 export async function getCategoriesForUser(parentId: string | null = null): Promise<Category[]> {
@@ -47,7 +63,7 @@ export async function getCategoriesForUser(parentId: string | null = null): Prom
   } else {
     query = query.eq('parent_id', parentId);
   }
-  
+
   const { data, error } = await query.order('name', { ascending: true });
 
   if (error) {
@@ -76,7 +92,7 @@ export async function addCategoryForUser(name: string, parentId: string | null =
 
   if (existingError) console.error('Error checking for existing category:', existingError);
   if (existing) throw new Error(`Ya existe una carpeta llamada "${name}" en esta ubicación.`);
-  
+
   const { data: newCategory, error } = await supabase
     .from('categories')
     .insert({ name: name, user_id: user.id, parent_id: parentId })
@@ -140,7 +156,7 @@ export async function renameCategory(categoryId: string, newName: string): Promi
     throw new Error(`No se pudo renombrar la carpeta: ${updateError.message}`);
   }
   if (!updatedCategory) throw new Error('No se pudo renombrar la carpeta (respuesta vacía).');
-  
+
   console.warn(`ADVERTENCIA: Carpeta "${currentCategory.name}" renombrada a "${newName}". Los documentos asociados por nombre no se actualizarán automáticamente por este servicio.`);
   return updatedCategory;
 }
@@ -148,7 +164,7 @@ export async function renameCategory(categoryId: string, newName: string): Promi
 async function getAllDescendantCategories(supabase: SupabaseClient, parentId: string, userId: string): Promise<Pick<Category, 'id' | 'name'>[]> {
   let allDescendants: Pick<Category, 'id' | 'name'>[] = [];
   let queue: string[] = [parentId];
-  
+
   while (queue.length > 0) {
     const currentParentId = queue.shift()!;
     const { data: subCategories, error } = await supabase
@@ -159,7 +175,7 @@ async function getAllDescendantCategories(supabase: SupabaseClient, parentId: st
 
     if (error) {
       console.error(`Error fetching subcategories for ${currentParentId}:`, error);
-      continue; 
+      continue;
     }
 
     if (subCategories && subCategories.length > 0) {
@@ -195,21 +211,27 @@ export async function deleteCategoryAndContents(categoryIdToDelete: string): Pro
   const allCategoryIdsToDelete = [categoryIdToDelete, ...descendantCategories.map(c => c.id)];
   const allCategoryNamesToDelete = [mainCategoryData.name, ...descendantCategories.map(c => c.name)];
 
+  // Assuming 'documents' table has a 'category_name' or similar field to link by name
+  // If 'documents' are linked by 'category_id', this part needs adjustment.
+  // The current code deletes documents based on a list of category *names*.
   if (allCategoryNamesToDelete.length > 0) {
-    console.log("Eliminando documentos en carpetas:", allCategoryNamesToDelete.join(', '));
+    console.log("Attempting to delete documents in categories:", allCategoryNamesToDelete.join(', '));
     const { error: deleteDocsError } = await supabase
-      .from('documents')
+      .from('documents') // Make sure this is your documents table name
       .delete()
       .eq('user_id', user.id)
-      .in('category', allCategoryNamesToDelete);
+      // This assumes documents are linked to categories by name via a 'category' column.
+      // If documents are linked by 'category_id', you should use .in('category_id', allCategoryIdsToDelete)
+      .in('category', allCategoryNamesToDelete); // Verify this column name and logic
 
     if (deleteDocsError) {
-      console.error(`Error al eliminar documentos de las carpetas: ${deleteDocsError.message}`);
+      console.error(`Error deleting documents from categories: ${deleteDocsError.message}`);
+      // Decide if this should be a hard error or a warning
     }
   }
 
   if (allCategoryIdsToDelete.length > 0) {
-    console.log("Eliminando categorías con IDs:", allCategoryIdsToDelete.join(', '));
+    console.log("Attempting to delete categories with IDs:", allCategoryIdsToDelete.join(', '));
     const { error: deleteCatsError } = await supabase
       .from('categories')
       .delete()
@@ -217,9 +239,9 @@ export async function deleteCategoryAndContents(categoryIdToDelete: string): Pro
       .eq('user_id', user.id);
 
     if (deleteCatsError) {
-      console.error(`Error al eliminar carpetas: ${deleteCatsError.message}`);
-      throw new Error(`No se pudieron eliminar todas las carpetas: ${deleteCatsError.message}`);
+      console.error(`Error deleting categories: ${deleteCatsError.message}`);
+      throw new Error(`Could not delete all categories: ${deleteCatsError.message}`);
     }
   }
-  console.log(`Carpeta "${mainCategoryData.name}" y su contenido eliminados exitosamente.`);
+  console.log(`Category "${mainCategoryData.name}" and its contents (if any) deleted successfully.`);
 }

@@ -390,7 +390,7 @@ export default function DocumentViewerPage() {
                       <div className="space-y-2">
                         <Label htmlFor="category">Categoría</Label>
                         <Select
-                          value={editForm.category}
+                          value={editForm.category || ""}
                           onValueChange={(value) => handleSelectChange("category", value)}
                         >
                           <SelectTrigger id="category">
@@ -450,7 +450,7 @@ export default function DocumentViewerPage() {
                       <div className="space-y-2">
                         <Label htmlFor="currency">Moneda</Label>
                         <Select
-                          value={editForm.currency}
+                          value={editForm.currency || ""}
                           onValueChange={(value) => handleSelectChange("currency", value)}
                         >
                           <SelectTrigger id="currency">
