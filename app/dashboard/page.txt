@@ -25,9 +25,18 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        
+        <Card className="lg:col-span-3">
+          <CardHeader>
+            <CardTitle>Próximos vencimientos</CardTitle>
+            <CardDescription>Documentos que requieren tu atención pronto.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <UpcomingReminders />
+          </CardContent>
+        </Card>
       </div>
 
+      <QuickActions/>
     </div>
   )
 }
