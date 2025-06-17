@@ -1,4 +1,3 @@
-// startup_clonada/app/dashboard/compartir/[id]/page.tsx
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
@@ -15,7 +14,7 @@ import { Separator } from "@/components/ui/separator";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ArrowLeft, Link2, Mail, QrCode, Shield, FileText, Check, Loader2, CalendarIcon, CopyIcon } from "lucide-react";
-import { shareService, type ShareServiceOptions } from "@/lib/share-service"; 
+import { shareService, type ShareServiceOptions, type ShareResult } from "@/lib/share-service"; 
 import { documentService, type Document } from "@/lib/document-service"; 
 import { useToast } from "@/components/ui/use-toast";
 import { QRCodeCanvas } from "qrcode.react"; 
@@ -172,7 +171,7 @@ export default function CompartirDocumentoPage() {
   }
   if (documentError) {
     return <div className="flex flex-col items-center justify-center h-screen text-red-600">
-        <AlertCircle className="h-12 w-12 mb-4"/>
+        <ArrowLeft className="h-12 w-12 mb-4"/>
         <p className="text-xl">{documentError}</p>
         <Button onClick={() => router.back()} className="mt-4">Volver</Button>
     </div>;

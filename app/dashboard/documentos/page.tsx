@@ -592,7 +592,7 @@ export default function DocumentosPage() {
             {(currentParentId !== null || (currentParentId === null && currentFolderName === "Mis Carpetas")) && (
                 <div className="flex justify-between items-center mb-3">
                     <h2 className="text-lg font-semibold tracking-tight flex items-center">
-                        Documentos {currentParentId !== null ? `en "${currentFolderName}"` : 'en "General" (Raíz)'}
+                         {currentParentId !== null ? `en "${currentFolderName}"` : ''}
                         {isLoadingDocuments && <Loader2 className="inline-block ml-2 h-4 w-4 animate-spin" />}
                     </h2>
                     {currentParentId !== null ? (

@@ -1,169 +1,179 @@
-import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
-import { Tag } from "lucide-react"
+"use client"
 
-// Interface for the props of the DocumentMetadata component
-interface DocumentMetadataProps {
-  document: {
-    id: string
-    name: string
-    category: string
-    tags: string[]
-    date: string
-    expiry_date?: string | null // Changed to allow null
-    provider?: string | null    // Changed to allow null
-    amount?: string | null      // Changed to allow null
-    currency?: string | null    // Changed to allow null
-    status: string
-    notes?: string | null       // Changed to allow null
-    file_type: string
-    created_at: string
-    updated_at: string
-  }
+import type { Dispatch, SetStateAction } from "react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { CheckCircle, Edit, Loader2, XCircle } from "lucide-react"
+import type { Document } from "@/lib/document-service"
+import { Separator } from "@/components/ui/separator"
+
+// Define the props for the component, including the new ones for editing
+export interface DocumentMetadataProps {
+  document: Document
+  isEditing: boolean
+  isSaving: boolean
+  editForm: Partial<Document>
+  onFormChange: Dispatch<SetStateAction<Partial<Document>>>
+  onEditToggle: () => void
+  onSaveChanges: () => void
 }
 
-export function DocumentMetadata({ document }: DocumentMetadataProps) {
-  // Formats a date string into a more readable "dd/mm/yyyy" format.
-  // Returns an empty string if the dateString is null, undefined, or invalid.
-  const formatDate = (dateString: string | null | undefined) => {
-    if (!dateString) return ""
-    try {
-      const date = new Date(dateString)
-      // Check if the date is valid after parsing
-      if (isNaN(date.getTime())) {
-        return dateString; // Return original string if it's not a valid date
-      }
-      return date.toLocaleDateString("es-ES", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      })
-    } catch (e) {
-      // In case of any error during date parsing, return the original string
-      return dateString
-    }
-  }
+// Helper component for read-only fields
+const InfoField = ({ label, value }: { label: string; value: string | null | undefined }) =>
+  value ? (
+    <div className="flex justify-between">
+      <span className="text-muted-foreground">{label}:</span>
+      <span className="text-right">{value}</span>
+    </div>
+  ) : null
 
-  // Format various dates from the document object
-  const createdDate = formatDate(document.created_at)
-  const updatedDate = formatDate(document.updated_at)
-  const documentDate = formatDate(document.date)
-  const expiryDate = document.expiry_date ? formatDate(document.expiry_date) : ""
+export function DocumentMetadata({
+  document,
+  isEditing,
+  isSaving,
+  editForm,
+  onFormChange,
+  onEditToggle,
+  onSaveChanges,
+}: DocumentMetadataProps) {
+  // Handle form field changes
+  const handleChange = (field: keyof Document, value: string | string[]) => {
+    onFormChange((prev) => ({ ...prev, [field]: value }))
+  }
 
   return (
     <div className="space-y-4">
-      <div className="space-y-2">
-        {/* Display File Type */}
-        <div className="flex justify-between">
-          <span className="text-sm text-muted-foreground">Tipo</span>
-          <span className="text-sm font-medium">{document.file_type.toUpperCase()}</span>
-        </div>
-        <Separator />
-
-        {/* Display Category */}
-        <div className="flex justify-between">
-          <span className="text-sm text-muted-foreground">Categoría</span>
-          <span className="text-sm font-medium">{document.category}</span>
-        </div>
-        <Separator />
-
-        {/* Display Document Date */}
-        <div className="flex justify-between">
-          <span className="text-sm text-muted-foreground">Fecha</span>
-          <span className="text-sm font-medium">{documentDate}</span>
-        </div>
-        <Separator />
-
-        {/* Display Expiry Date if available */}
-        {document.expiry_date && (
-          <>
-            <div className="flex justify-between">
-              <span className="text-sm text-muted-foreground">Vencimiento</span>
-              <span className="text-sm font-medium">{expiryDate}</span>
-            </div>
-            <Separator />
-          </>
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold">Información</h3>
+        {isEditing ? (
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={onEditToggle} disabled={isSaving}>
+              <XCircle className="h-4 w-4 mr-1" />
+              Cancelar
+            </Button>
+            <Button size="sm" onClick={onSaveChanges} disabled={isSaving}>
+              {isSaving ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-1" />
+              ) : (
+                <CheckCircle className="h-4 w-4 mr-1" />
+              )}
+              Guardar
+            </Button>
+          </div>
+        ) : (
+          <Button variant="outline" size="sm" onClick={onEditToggle}>
+            <Edit className="h-4 w-4 mr-1" />
+            Editar
+          </Button>
         )}
-
-        {/* Display Provider/Entity if available */}
-        {document.provider && (
-          <>
-            <div className="flex justify-between">
-              <span className="text-sm text-muted-foreground">Proveedor/Entidad</span>
-              <span className="text-sm font-medium">{document.provider}</span>
-            </div>
-            <Separator />
-          </>
-        )}
-
-        {/* Display Amount and Currency if amount is available */}
-        {document.amount && (
-          <>
-            <div className="flex justify-between">
-              <span className="text-sm text-muted-foreground">Monto</span>
-              <span className="text-sm font-medium">
-                {document.amount} {document.currency || ""}
-              </span>
-            </div>
-            <Separator />
-          </>
-        )}
-
-        {/* Display Document Status with appropriate badge styling */}
-        <div className="flex justify-between">
-          <span className="text-sm text-muted-foreground">Estado</span>
-          <Badge
-            variant="outline"
-            className={
-              document.status === "vigente"
-                ? "bg-green-100 text-green-700 border-green-700 dark:bg-green-900/50 dark:text-green-400 dark:border-green-600" // Using more specific Tailwind colors for success
-                : document.status === "próximo a vencer"
-                  ? "bg-yellow-100 text-yellow-700 border-yellow-700 dark:bg-yellow-700/30 dark:text-yellow-400 dark:border-yellow-600" // Using more specific Tailwind colors for warning
-                  : "bg-red-100 text-red-700 border-red-700 dark:bg-red-900/50 dark:text-red-400 dark:border-red-600" // Using more specific Tailwind colors for destructive
-            }
-          >
-            {document.status.charAt(0).toUpperCase() + document.status.slice(1)}
-          </Badge>
-        </div>
-        <Separator />
-
-        {/* Display Creation Date */}
-        <div className="flex justify-between">
-          <span className="text-sm text-muted-foreground">Creado</span>
-          <span className="text-sm font-medium">{createdDate}</span>
-        </div>
-        <Separator />
-
-        {/* Display Last Updated Date */}
-        <div className="flex justify-between">
-          <span className="text-sm text-muted-foreground">Actualizado</span>
-          <span className="text-sm font-medium">{updatedDate}</span>
-        </div>
-        <Separator />
       </div>
 
-      {/* Display Tags if available */}
-      <div className="space-y-2">
-        <span className="text-sm text-muted-foreground">Etiquetas</span>
-        <div className="flex flex-wrap gap-2">
-          {document.tags && document.tags.length > 0 ? (
-            document.tags.map((tag, index) => (
-              <div key={index} className="flex items-center rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium">
-                <Tag className="mr-1 h-3 w-3" />
-                {tag}
-              </div>
-            ))
-          ) : (
-            <span className="text-xs text-muted-foreground">No hay etiquetas</span>
+      <Separator />
+
+      {isEditing ? (
+        // EDITING VIEW
+        <div className="space-y-4 text-sm">
+          <div className="space-y-1">
+            <Label htmlFor="doc-name">Nombre</Label>
+            <Input
+              id="doc-name"
+              value={editForm.name || ""}
+              onChange={(e) => handleChange("name", e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="doc-category">Categoría</Label>
+            <Input
+              id="doc-category"
+              value={editForm.category || ""}
+              onChange={(e) => handleChange("category", e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="doc-date">Fecha del documento</Label>
+            <Input
+              id="doc-date"
+              type="date"
+              value={editForm.date || ""}
+              onChange={(e) => handleChange("date", e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="doc-expiry">Fecha de vencimiento</Label>
+            <Input
+              id="doc-expiry"
+              type="date"
+              value={editForm.expiry_date || ""}
+              onChange={(e) => handleChange("expiry_date", e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="doc-provider">Proveedor</Label>
+            <Input
+              id="doc-provider"
+              value={editForm.provider || ""}
+              onChange={(e) => handleChange("provider", e.target.value)}
+            />
+          </div>
+           <div className="space-y-1">
+            <Label htmlFor="doc-amount">Monto</Label>
+            <Input
+              id="doc-amount"
+              type="number"
+              value={editForm.amount || ""}
+              onChange={(e) => handleChange("amount", e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="doc-tags">Etiquetas</Label>
+            <Input
+              id="doc-tags"
+              placeholder="tag1, tag2, tag3"
+              value={Array.isArray(editForm.tags) ? editForm.tags.join(", ") : ""}
+              onChange={(e) => handleChange("tags", e.target.value.split(",").map(tag => tag.trim()))}
+            />
+             <p className="text-xs text-muted-foreground">Separar etiquetas con comas.</p>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="doc-notes">Notas Adicionales</Label>
+            <Textarea
+              id="doc-notes"
+              value={editForm.notes || ""}
+              onChange={(e) => handleChange("notes", e.target.value)}
+              placeholder="Añade notas o un resumen aquí..."
+            />
+          </div>
+        </div>
+      ) : (
+        // READ-ONLY VIEW
+        <div className="space-y-2 text-sm">
+          <InfoField label="Categoría" value={document.category} />
+          <InfoField label="Fecha" value={document.date} />
+          <InfoField label="Vencimiento" value={document.expiry_date} />
+          <InfoField label="Proveedor" value={document.provider} />
+          <InfoField label="Monto" value={document.amount?.toString()} />
+
+          {document.tags && document.tags.length > 0 && (
+            <div>
+               <span className="text-muted-foreground">Etiquetas:</span>
+               <div className="flex flex-wrap gap-1 mt-1">
+                 {document.tags.map((tag, index) => (
+                   <div key={index} className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
+                     {tag}
+                   </div>
+                 ))}
+               </div>
+            </div>
           )}
-        </div>
-      </div>
-
-      {/* Display Notes if available */}
-      {document.notes && (
-        <div className="space-y-2">
-          <span className="text-sm text-muted-foreground">Notas</span>
-          <p className="text-sm whitespace-pre-wrap">{document.notes}</p> {/* Added whitespace-pre-wrap for better note display */}
+          {document.notes && (
+            <div className="pt-2">
+              <span className="text-muted-foreground">Notas:</span>
+              <p className="whitespace-pre-wrap text-sm">{document.notes}</p>
+            </div>
+          )}
         </div>
       )}
     </div>

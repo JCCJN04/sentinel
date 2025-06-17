@@ -1,24 +1,23 @@
-import type { ReactNode } from "react"
+import { ReactNode } from "react"
 import { Sidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { MobileNav } from "@/components/dashboard/mobile-nav"
-// 1. Importa el componente del asistente de chat
-import AIChatAssistant from '@/components/dashboard/ai-chat-assistant'; // Asegúrate que la ruta sea correcta
+// FIX: Use a named import for the chat assistant
+import { AIChatAssistant } from '@/components/dashboard/ai-chat-assistant'; 
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-screen">
-      <Sidebar className="hidden md:flex" />
-      <div className="flex-1 flex flex-col"> {/* Añadido flex flex-col aquí */}
+    <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
+      <Sidebar />
+      <div className="flex flex-col">
         <DashboardHeader />
-        {/* El main ahora ocupa el espacio restante y permite scroll */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-20 md:pb-8">{children}</main>
-        {/* MobileNav se superpone en la parte inferior en móviles */}
-        <MobileNav />
-        {/* 2. Añade el componente del asistente de chat aquí */}
-        {/* Su posicionamiento 'fixed' lo sacará del flujo normal */}
-        <AIChatAssistant />
+        <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6 bg-muted/40">
+          {children}
+        </main>
       </div>
+      {/* 2. Renderiza el componente aquí */}
+      <AIChatAssistant />
+      <MobileNav />
     </div>
   )
 }

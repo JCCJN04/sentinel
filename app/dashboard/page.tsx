@@ -36,7 +36,7 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      <QuickActions />
+      <QuickActions/>
     </div>
   )
 }
