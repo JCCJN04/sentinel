@@ -1,321 +1,163 @@
-import { supabaseBrowserClient as supabase } from "./supabase";
-import { v4 as uuidv4 } from "uuid"
+// lib/share-service.ts
+import { supabaseBrowserClient as supabase } from "./supabase"; // O tu cliente Supabase configurado
+import { documentService, type ShareOptions as DocumentServiceShareOptions } from "./document-service";
 
-export interface ShareOptions {
-  documentId: string
-  accessDuration: "1day" | "7days" | "30days" | "unlimited"
+// Esta es la interfaz que tu página (page.tsx) usará para pasar opciones al servicio
+export interface ShareServiceOptions {
+  documentId: string;
+  accessDuration?: "1day" | "7days" | "30days" | "unlimited";
   permissions: {
-    view: boolean
-    download: boolean
-    print: boolean
-    edit: boolean
-  }
-  password?: string
-  emails?: string[]
-  message?: string
+    view: boolean;
+    download: boolean;
+    print: boolean;
+    edit: boolean;
+  };
+  password?: string;
+  // Específico para el método de email
+  emails?: string[];
+  message?: string;
+  // Para el método de enlace/QR, si se quiere un ID personalizado o un placeholder
+  customShareIdentifier?: string; 
 }
 
 export interface ShareResult {
-  success: boolean
-  shareId?: string
-  shareLink?: string
-  qrCodeData?: string
-  error?: string
+  success: boolean;
+  shareLink?: string;     // URL completa para compartir
+  qrCodeData?: string;    // Datos para el QR (usualmente es el shareLink)
+  shareRecordId?: string; // ID del registro creado en la tabla document_shares
+  error?: string;
 }
 
-// Función auxiliar para crear la tabla si no existe
-const ensureDocumentSharesTable = async () => {
+function mapAccessDurationToExpiryDate(duration?: "1day" | "7days" | "30days" | "unlimited"): string | undefined {
+  if (!duration || duration === "unlimited") {
+    return undefined;
+  }
+  const now = new Date();
+  switch (duration) {
+    case "1day":
+      now.setDate(now.getDate() + 1);
+      break;
+    case "7days":
+      now.setDate(now.getDate() + 7);
+      break;
+    case "30days":
+      now.setDate(now.getDate() + 30);
+      break;
+    default:
+      return undefined;
+  }
+  return now.toISOString();
+}
+
+// Función interna para crear el registro de compartición y el enlace
+async function createShareAndGetLink(
+  documentId: string,
+  method: "link" | "email" | "qr",
+  options: ShareServiceOptions,
+  specificSharedWith?: string // Para email, este será el correo del destinatario
+): Promise<{ shareRecordId?: string; link?: string; error?: string }> {
+  
+  const dsShareOptions: DocumentServiceShareOptions = {
+    sharedWith: specificSharedWith || options.customShareIdentifier || `link_share_${crypto.randomUUID().substring(0,8)}`,
+    expiryDate: mapAccessDurationToExpiryDate(options.accessDuration),
+    permissions: options.permissions,
+    method: method,
+    password: options.password,
+  };
+
   try {
-    // Verificar si la tabla existe
-    const { data, error } = await supabase.from("document_shares").select("id").limit(1)
-
-    if (error && error.code === "42P01") {
-      // Código de error para "relation does not exist"
-      // La tabla no existe, vamos a crearla
-      const createTableQuery = `
-        CREATE TABLE IF NOT EXISTS document_shares (
-          id UUID PRIMARY KEY,
-          document_id UUID NOT NULL,
-          user_id UUID NOT NULL,
-          share_type TEXT NOT NULL DEFAULT 'link',
-          expires_at TIMESTAMP WITH TIME ZONE,
-          permissions JSONB NOT NULL DEFAULT '{"view": true, "download": false, "print": false, "edit": false}',
-          password TEXT,
-          recipients TEXT[],
-          created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-          FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE,
-          FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
-        );
-        
-        ALTER TABLE document_shares ENABLE ROW LEVEL SECURITY;
-        
-        CREATE POLICY "Users can view their own shares"
-        ON document_shares FOR SELECT
-        USING (auth.uid() = user_id);
-        
-        CREATE POLICY "Users can insert their own shares"
-        ON document_shares FOR INSERT
-        WITH CHECK (auth.uid() = user_id);
-        
-        CREATE POLICY "Users can update their own shares"
-        ON document_shares FOR UPDATE
-        USING (auth.uid() = user_id);
-        
-        CREATE POLICY "Users can delete their own shares"
-        ON document_shares FOR DELETE
-        USING (auth.uid() = user_id);
-      `
-
-      await supabase.rpc("run_sql", { query: createTableQuery })
+    const shareRecord = await documentService.shareDocument(documentId, dsShareOptions);
+    if (shareRecord && shareRecord.id) {
+      const shareableLink = `${window.location.origin}/public/shared-document/${shareRecord.id}`;
+      return { shareRecordId: shareRecord.id, link: shareableLink };
+    } else {
+      return { error: "No se pudo crear el registro de compartición en la base de datos." };
     }
-  } catch (error) {
-    console.error("Error checking/creating document_shares table:", error)
+  } catch (error: any) {
+    console.error(`Error creating share record for method ${method}:`, error);
+    return { error: error.message || `Error al crear compartición (${method}).` };
   }
 }
 
+const generateShareLink = async (options: ShareServiceOptions): Promise<ShareResult> => {
+  const { documentId } = options;
+  const result = await createShareAndGetLink(documentId, "link", options);
+
+  if (result.link && result.shareRecordId) {
+    return { success: true, shareLink: result.link, shareRecordId: result.shareRecordId };
+  }
+  return { success: false, error: result.error || "No se pudo generar el enlace de compartición." };
+};
+
+const generateQRCode = async (options: ShareServiceOptions): Promise<ShareResult> => {
+  const { documentId } = options;
+  // El QR simplemente codificará el enlace compartible
+  const result = await createShareAndGetLink(documentId, "qr", options); // Usa "qr" como método para el registro
+
+  if (result.link && result.shareRecordId) {
+    return { success: true, qrCodeData: result.link, shareLink: result.link, shareRecordId: result.shareRecordId };
+  }
+  return { success: false, error: result.error || "No se pudieron generar los datos para el código QR." };
+};
+
+const shareViaEmail = async (options: ShareServiceOptions): Promise<ShareResult> => {
+  const { documentId, emails, message } = options;
+
+  if (!emails || emails.length === 0) {
+    return { success: false, error: "No se proporcionaron direcciones de correo electrónico." };
+  }
+
+  let overallSuccess = true;
+  let errors: string[] = [];
+  let firstSuccessfulLink: string | undefined;
+  let firstSuccessfulRecordId: string | undefined;
+
+  for (const email of emails) {
+    const result = await createShareAndGetLink(documentId, "email", options, email);
+    if (result.link && result.shareRecordId) {
+      if (!firstSuccessfulLink) {
+        firstSuccessfulLink = result.link;
+        firstSuccessfulRecordId = result.shareRecordId;
+      }
+      // Aquí es donde llamarías a tu Supabase Edge Function para enviar el correo
+      console.log(`TODO: Enviar correo a ${email} con enlace: ${result.link} y mensaje: "${message || ''}"`);
+      try {
+        // Ejemplo de llamada a una Edge Function (necesitarías crear esta función)
+        // const { error: emailError } = await supabase.functions.invoke('send-share-email', {
+        //   body: {
+        //     to: email,
+        //     shareLink: result.link,
+        //     documentName: "Nombre del Documento (obtenerlo)", // Deberías pasar el nombre del documento
+        //     customMessage: message || ''
+        //   }
+        // });
+        // if (emailError) throw emailError;
+        console.log(`Simulando envío de email a ${email} con enlace ${result.link}`);
+      } catch (emailError: any) {
+        console.error(`Error al intentar enviar email a ${email}:`, emailError);
+        errors.push(`Fallo al enviar a ${email}: ${emailError.message}`);
+        overallSuccess = false;
+      }
+    } else {
+      errors.push(`Fallo al crear compartición para ${email}: ${result.error}`);
+      overallSuccess = false;
+    }
+  }
+
+  if (overallSuccess && errors.length === 0) {
+    return { success: true, shareLink: firstSuccessfulLink, shareRecordId: firstSuccessfulRecordId };
+  } else {
+    return { 
+      success: errors.length < emails.length, // Considera éxito parcial si algunos correos funcionaron
+      error: errors.join("; ") || "Errores desconocidos al compartir por email.",
+      shareLink: firstSuccessfulLink, // Devuelve el primer enlace exitoso, si alguno
+      shareRecordId: firstSuccessfulRecordId 
+    };
+  }
+};
+
 export const shareService = {
-  async generateShareLink(options: ShareOptions): Promise<ShareResult> {
-    try {
-      // Asegurarnos de que la tabla existe
-      await ensureDocumentSharesTable()
-
-      const { data: userData, error: userError } = await supabase.auth.getUser()
-
-      if (userError) {
-        console.error("Error al obtener usuario:", userError)
-        return { success: false, error: "Error de autenticación" }
-      }
-
-      if (!userData?.user) {
-        return { success: false, error: "Usuario no autenticado" }
-      }
-
-      const userId = userData.user.id
-      const shareId = uuidv4()
-
-      // Calcular fecha de expiración
-      let expiresAt: string | null = null
-      const now = new Date()
-
-      if (options.accessDuration === "1day") {
-        const expiry = new Date(now)
-        expiry.setDate(now.getDate() + 1)
-        expiresAt = expiry.toISOString()
-      } else if (options.accessDuration === "7days") {
-        const expiry = new Date(now)
-        expiry.setDate(now.getDate() + 7)
-        expiresAt = expiry.toISOString()
-      } else if (options.accessDuration === "30days") {
-        const expiry = new Date(now)
-        expiry.setDate(now.getDate() + 30)
-        expiresAt = expiry.toISOString()
-      }
-
-      // Verificar si el documento existe
-      const { data: docData, error: docError } = await supabase
-        .from("documents")
-        .select("id")
-        .eq("id", options.documentId)
-        .single()
-
-      if (docError) {
-        console.error("Error al verificar documento:", docError)
-        return { success: false, error: "El documento no existe o no tienes acceso" }
-      }
-
-      // Crear registro de compartir en la base de datos usando SQL directo para evitar problemas de esquema
-      const insertQuery = `
-        INSERT INTO document_shares (
-          id, document_id, user_id, share_type, expires_at, permissions, password, created_at
-        ) VALUES (
-          '${shareId}', 
-          '${options.documentId}', 
-          '${userId}', 
-          'link', 
-          ${expiresAt ? `'${expiresAt}'` : "NULL"}, 
-          '${JSON.stringify(options.permissions)}', 
-          ${options.password ? `'${options.password}'` : "NULL"}, 
-          '${now.toISOString()}'
-        )
-        RETURNING id;
-      `
-
-      const { data, error } = await supabase.rpc("run_sql", { query: insertQuery })
-
-      if (error) {
-        console.error("Error al insertar en document_shares:", error)
-        return { success: false, error: `Error al guardar: ${error.message}` }
-      }
-
-      // Generar enlace de compartir
-      const shareLink = `${window.location.origin}/compartir/${shareId}`
-
-      // Generar datos para código QR (el mismo enlace)
-      const qrCodeData = shareLink
-
-      return {
-        success: true,
-        shareId,
-        shareLink,
-        qrCodeData,
-      }
-    } catch (error) {
-      console.error("Error al generar enlace de compartir:", error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Error desconocido",
-      }
-    }
-  },
-
-  async shareViaEmail(options: ShareOptions): Promise<ShareResult> {
-    try {
-      // Primero generamos el enlace de compartir
-      const linkResult = await this.generateShareLink(options)
-
-      if (!linkResult.success) {
-        throw new Error(linkResult.error || "Error al generar enlace")
-      }
-
-      // En un entorno real, aquí enviaríamos un correo electrónico
-      // Para esta implementación, simularemos que el correo se envió correctamente
-
-      // Actualizar el registro para indicar que se compartió por correo usando SQL directo
-      const updateQuery = `
-        UPDATE document_shares 
-        SET share_type = 'email', 
-            recipients = ARRAY[${options.emails?.map((email) => `'${email}'`).join(",")}]
-        WHERE id = '${linkResult.shareId}';
-      `
-
-      const { error } = await supabase.rpc("run_sql", { query: updateQuery })
-
-      if (error) {
-        console.error("Error al actualizar document_shares:", error)
-        throw new Error(`Error al actualizar: ${error.message}`)
-      }
-
-      return {
-        success: true,
-        shareId: linkResult.shareId,
-        shareLink: linkResult.shareLink,
-      }
-    } catch (error) {
-      console.error("Error al compartir por correo:", error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Error desconocido",
-      }
-    }
-  },
-
-  async generateQRCode(options: ShareOptions): Promise<ShareResult> {
-    try {
-      // Generamos el enlace de compartir primero
-      const linkResult = await this.generateShareLink(options)
-
-      if (!linkResult.success) {
-        throw new Error(linkResult.error || "Error al generar enlace")
-      }
-
-      // Actualizar el registro para indicar que se compartió por QR usando SQL directo
-      const updateQuery = `
-        UPDATE document_shares 
-        SET share_type = 'qr'
-        WHERE id = '${linkResult.shareId}';
-      `
-
-      const { error } = await supabase.rpc("run_sql", { query: updateQuery })
-
-      if (error) {
-        console.error("Error al actualizar document_shares:", error)
-        throw new Error(`Error al actualizar: ${error.message}`)
-      }
-
-      return {
-        success: true,
-        shareId: linkResult.shareId,
-        shareLink: linkResult.shareLink,
-        qrCodeData: linkResult.qrCodeData,
-      }
-    } catch (error) {
-      console.error("Error al generar código QR:", error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Error desconocido",
-      }
-    }
-  },
-
-  async getDocumentShares(documentId: string): Promise<any[]> {
-    try {
-      const { data: userData, error: userError } = await supabase.auth.getUser()
-
-      if (userError) {
-        console.error("Error al obtener usuario:", userError)
-        return []
-      }
-
-      if (!userData?.user) {
-        throw new Error("Usuario no autenticado")
-      }
-
-      const userId = userData.user.id
-
-      // Usar SQL directo para evitar problemas de esquema
-      const selectQuery = `
-        SELECT * FROM document_shares
-        WHERE document_id = '${documentId}'
-        AND user_id = '${userId}';
-      `
-
-      const { data, error } = await supabase.rpc("run_sql", { query: selectQuery })
-
-      if (error) {
-        console.error("Error al obtener compartidos:", error)
-        throw error
-      }
-
-      return data?.rows || []
-    } catch (error) {
-      console.error("Error al obtener compartidos:", error)
-      return []
-    }
-  },
-
-  async revokeShare(shareId: string): Promise<boolean> {
-    try {
-      const { data: userData, error: userError } = await supabase.auth.getUser()
-
-      if (userError) {
-        console.error("Error al obtener usuario:", userError)
-        return false
-      }
-
-      if (!userData?.user) {
-        throw new Error("Usuario no autenticado")
-      }
-
-      const userId = userData.user.id
-
-      // Usar SQL directo para evitar problemas de esquema
-      const deleteQuery = `
-        DELETE FROM document_shares
-        WHERE id = '${shareId}'
-        AND user_id = '${userId}';
-      `
-
-      const { error } = await supabase.rpc("run_sql", { query: deleteQuery })
-
-      if (error) {
-        console.error("Error al revocar compartido:", error)
-        throw error
-      }
-
-      return true
-    } catch (error) {
-      console.error("Error al revocar compartido:", error)
-      return false
-    }
-  },
-}
+  generateShareLink,
+  generateQRCode,
+  shareViaEmail,
+};

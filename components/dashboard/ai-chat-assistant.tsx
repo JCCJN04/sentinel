@@ -1,81 +1,107 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageSquare, X, Send, Bot, Loader2, Sparkles } from 'lucide-react'; // Using Sparkles for AI feel
+import { MessageSquare, X, Send, Bot, Loader2, Sparkles } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+// Importa los servicios que necesitamos
+import { documentAnalysisService } from '@/lib/document-analysis-service';
+import { documentService } from '@/lib/document-service';
 
-// Define the structure for a chat message
+// Define la estructura para un mensaje de chat
 interface ChatMessage {
   sender: 'user' | 'ai';
   text: string;
 }
 
+// Define la estructura de un documento (ajusta según tu schema)
+interface Document {
+  id: string;
+  name: string;
+  category?: string;
+  expiry_date?: string;
+}
+
 /**
- * Renders a floating AI chat assistant button and chat window.
+ * Renderiza un botón de asistente de chat de IA flotante y una ventana de chat.
  */
 const AIChatAssistant: React.FC = () => {
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { sender: 'ai', text: 'Hola! ¿Cómo puedo ayudarte hoy con tus documentos médicos?' } // Initial message
+    { sender: 'ai', text: 'Bienvenido, soy Sentinel. Estoy aquí para ayudarte.' }
   ]);
   const [currentMessage, setCurrentMessage] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null); // Ref for scrolling to bottom
+  const [userDocuments, setUserDocuments] = useState<Document[]>([]); // Estado para guardar los documentos
+  const [hasFetchedDocs, setHasFetchedDocs] = useState(false); // Flag para evitar cargas múltiples
 
-  // Function to toggle the chat window visibility
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Función para abrir/cerrar la ventana de chat
   const toggleChat = () => {
     setIsOpen(!isOpen);
   };
 
-  // Function to scroll to the bottom of the message area
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  // Trae los documentos del usuario cuando se abre el chat por primera vez
+  useEffect(() => {
+    if (isOpen && !hasFetchedDocs) {
+      const fetchDocumentsForAI = async () => {
+        setIsLoading(true);
+        try {
+          const docs = await documentService.getDocuments(); // Llama al servicio de documentos
+          setUserDocuments(docs);
+          setHasFetchedDocs(true); // Marca que los documentos ya se cargaron
+          console.log("Documentos cargados para el contexto de la IA:", docs);
+        } catch (error) {
+          console.error("Error al cargar documentos para la IA:", error);
+          setMessages(prev => [...prev, { sender: 'ai', text: 'No pude cargar tus documentos para darte respuestas precisas.' }]);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      fetchDocumentsForAI();
+    }
+  }, [isOpen, hasFetchedDocs]);
 
-  // Scroll to bottom whenever messages change
+
+  // Scroll automático al último mensaje
   useEffect(() => {
     if (isOpen) {
-      scrollToBottom();
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, isOpen]);
 
-  // Handle changes in the input field
+  // Maneja el envío de mensajes
+  const sendMessage = async () => {
+    const userMessage = currentMessage.trim();
+    if (!userMessage || isLoading) return;
+
+    // Añade el mensaje del usuario al chat
+    setMessages(prev => [...prev, { sender: 'user', text: userMessage }]);
+    setCurrentMessage('');
+    setIsLoading(true);
+
+    // --- Llamada real a la IA ---
+    try {
+      // Usamos el servicio que creamos, pasándole la pregunta y el contexto de los documentos
+      const aiResponseText = await documentAnalysisService.getAIChatResponse(userMessage, userDocuments);
+      const aiResponse: ChatMessage = { sender: 'ai', text: aiResponseText };
+      setMessages(prev => [...prev, aiResponse]); // Añade la respuesta de la IA
+    } catch (error) {
+      console.error("Error en la respuesta de la IA:", error);
+      const errorResponse: ChatMessage = { sender: 'ai', text: 'Lo siento, tuve un problema al conectar con la IA. Intenta de nuevo.' };
+      setMessages(prev => [...prev, errorResponse]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Maneja el input del usuario
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setCurrentMessage(event.target.value);
   };
 
-  // Simulate sending a message and getting an AI response
-  const sendMessage = async () => {
-    const userMessage = currentMessage.trim();
-    if (!userMessage || isLoading) return; // Don't send empty or while loading
-
-    // Add user message to the chat
-    setMessages(prev => [...prev, { sender: 'user', text: userMessage }]);
-    setCurrentMessage(''); // Clear input
-    setIsLoading(true);
-
-    // --- Placeholder for actual AI interaction ---
-    // In a real app:
-    // 1. Send userMessage and potentially conversation history to your backend/AI service.
-    // 2. The backend would fetch relevant document context based on the user's account.
-    // 3. Send context + query to an AI model (like Gemini, OpenAI, etc.).
-    // 4. Receive the AI's response.
-    await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate network delay
-
-    // Placeholder AI response
-    const aiResponse: ChatMessage = {
-      sender: 'ai',
-      text: `Recibí tu pregunta sobre "${userMessage}". Por ahora, solo puedo simular respuestas. En el futuro, podré buscar en tus documentos.`
-    };
-    // --- End Placeholder ---
-
-    setMessages(prev => [...prev, aiResponse]); // Add AI response
-    setIsLoading(false);
-  };
-
-  // Handle Enter key press in the input field
   const handleKeyPress = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter' && !isLoading) {
       sendMessage();
@@ -84,81 +110,60 @@ const AIChatAssistant: React.FC = () => {
 
   return (
     <>
-      {/* Floating Action Button (FAB) */}
+      {/* Botón Flotante */}
       <Button
         onClick={toggleChat}
-        variant="default" // Or choose another variant like 'secondary' or 'outline'
+        variant="default"
         size="icon"
         className={cn(
           "fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full shadow-lg transition-transform duration-300 ease-in-out hover:scale-110",
-          isOpen ? "scale-0 opacity-0" : "scale-100 opacity-100" // Hide button when chat is open
+          isOpen ? "scale-0 opacity-0" : "scale-100 opacity-100"
         )}
         aria-label="Abrir chat de asistente IA"
       >
         <Sparkles className="h-6 w-6" />
       </Button>
 
-      {/* Chat Window */}
+      {/* Ventana de Chat */}
       <div
         className={cn(
           "fixed bottom-6 right-6 z-50 w-[90vw] max-w-sm h-[70vh] max-h-[600px] bg-background border rounded-lg shadow-xl flex flex-col transition-all duration-300 ease-in-out",
-          isOpen ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10 pointer-events-none" // Animation
+          isOpen ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10 pointer-events-none"
         )}
       >
-        {/* Header */}
+        {/* Encabezado */}
         <div className="flex items-center justify-between p-3 border-b bg-muted/40 rounded-t-lg flex-shrink-0">
           <div className="flex items-center space-x-2">
             <Bot className="h-5 w-5 text-primary" />
-            <span className="font-semibold text-sm">Asistente IA Médico</span>
+            <span className="font-semibold text-sm">Asistente IA</span>
           </div>
           <Button onClick={toggleChat} variant="ghost" size="icon" className="h-7 w-7" aria-label="Cerrar chat">
             <X className="h-4 w-4" />
           </Button>
         </div>
 
-        {/* Message Area */}
+        {/* Área de Mensajes */}
         <div className="flex-grow p-4 overflow-y-auto space-y-3 bg-background">
           {messages.map((msg, index) => (
-            <div
-              key={index}
-              className={cn(
-                "flex",
-                msg.sender === 'user' ? "justify-end" : "justify-start"
-              )}
-            >
-              <div
-                className={cn(
-                  "max-w-[80%] rounded-lg px-3 py-2 text-sm shadow-sm",
-                  msg.sender === 'user'
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted"
-                )}
-              >
-                {/* Basic markdown links rendering (can be expanded) */}
-                {msg.text.split(/(\[.*?\]\(.*?\))/g).map((part, i) => {
-                  const match = part.match(/\[(.*?)\]\((.*?)\)/);
-                  if (match) {
-                    return <a key={i} href={match[2]} target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-400">{match[1]}</a>;
-                  }
-                  return part;
-                })}
+            <div key={index} className={cn("flex", msg.sender === 'user' ? "justify-end" : "justify-start")}>
+              <div className={cn("max-w-[80%] rounded-lg px-3 py-2 text-sm shadow-sm",
+                  msg.sender === 'user' ? "bg-primary text-primary-foreground" : "bg-muted")}>
+                {msg.text}
               </div>
             </div>
           ))}
-          {/* Loading Indicator */}
           {isLoading && (
             <div className="flex justify-start">
               <div className="bg-muted rounded-lg px-3 py-2 text-sm shadow-sm inline-flex items-center space-x-2">
-                 <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                 <span className="text-muted-foreground italic text-xs">Escribiendo...</span>
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                <span className="text-muted-foreground italic text-xs">Pensando...</span>
               </div>
             </div>
           )}
-          {/* Element to scroll to */}
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input Area */}
+        {/* Área de Input */}
         <div className="flex items-center p-3 border-t bg-muted/40 rounded-b-lg flex-shrink-0">
           <Input
             type="text"
@@ -167,16 +172,10 @@ const AIChatAssistant: React.FC = () => {
             onKeyPress={handleKeyPress}
             placeholder="Pregunta sobre tus documentos..."
             className="flex-grow mr-2 bg-background focus-visible:ring-primary"
-            disabled={isLoading}
+            disabled={isLoading || (isOpen && !hasFetchedDocs)}
             aria-label="Escribe tu mensaje"
           />
-          <Button
-            onClick={sendMessage}
-            disabled={isLoading || !currentMessage.trim()}
-            size="icon"
-            className="flex-shrink-0"
-            aria-label="Enviar mensaje"
-          >
+          <Button onClick={sendMessage} disabled={isLoading || !currentMessage.trim()} size="icon" className="flex-shrink-0" aria-label="Enviar mensaje">
             <Send className="h-4 w-4" />
           </Button>
         </div>
@@ -186,4 +185,3 @@ const AIChatAssistant: React.FC = () => {
 };
 
 export default AIChatAssistant;
-

@@ -41,10 +41,10 @@ export function MobileNav() {
     // Consider renaming "Documentos" to "Expedientes" or "Historial Médico"
     { name: "Documentos", href: "/dashboard/documentos", icon: FileText },
     { name: "Subir", href: "/dashboard/subir", icon: Upload }, // Added Upload link
-    { name: "Alertas", href: "/dashboard/alertas", icon: Bell },
-    { name: "Compartidos", href: "/dashboard/compartidos", icon: Share2 }, // Added Shared link
-    { name: "Reportes", href: "/dashboard/reportes", icon: BarChart3 }, // Added Reports link
-    { name: "Familia", href: "/dashboard/familia", icon: Users }, // Added Family link
+    //{ name: "Alertas", href: "/dashboard/alertas", icon: Bell },
+    //{ name: "Compartidos", href: "/dashboard/compartidos", icon: Share2 }, // Added Shared link
+    //{ name: "Reportes", href: "/dashboard/reportes", icon: BarChart3 }, // Added Reports link
+    //{ name: "Familia", href: "/dashboard/familia", icon: Users }, // Added Family link
     { name: "Configuración", href: "/dashboard/configuracion", icon: Settings },
   ];
 

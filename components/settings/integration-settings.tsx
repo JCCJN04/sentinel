@@ -185,18 +185,6 @@ export function IntegrationSettings() {
           </Button>
         </CardContent>
       </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>API y webhooks</CardTitle>
-          <CardDescription>Configura integraciones personalizadas con la API de DocuVault</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center p-8">
-            <FileText className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-            <p className="text-muted-foreground">La API y webhooks estarán disponibles próximamente.</p>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   )
 }

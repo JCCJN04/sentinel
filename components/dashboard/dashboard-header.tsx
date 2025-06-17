@@ -14,7 +14,10 @@ export function DashboardHeader() {
     // Sticky header with background and bottom border
     <header className="sticky top-0 z-40 border-b bg-background">
       {/* Container to manage padding and flex layout */}
-      <div className="container flex h-16 items-center justify-between px-4 md:px-6">
+      <div
+        className="container flex h-16 items-center justify-between px-4 md:px-6"
+        suppressHydrationWarning // This prop is added to prevent hydration mismatch errors from browser extensions.
+      >
         {/* Left section: Search Bar */}
         <div className="flex items-center gap-2 md:gap-4">
           {/* Logo and text removed from here */}

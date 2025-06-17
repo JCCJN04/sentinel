@@ -1,4 +1,3 @@
-// startupv2/app/dashboard/documentos/page.tsx
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
@@ -26,7 +25,7 @@ import { Label } from "@/components/ui/label";
 import {
   FileText,
   FileImage,
-  FileIcon as FilePdf, // Renamed to avoid conflict if you had a FileIcon component
+  FileIcon as FilePdf,
   FileSpreadsheet,
   Search,
   MoreHorizontal,
@@ -44,7 +43,6 @@ import {
   FolderPlus,
   Edit3,
   Trash,
-  LinkIcon,
 } from "lucide-react";
 import { documentService, type Document } from "@/lib/document-service";
 import {
@@ -74,21 +72,64 @@ interface BreadcrumbItem {
   name: string;
 }
 
-async function generateClientSignedUrl(filePath: string, expiresInSeconds: number = 60): Promise<string | null> {
+// Función para generar URLs firmadas para visualización
+async function generateClientSignedUrl(filePath: string, expiresInSeconds: number = 300): Promise<string | null> {
   if (!filePath) return null;
   try {
     const { data, error } = await supabase.storage
       .from("documents")
       .createSignedUrl(filePath, expiresInSeconds);
-    if (error) { console.error(`Error creating signed URL (client) for ${filePath}:`, error); return null; }
+    if (error) { console.error(`[generateClientSignedUrl] Error creating signed URL for ${filePath}:`, error); return null; }
     return data?.signedUrl ?? null;
-  } catch (error) { console.error(`Exception creating signed URL (client) for ${filePath}:`, error); return null; }
+  } catch (error) { console.error(`[generateClientSignedUrl] Exception creating signed URL for ${filePath}:`, error); return null; }
+}
+
+// Función para generar URLs firmadas específicamente para descargas
+async function generateClientDownloadUrl(filePath: string, fileNameToSuggest: string, expiresInSeconds: number = 300): Promise<string | null> {
+  console.log(`[generateClientDownloadUrl] Requesting download URL for filePath: "${filePath}", suggested filename: "${fileNameToSuggest}"`);
+  if (!filePath) {
+    console.error("[generateClientDownloadUrl] No filePath provided.");
+    return null;
+  }
+  try {
+    const { data, error } = await supabase.storage
+      .from("documents")
+      .createSignedUrl(filePath, expiresInSeconds, {
+        download: fileNameToSuggest
+      });
+
+    if (error) {
+      console.error(`[generateClientDownloadUrl] Error creating download signed URL for "${filePath}":`, JSON.stringify(error, null, 2));
+      toast({ title: "Error de Supabase", description: `No se pudo crear URL de descarga: ${error.message}`, variant: "destructive"});
+      return null;
+    }
+    if (!data || !data.signedUrl) {
+      console.error(`[generateClientDownloadUrl] No signed URL data returned for "${filePath}".`);
+      toast({ title: "Error Interno", description: "No se recibió URL firmada de Supabase.", variant: "destructive"});
+      return null;
+    }
+    console.log(`[generateClientDownloadUrl] Generated download URL for "${filePath}": ${data.signedUrl}`);
+    return data.signedUrl;
+  } catch (error: any) {
+    console.error(`[generateClientDownloadUrl] Exception creating download signed URL for "${filePath}":`, error);
+    toast({ title: "Error de Excepción", description: `No se pudo crear URL: ${error.message}`, variant: "destructive"});
+    return null;
+  }
+}
+
+// Función auxiliar para sanitizar nombres de archivo
+function sanitizeFilename(filename: string): string {
+  let sanitized = filename.replace(/[<>:"\/\\|?*\x00-\x1F]/g, '_');
+  sanitized = sanitized.replace(/\s+/g, '_');
+  sanitized = sanitized.replace(/__+/g, '_');
+  sanitized = sanitized.substring(0, 200);
+  console.log(`[sanitizeFilename] Original: "${filename}", Sanitized: "${sanitized}"`);
+  return sanitized;
 }
 
 export default function DocumentosPage() {
   const router = useRouter();
   const [viewMode, setViewMode] = useState<"list" | "grid">("grid");
-  const [folderViewMode, setFolderViewMode] = useState<"grid" | "list">("list");
   const [searchQuery, setSearchQuery] = useState("");
 
   const [subFolders, setSubFolders] = useState<Category[]>([]);
@@ -106,6 +147,7 @@ export default function DocumentosPage() {
 
   const [deleteDocDialogOpen, setDeleteDocDialogOpen] = useState(false);
   const [documentToDelete, setDocumentToDelete] = useState<string | null>(null);
+  const [isDeletingDoc, setIsDeletingDoc] = useState(false); 
 
   const [newFolderName, setNewFolderName] = useState("");
   const [isProcessingFolder, setIsProcessingFolder] = useState(false);
@@ -126,23 +168,20 @@ export default function DocumentosPage() {
       setSubFolders(fetchedCategories);
     } catch (err: any) { console.error("Error fetching sub-categories:", err); setCategoryError("No se pudieron cargar las subcarpetas."); setSubFolders([]); }
     finally { setIsLoadingCategories(false); }
+
     try {
       let docs: Document[];
-      // Fetch documents only if in a specific folder (not the root "Mis Carpetas" view)
-      // or if you intend to show all uncategorized documents in "Mis Carpetas"
-      if (currentFolderName !== "Mis Carpetas" && currentParentId !== null) { // Adjusted condition
-        docs = await documentService.getDocumentsByCategory(currentFolderName);
-      } else if (currentParentId === null && currentFolderName === "Mis Carpetas") {
-        // Option 1: Show no documents at root, only folders
-        docs = [];
-        // Option 2: Show documents that have category as NULL or empty string if that's how you store uncategorized
-        // docs = await documentService.getDocumentsByCategory(null); // or ""
-      }
-      else {
+      if (currentParentId === null) {
+        docs = await documentService.getDocumentsByCategory("General");
+      } else {
         docs = await documentService.getDocumentsByCategory(currentFolderName);
       }
       setDocuments(docs);
-    } catch (error) { console.error(`Error fetching docs for "${currentFolderName}":`, error); setDocumentsError(`Error al cargar docs de "${currentFolderName}".`); setDocuments([]); }
+    } catch (error) {
+      console.error(`Error fetching docs for "${currentParentId === null ? "General" : currentFolderName}":`, error);
+      setDocumentsError(`Error al cargar documentos de "${currentParentId === null ? "General" : currentFolderName}".`);
+      setDocuments([]);
+    }
     finally { setIsLoadingDocuments(false); }
   }, [currentParentId, currentFolderName]);
 
@@ -156,6 +195,71 @@ export default function DocumentosPage() {
     }
     setFilteredDocuments(tempFiltered);
   }, [searchQuery, documents]);
+
+  // ✨ NUEVO COMPONENTE INTERNO PARA MANEJAR MINIATURAS DE IMAGEN DE FORMA SEGURA ✨
+  const DocumentImageThumbnail = ({ doc }: { doc: Document }) => {
+    const [imageUrl, setImageUrl] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+      const generateUrl = async () => {
+        if (doc.file_path) {
+          // Generamos una URL segura y de corta duración solo para la miniatura
+          const signedUrl = await generateClientSignedUrl(doc.file_path, 300); // 5 minutos de validez
+          setImageUrl(signedUrl);
+        }
+        setIsLoading(false);
+      };
+
+      generateUrl();
+    }, [doc.file_path]);
+
+    if (isLoading) {
+      return (
+        <div className="w-full h-full flex items-center justify-center bg-muted">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      );
+    }
+
+    if (imageUrl) {
+      return (
+        <img
+          src={imageUrl}
+          alt={doc.name}
+          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+        />
+      );
+    }
+    
+    // Fallback si la generación de URL falla
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-muted">
+        <FileImage className="h-12 w-12 text-blue-500" />
+      </div>
+    );
+  };
+
+  // ✨ FUNCIÓN DE MINIATURAS ACTUALIZADA PARA USAR EL NUEVO COMPONENTE ✨
+  const getDocumentThumbnail = (doc: Document) => {
+    const fileType = doc.file_type?.toLowerCase() || "";
+    
+    if (["jpg", "jpeg", "png", "gif", "webp", "heic", "heif"].includes(fileType)) {
+      return (
+        <div className="relative w-full aspect-[4/3] bg-muted rounded-t-lg overflow-hidden group">
+          <DocumentImageThumbnail doc={doc} />
+        </div>
+      );
+    } else if (fileType === "pdf") {
+      return <div className="relative w-full aspect-[4/3] bg-red-50 dark:bg-red-900/30 rounded-t-lg flex items-center justify-center group"><FilePdf className="h-12 w-12 text-red-500 dark:text-red-400 transition-transform duration-300 group-hover:scale-110" /></div>;
+    } else if (["doc", "docx", "msword", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"].includes(fileType)) {
+        return <div className="relative w-full aspect-[4/3] bg-sky-50 dark:bg-sky-900/30 rounded-t-lg flex items-center justify-center group"><FileText className="h-12 w-12 text-sky-500 dark:text-sky-400 transition-transform duration-300 group-hover:scale-110" /></div>;
+    }
+    else {
+      const IconElement = getFileIcon(fileType);
+      return <div className="relative w-full aspect-[4/3] bg-slate-100 dark:bg-slate-800 rounded-t-lg flex items-center justify-center group">{React.cloneElement(IconElement, { className: "h-12 w-12 text-slate-500 dark:text-slate-400 transition-transform duration-300 group-hover:scale-110" })}</div>;
+    }
+  };
 
   const handleNavigateToCategory = (categoryTarget: Category | BreadcrumbItem) => {
     if (categoryTarget.id === currentParentId && categoryTarget.name === currentFolderName) return;
@@ -195,16 +299,15 @@ export default function DocumentosPage() {
       const updatedFolder = await renameCategory(folderToRename.id, renamingFolderName.trim());
       toast({ title: "Éxito", description: `Carpeta renombrada a "${renamingFolderName.trim()}".` });
       setBreadcrumbs(prev => prev.map(b => b.id === updatedFolder.id ? { ...b, name: updatedFolder.name } : b));
-      if (currentParentId === folderToRename.parent_id && currentFolderName === folderToRename.name) { // check if renamed folder is the current one
-         setCurrentFolderName(updatedFolder.name);
-      } else if (breadcrumbs.some(b => b.id === updatedFolder.id)) { // check if renamed folder is in breadcrumbs
-         // If the renamed folder was the one we are currently inside, update currentFolderName
-         if (currentParentId === updatedFolder.id) {
-            setCurrentFolderName(updatedFolder.name);
-         }
+      if (currentParentId === folderToRename.parent_id && currentFolderName === folderToRename.name) {
+          setCurrentFolderName(updatedFolder.name);
+      } else if (breadcrumbs.some(b => b.id === updatedFolder.id)) {
+        if (currentParentId === updatedFolder.id) {
+          setCurrentFolderName(updatedFolder.name);
+        }
       }
       setRenamingFolderName(""); setRenameFolderDialogOpen(false); setFolderToRename(null);
-      await fetchCurrentLevelData(); // This will refetch based on currentParentId and updated currentFolderName if it changed
+      await fetchCurrentLevelData();
     } catch (error: any) {
       console.error("Error renaming folder:", error);
       toast({ title: "Error al renombrar", description: error.message || "No se pudo renombrar.", variant: "destructive" });
@@ -231,41 +334,107 @@ export default function DocumentosPage() {
   };
 
   const handleViewDocumentDetails = (id: string) => router.push(`/dashboard/documentos/${id}`);
+
   const handleOpenDocumentLink = async (doc: Document) => {
+    console.log("[handleOpenDocumentLink] Attempting to open document:", JSON.stringify(doc, null, 2));
     if (!doc.file_path) { toast({ title: "Error", description: "Ruta de archivo no disponible.", variant: "destructive" }); return; }
     try {
       const signedUrl = await generateClientSignedUrl(doc.file_path, 300);
-      if (signedUrl) { window.open(signedUrl, "_blank"); }
-      else { toast({ title: "Error", description: "No se pudo generar el enlace seguro para el documento.", variant: "destructive" }); }
-    } catch (error: any) { toast({ title: "Error", description: `No se pudo abrir el documento: ${error.message}`, variant: "destructive" }); }
-  };
-  const handleDownloadDocument = async (doc: Document) => {
-    if (!doc.file_path) { toast({ title: "Error", description: "Ruta de archivo no disponible.", variant: "destructive" }); return; }
-    try {
-      const signedUrl = await generateClientSignedUrl(doc.file_path, 60);
       if (signedUrl) {
-        const link = document.createElement('a'); link.href = signedUrl;
-        link.setAttribute('download', doc.name || doc.file_path.split('/').pop() || 'documento');
-        document.body.appendChild(link); link.click(); document.body.removeChild(link); link.remove();
-      } else { toast({ title: "Error", description: "No se pudo generar el enlace de descarga.", variant: "destructive" }); }
-    } catch (error: any) { toast({ title: "Error", description: `No se pudo descargar el documento: ${error.message}`, variant: "destructive" }); }
+        console.log("[handleOpenDocumentLink] Opening URL:", signedUrl);
+        window.open(signedUrl, "_blank");
+      }
+      else {
+        toast({ title: "Error", description: "No se pudo generar el enlace seguro para el documento.", variant: "destructive" });
+        console.error("[handleOpenDocumentLink] Failed to get signed URL for viewing.");
+      }
+    } catch (error: any) {
+      toast({ title: "Error", description: `No se pudo abrir el documento: ${error.message}`, variant: "destructive" });
+      console.error("[handleOpenDocumentLink] Exception:", error);
+    }
   };
+
+  const handleDownloadDocument = async (doc: Document) => {
+    console.log("[handleDownloadDocument] Attempting to download document:", JSON.stringify(doc, null, 2));
+    if (!doc.file_path) {
+      toast({ title: "Error de Descarga", description: "Ruta de archivo no disponible en el objeto del documento.", variant: "destructive" });
+      console.error("[handleDownloadDocument] doc.file_path is missing.");
+      return;
+    }
+
+    try {
+      let rawFileName = doc.name || doc.file_path.split('/').pop();
+      if (!rawFileName) {
+          console.warn("[handleDownloadDocument] Could not determine a raw filename, defaulting to 'documento'.");
+          rawFileName = 'documento';
+      }
+
+      if (rawFileName.lastIndexOf('.') === -1 && doc.file_type && doc.file_type.trim() !== '') {
+        const safeFileType = doc.file_type.startsWith('.') ? doc.file_type.substring(1) : doc.file_type;
+        if (safeFileType) {
+            rawFileName = `${rawFileName}.${safeFileType}`;
+        }
+      }
+
+      const fileNameToSuggest = sanitizeFilename(rawFileName);
+
+      console.log(`[handleDownloadDocument] file_path: "${doc.file_path}", Original name for suggestion: "${rawFileName}", Sanitized suggested filename: "${fileNameToSuggest}"`);
+
+      const signedUrl = await generateClientDownloadUrl(doc.file_path, fileNameToSuggest, 300);
+
+      if (signedUrl) {
+        console.log(`[handleDownloadDocument] Received signed URL: ${signedUrl}. Attempting to trigger download for filename: "${fileNameToSuggest}".`);
+        const link = document.createElement('a');
+        link.href = signedUrl;
+        link.setAttribute('download', fileNameToSuggest);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        link.remove();
+        console.log("[handleDownloadDocument] Download link clicked.");
+        toast({ title: "Descarga Iniciada", description: `Descargando "${fileNameToSuggest}"...`});
+      } else {
+        toast({ title: "Error de Descarga", description: "No se pudo generar el enlace de descarga. Revisa la consola del navegador para más detalles.", variant: "destructive" });
+        console.error("[handleDownloadDocument] Failed to get signed URL from generateClientDownloadUrl.");
+      }
+    } catch (error: any) {
+      console.error("[handleDownloadDocument] Exception during download process:", error);
+      toast({ title: "Error de Descarga", description: `Excepción: ${error.message}`, variant: "destructive" });
+    }
+  };
+
   const handleShareDocument = (id: string) => router.push(`/dashboard/compartir/${id}`);
+
   const handleDeleteDocument = async () => {
     if (!documentToDelete) return;
+
+    setIsDeletingDoc(true);
+    setDocumentsError(null);
+
     try {
-      setDocumentsError(null); await documentService.deleteDocument(documentToDelete);
-      await fetchCurrentLevelData(); setDeleteDocDialogOpen(false); setDocumentToDelete(null);
-      toast({ title: "Documento Eliminado", description: "El documento ha sido eliminado." })
-    } catch (error: any) { console.error("Error deleting document:", error); setDocumentsError("Error al eliminar el documento."); toast({ title: "Error", description: "No se pudo eliminar el documento.", variant: "destructive" }); setDeleteDocDialogOpen(false); }
+      await documentService.deleteDocument(documentToDelete);
+      toast({ title: "Documento Eliminado", description: "El documento ha sido eliminado." });
+      setDeleteDocDialogOpen(false);
+      await fetchCurrentLevelData();
+
+    } catch (error: any) {
+      console.error("Error deleting document:", error);
+      setDocumentsError("Error al eliminar el documento.");
+      toast({ title: "Error", description: "No se pudo eliminar el documento.", variant: "destructive" });
+      setDeleteDocDialogOpen(false);
+    } finally {
+      setDocumentToDelete(null);
+      setIsDeletingDoc(false);
+    }
   };
+
   const confirmDeleteDoc = (id: string) => { setDocumentToDelete(id); setDeleteDocDialogOpen(true); };
 
   const getFileIcon = (type: string | null | undefined) => {
     switch (type?.toLowerCase()) {
       case "pdf": return <FilePdf className="h-5 w-5 text-red-500" />;
       case "jpg": case "jpeg": case "png": case "gif": case "webp": case "heic": case "heif": return <FileImage className="h-5 w-5 text-blue-500" />;
-      case "doc": case "docx": case "msword": case "application/msword": case "application/vnd.openxmlformats-officedocument.wordprocessingml.document": return <FileText className="h-5 w-5 text-sky-500" />; // Adjusted for DOC/DOCX
+      case "doc": case "docx": case "msword": case "application/msword": case "application/vnd.openxmlformats-officedocument.wordprocessingml.document": return <FileText className="h-5 w-5 text-sky-500" />;
       case "xls": case "xlsx": case "csv": return <FileSpreadsheet className="h-5 w-5 text-green-500" />;
       default: return <FileText className="h-5 w-5 text-gray-500" />;
     }
@@ -278,22 +447,7 @@ export default function DocumentosPage() {
       default: return <Badge variant="secondary">{status || "Desconocido"}</Badge>;
     }
   };
-  const getDocumentThumbnail = (doc: Document) => {
-    const fileType = doc.file_type?.toLowerCase() || "";
-    const imageUrl = doc.file_url;
-    if (["jpg", "jpeg", "png", "gif", "webp", "heic", "heif"].includes(fileType)) { // Added heic/heif
-      return <div className="relative w-full aspect-[4/3] bg-muted rounded-t-lg overflow-hidden group"> {imageUrl ? <img src={imageUrl} alt={doc.name} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" onError={(e) => { (e.target as HTMLImageElement).src = `https://placehold.co/400x300/EEE/CCC?text=No+Preview`; }} /> : <div className="w-full h-full flex items-center justify-center bg-muted"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>} </div>;
-    } else if (fileType === "pdf") {
-      return <div className="relative w-full aspect-[4/3] bg-red-50 dark:bg-red-900/30 rounded-t-lg flex items-center justify-center group"><FilePdf className="h-12 w-12 text-red-500 dark:text-red-400 transition-transform duration-300 group-hover:scale-110" /></div>;
-    } else if (["doc", "docx", "msword", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"].includes(fileType)) {
-        return <div className="relative w-full aspect-[4/3] bg-sky-50 dark:bg-sky-900/30 rounded-t-lg flex items-center justify-center group"><FileText className="h-12 w-12 text-sky-500 dark:text-sky-400 transition-transform duration-300 group-hover:scale-110" /></div>;
-    }
-    else {
-      const IconElement = getFileIcon(fileType); // Ensure getFileIcon handles these types or provides a default
-      return <div className="relative w-full aspect-[4/3] bg-slate-100 dark:bg-slate-800 rounded-t-lg flex items-center justify-center group">{React.cloneElement(IconElement, { className: "h-12 w-12 text-slate-500 dark:text-slate-400 transition-transform duration-300 group-hover:scale-110" })}</div>;
-    }
-  };
-
+  
   const FolderListItem = ({ category }: { category: Category }) => (
     <div
       className="flex items-center p-2.5 pr-1.5 rounded-md hover:bg-muted/50 group border-b last:border-b-0"
@@ -318,23 +472,16 @@ export default function DocumentosPage() {
             <DropdownMenuItem onClick={() => handleNavigateToCategory(category)}>
               <FolderOpenIcon className="mr-1.5 h-3.5 w-3.5" /> Abrir
             </DropdownMenuItem>
-            {category.user_id !== null && ( // Assuming global categories might have user_id as null
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => openRenameDialog(category)}>
-                  <Edit3 className="mr-1.5 h-3.5 w-3.5" /> Renombrar
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className="text-destructive focus:text-destructive focus:bg-destructive/10"
-                  onClick={() => confirmDeleteFolder(category.id, category.name)}
-                >
-                  <Trash className="mr-1.5 h-3.5 w-3.5" /> Eliminar
-                </DropdownMenuItem>
-              </>
-            )}
-             {category.user_id === null && (
-                <DropdownMenuItem disabled><span className="italic">Carpeta global (solo lectura)</span></DropdownMenuItem>
-            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => openRenameDialog(category)}>
+              <Edit3 className="mr-1.5 h-3.5 w-3.5" /> Renombrar
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive focus:bg-destructive/10"
+              onClick={() => confirmDeleteFolder(category.id, category.name)}
+            >
+              <Trash className="mr-1.5 h-3.5 w-3.5" /> Eliminar
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -361,28 +508,19 @@ export default function DocumentosPage() {
             <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleNavigateToCategory(category); }}>
               <FolderOpenIcon className="mr-1.5 h-3.5 w-3.5" /> Abrir
             </DropdownMenuItem>
-            {category.user_id !== null && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openRenameDialog(category); }}><Edit3 className="mr-1.5 h-3.5 w-3.5" /> Renombrar</DropdownMenuItem>
-                <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-destructive/10" onClick={(e) => { e.stopPropagation(); confirmDeleteFolder(category.id, category.name); }}><Trash className="mr-1.5 h-3.5 w-3.5" /> Eliminar</DropdownMenuItem>
-              </>
-            )}
-            {category.user_id === null && ( <DropdownMenuItem disabled><span className="italic">Carpeta global</span></DropdownMenuItem> )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openRenameDialog(category); }}><Edit3 className="mr-1.5 h-3.5 w-3.5" /> Renombrar</DropdownMenuItem>
+            <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-destructive/10" onClick={(e) => { e.stopPropagation(); confirmDeleteFolder(category.id, category.name); }}><Trash className="mr-1.5 h-3.5 w-3.5" /> Eliminar</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
     </div>
   );
 
-  // Function to handle navigation to the upload page with category context
   const handleUploadDocumentClick = () => {
-    // Only pass category if not in "Mis Carpetas" root or if "Mis Carpetas" is treated as a specific category for uncategorized items
     if (currentFolderName && currentFolderName !== "Mis Carpetas") {
       router.push(`/dashboard/subir?categoria=${encodeURIComponent(currentFolderName)}`);
     } else {
-      // If at root "Mis Carpetas" or no specific folder name, navigate without category
-      // The subir/page.tsx should handle this by allowing category selection
       router.push("/dashboard/subir");
     }
   };
@@ -402,7 +540,10 @@ export default function DocumentosPage() {
               </React.Fragment>
             ))}
           </div>
-          <div className="flex items-center gap-2 self-stretch sm:self-center w-full sm:w-auto justify-end sm:justify-between">
+          <div 
+            className="flex items-center gap-2 self-stretch sm:self-center w-full sm:w-auto justify-end sm:justify-between"
+            suppressHydrationWarning // ✨ FIX ADDED HERE for hydration warning
+          >
             <div className="relative flex-grow sm:flex-grow-0 sm:w-52 md:w-60">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input type="search" placeholder="Buscar aquí..." className="w-full pl-8 pr-3 h-9 text-xs rounded-md" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
@@ -416,6 +557,7 @@ export default function DocumentosPage() {
       </header>
 
       <main className="flex-1 p-4 md:p-6 space-y-6 overflow-y-auto">
+        {/* ... Rest of the main content */}
         {(documentsError && !isLoadingDocuments && !isLoadingCategories) && (<Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertDescription>{documentsError}</AlertDescription></Alert>)}
         {(categoryError && !isLoadingCategories) && (<Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertDescription>{categoryError}</AlertDescription></Alert>)}
 
@@ -425,23 +567,19 @@ export default function DocumentosPage() {
               {currentParentId === null && breadcrumbs.length === 1 ? "Carpetas Principales" : `Carpetas en "${currentFolderName}"`}
             </h2>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => setFolderViewMode(prev => prev === 'grid' ? 'list' : 'grid')} className="text-xs h-8 px-2.5">
-                {folderViewMode === 'grid' ? <ListChecks className="mr-1.5 h-3.5 w-3.5" /> : <LayoutGrid className="mr-1.5 h-3.5 w-3.5" />}
-                Vista {folderViewMode === 'grid' ? 'Lista' : 'Cuadrícula'}
-              </Button>
               <Button variant="outline" size="sm" onClick={() => setCreateFolderDialogOpen(true)} className="text-xs h-8 px-2.5">
                 <FolderPlus className="mr-1.5 h-3.5 w-3.5" /> Nueva Carpeta
               </Button>
             </div>
           </div>
           {isLoadingCategories ? (
-            folderViewMode === 'grid' ? (
+            viewMode === 'grid' ? (
               <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 md:gap-4">
                 {Array.from({ length: currentParentId === null ? 4 : 3 }).map((_, i) => (<div key={i} className="flex flex-col items-center p-3 border rounded-lg bg-card animate-pulse aspect-[5/4] justify-center"> <div className="h-8 w-8 mb-1.5 bg-muted rounded-md"></div><div className="h-3 w-3/4 bg-muted rounded"></div> </div>))}
               </div>
             ) : (<div className="space-y-1 border rounded-lg bg-card p-1 shadow-sm"> {Array.from({ length: 3 }).map((_, i) => (<div key={i} className="flex items-center p-2.5 space-x-3 rounded-md bg-background animate-pulse"> <div className="h-5 w-5 bg-muted rounded-full"></div><div className="h-4 w-1/2 bg-muted rounded"></div> </div>))} </div>)
           ) : !categoryError && subFolders.length > 0 ? (
-            folderViewMode === 'grid' ? (<div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 md:gap-4"> {subFolders.map((cat) => (<FolderCard key={cat.id} category={cat} />))} </div>)
+            viewMode === 'grid' ? (<div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 md:gap-4"> {subFolders.map((cat) => (<FolderCard key={cat.id} category={cat} />))} </div>)
               : (<div className="border rounded-lg bg-card shadow-sm divide-y divide-border"> {subFolders.map((cat) => (<FolderListItem key={cat.id} category={cat} />))} </div>)
           ) : !categoryError && subFolders.length === 0 && !(isLoadingDocuments || filteredDocuments.length > 0) ? (
             <p className="text-sm text-muted-foreground py-4 text-center italic">Esta carpeta no tiene subcarpetas.</p>
@@ -451,76 +589,57 @@ export default function DocumentosPage() {
         {(subFolders.length > 0 && (isLoadingDocuments || filteredDocuments.length > 0)) && <hr className="my-6 border-dashed" />}
 
         <div>
-          {(currentParentId !== null || (breadcrumbs.length > 1 && currentFolderName !== "Mis Carpetas") || (!isLoadingDocuments && filteredDocuments.length > 0)) && (
-            <div className="flex justify-between items-center mb-3"> {/* Added for Subir Documento button */}
-                <h2 className="text-lg font-semibold tracking-tight flex items-center">
-                Documentos {currentParentId !== null || currentFolderName !== "Mis Carpetas" ? `en "${currentFolderName}"` : ""}
-                {isLoadingDocuments && <Loader2 className="inline-block ml-2 h-4 w-4 animate-spin" />}
-              </h2>
-              {/* ADDED "SUBIR DOCUMENTO" BUTTON HERE to be contextual to the current folder view */}
-              {(currentFolderName && currentFolderName !== "Mis Carpetas") && (
-                 <Button size="sm" onClick={handleUploadDocumentClick} className="text-xs h-8 px-2.5">
-                    <PlusCircle className="mr-1.5 h-3.5 w-3.5" />Subir a "{currentFolderName}"
-                 </Button>
-              )}
-            </div>
-          )}
-          {isLoadingDocuments && filteredDocuments.length === 0 ? (<div className="flex justify-center items-center py-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-          ) : !isLoadingDocuments && filteredDocuments.length === 0 ? (((subFolders.length === 0 && currentParentId !== null) || (currentParentId === null && currentFolderName === "Mis Carpetas" && subFolders.length > 0) || (currentParentId !== null && currentFolderName !== "Mis Carpetas") ) && ( // Show "No hay documentos" only if inside a folder or at root with folders but no docs
-            <div className="text-center py-10 border rounded-lg bg-card shadow-sm"> <FileText className="h-12 w-12 mx-auto text-muted-foreground/60 mb-3" /> <h3 className="text-lg font-semibold text-card-foreground mb-1"> No hay documentos </h3> <p className="text-muted-foreground px-4 text-sm"> {searchQuery ? "No hay documentos que coincidan con tu búsqueda." : `La carpeta "${currentFolderName}" está vacía.`} </p>
-              {/* General "Subir Documento" button, navigates without category if in root */}
-              <Button size="sm" onClick={handleUploadDocumentClick} className="mt-4">
-                <PlusCircle className="mr-2 h-4 w-4" />Subir Documento
-              </Button>
-            </div>))
-            : viewMode === "list" ? (
-              <div className="rounded-lg border bg-card shadow-sm overflow-hidden">
-                <div className="grid grid-cols-[auto_minmax(0,_1fr)_auto_auto_auto_auto] items-center gap-x-3 px-3 py-2.5 font-medium border-b bg-muted/40 text-xs text-muted-foreground uppercase tracking-wider">
-                  <div className="pl-8">Tipo</div> <div>Nombre</div> <div>Categoría</div> <div>Fecha</div> <div>Estado</div> <div className="text-right pr-2">Acciones</div>
+            {(currentParentId !== null || (currentParentId === null && currentFolderName === "Mis Carpetas")) && (
+                <div className="flex justify-between items-center mb-3">
+                    <h2 className="text-lg font-semibold tracking-tight flex items-center">
+                        Documentos {currentParentId !== null ? `en "${currentFolderName}"` : 'en "General" (Raíz)'}
+                        {isLoadingDocuments && <Loader2 className="inline-block ml-2 h-4 w-4 animate-spin" />}
+                    </h2>
+                    {currentParentId !== null ? (
+                        <Button size="sm" onClick={handleUploadDocumentClick} className="text-xs h-8 px-2.5">
+                            <PlusCircle className="mr-1.5 h-3.5 w-3.5" />Subir a "{currentFolderName}"
+                        </Button>
+                    ) : (
+                        <Button size="sm" onClick={handleUploadDocumentClick} className="text-xs h-8 px-2.5">
+                            <PlusCircle className="mr-1.5 h-3.5 w-3.5" />Subir Documento
+                        </Button>
+                    )}
                 </div>
-                {filteredDocuments.map((doc) => (
-                  <div key={doc.id} className="grid grid-cols-[auto_minmax(0,_1fr)_auto_auto_auto_auto] items-center gap-x-3 px-3 py-2.5 hover:bg-muted/80 dark:hover:bg-muted/20 transition-colors cursor-pointer border-b last:border-b-0 text-sm" >
-                    <div className="flex justify-center items-center w-8 h-8" onClick={() => handleOpenDocumentLink(doc)}>{getFileIcon(doc.file_type)}</div>
-                    <div className="truncate" onClick={() => handleOpenDocumentLink(doc)}>
-                      <div className="font-medium text-card-foreground truncate" title={doc.name}>{doc.name}</div>
-                      <div className="flex flex-wrap gap-1 mt-0.5">
-                        {doc.tags?.slice(0, 2).map((tag, i) => (<Badge key={i} variant="outline" className="text-xs px-1.5 py-0.5 font-normal">{tag}</Badge>))}
-                        {doc.tags?.length > 2 && (<Badge variant="outline" className="text-xs px-1.5 py-0.5 font-normal">+{doc.tags.length - 2}</Badge>)}
-                      </div>
-                    </div>
-                    <div className="text-muted-foreground truncate text-xs" title={doc.category || undefined} onClick={() => handleOpenDocumentLink(doc)}>{doc.category}</div>
-                    <div className="text-muted-foreground text-xs" onClick={() => handleOpenDocumentLink(doc)}>{doc.date ? new Date(doc.date).toLocaleDateString() : '-'}</div>
-                    <div onClick={() => handleOpenDocumentLink(doc)}>{getStatusBadge(doc.status)}</div>
-                    <div onClick={(e) => e.stopPropagation()} className="flex justify-end">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7"><MoreHorizontal className="h-4 w-4" /><span className="sr-only">Más</span></Button></DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleOpenDocumentLink(doc)}><LinkIcon className="mr-2 h-3.5 w-3.5" />Abrir Documento</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleDownloadDocument(doc)}><Download className="mr-2 h-3.5 w-3.5" /><span>Descargar</span></DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleShareDocument(doc.id)}><Share2 className="mr-2 h-3.5 w-3.5" /><span>Compartir</span></DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => handleViewDocumentDetails(doc.id)}><Edit3 className="mr-2 h-3.5 w-3.5" /><span>Ver/Editar Detalles</span></DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-destructive/10" onClick={() => confirmDeleteDoc(doc.id)}><Trash2 className="mr-2 h-3.5 w-3.5" /><span>Eliminar Doc.</span></DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </div>
-                ))}
-              </div>
+            )}
+
+            {isLoadingDocuments && filteredDocuments.length === 0 ? (
+                <div className="flex justify-center items-center py-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+            ) : !isLoadingDocuments && filteredDocuments.length === 0 ? (
+                <div className="text-center py-10 border rounded-lg bg-card shadow-sm">
+                    <FileText className="h-12 w-12 mx-auto text-muted-foreground/60 mb-3" />
+                    <h3 className="text-lg font-semibold text-card-foreground mb-1"> No hay documentos </h3>
+                    <p className="text-muted-foreground px-4 text-sm">
+                        {searchQuery ? "No hay documentos que coincidan con tu búsqueda." : (currentParentId === null ? "No hay documentos en la vista principal de 'General'." : `La carpeta "${currentFolderName}" está vacía.`)}
+                    </p>
+                </div>
             ) : (
-              <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 md:gap-4">
-                {filteredDocuments.map((doc) => (
-                  <div key={doc.id} className="rounded-lg border bg-card text-card-foreground shadow-sm hover:shadow-lg transition-shadow duration-200 cursor-pointer flex flex-col group" >
-                    <div onClick={() => handleOpenDocumentLink(doc)} className="cursor-pointer">{getDocumentThumbnail(doc)}</div>
-                    <div className="p-2.5 flex flex-col flex-grow">
-                      <div className="flex items-start justify-between mb-0.5">
-                        <h3 className="font-semibold text-xs sm:text-sm leading-tight tracking-tight truncate flex-grow mr-1.5 group-hover:text-primary" title={doc.name} onClick={() => handleOpenDocumentLink(doc)}>{doc.name}</h3>
-                        <div onClick={(e) => e.stopPropagation()}>
+                viewMode === "list" ? (
+                  <div className="rounded-lg border bg-card shadow-sm overflow-hidden">
+                    <div className="grid grid-cols-[auto_minmax(0,_1fr)_auto_auto_auto_auto] items-center gap-x-3 px-3 py-2.5 font-medium border-b bg-muted/40 text-xs text-muted-foreground uppercase tracking-wider">
+                      <div className="pl-8">Tipo</div> <div>Nombre</div> <div>Categoría</div> <div>Fecha</div> <div>Estado</div> <div className="text-right pr-2">Acciones</div>
+                    </div>
+                    {filteredDocuments.map((doc) => (
+                      <div key={doc.id} className="grid grid-cols-[auto_minmax(0,_1fr)_auto_auto_auto_auto] items-center gap-x-3 px-3 py-2.5 hover:bg-muted/80 dark:hover:bg-muted/20 transition-colors cursor-pointer border-b last:border-b-0 text-sm" >
+                        <div className="flex justify-center items-center w-8 h-8" onClick={() => handleOpenDocumentLink(doc)}>{getFileIcon(doc.file_type)}</div>
+                        <div className="truncate" onClick={() => handleOpenDocumentLink(doc)}>
+                          <div className="font-medium text-card-foreground truncate" title={doc.name}>{doc.name}</div>
+                          <div className="flex flex-wrap gap-1 mt-0.5">
+                            {doc.tags?.slice(0, 2).map((tag, i) => (<Badge key={i} variant="outline" className="text-xs px-1.5 py-0.5 font-normal">{tag}</Badge>))}
+                            {doc.tags?.length > 2 && (<Badge variant="outline" className="text-xs px-1.5 py-0.5 font-normal">+{doc.tags.length - 2}</Badge>)}
+                          </div>
+                        </div>
+                        <div className="text-muted-foreground truncate text-xs" title={doc.category || undefined} onClick={() => handleOpenDocumentLink(doc)}>{doc.category}</div>
+                        <div className="text-muted-foreground text-xs" onClick={() => handleOpenDocumentLink(doc)}>{doc.date ? new Date(doc.date).toLocaleDateString() : '-'}</div>
+                        <div onClick={() => handleOpenDocumentLink(doc)}>{getStatusBadge(doc.status)}</div>
+                        <div onClick={(e) => e.stopPropagation()} className="flex justify-end">
                           <DropdownMenu>
-                            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5 flex-shrink-0 opacity-60 group-hover:opacity-100"><MoreHorizontal className="h-3 w-3" /><span className="sr-only">Más</span></Button></DropdownMenuTrigger>
+                            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7"><MoreHorizontal className="h-4 w-4" /><span className="sr-only">Más</span></Button></DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => handleOpenDocumentLink(doc)}><LinkIcon className="mr-2 h-3.5 w-3.5" />Abrir Documento</DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleDownloadDocument(doc)}><Download className="mr-2 h-3.5 w-3.5" /><span>Descargar</span></DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleShareDocument(doc.id)}><Share2 className="mr-2 h-3.5 w-3.5" /><span>Compartir</span></DropdownMenuItem>
                               <DropdownMenuSeparator />
@@ -531,23 +650,70 @@ export default function DocumentosPage() {
                           </DropdownMenu>
                         </div>
                       </div>
-                      <div className="flex justify-between items-center text-[11px] text-muted-foreground mb-1" onClick={() => handleOpenDocumentLink(doc)}> <span className="truncate" title={doc.category || undefined}>{doc.category}</span> {getStatusBadge(doc.status)} </div>
-                      <div className="mt-auto flex flex-wrap gap-0.5" onClick={() => handleOpenDocumentLink(doc)}>
-                        {doc.tags?.slice(0, 2).map((tag, i) => (<Badge key={i} variant="secondary" className="text-[10px] px-1 py-0 font-normal">{tag}</Badge>))}
-                        {doc.tags?.length > 2 && (<Badge variant="secondary" className="text-[10px] px-1 py-0 font-normal">+{doc.tags.length - 2}</Badge>)}
-                      </div>
-                    </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                ) : (
+                  <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 md:gap-4">
+                    {filteredDocuments.map((doc) => (
+                      <div key={doc.id} className="rounded-lg border bg-card text-card-foreground shadow-sm hover:shadow-lg transition-shadow duration-200 cursor-pointer flex flex-col group" >
+                        <div onClick={() => handleOpenDocumentLink(doc)} className="cursor-pointer">{getDocumentThumbnail(doc)}</div>
+                        <div className="p-2.5 flex flex-col flex-grow">
+                          <div className="flex items-start justify-between mb-0.5">
+                            <h3 className="font-semibold text-xs sm:text-sm leading-tight tracking-tight truncate flex-grow mr-1.5 group-hover:text-primary" title={doc.name} onClick={() => handleOpenDocumentLink(doc)}>{doc.name}</h3>
+                            <div onClick={(e) => e.stopPropagation()}>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5 flex-shrink-0 opacity-60 group-hover:opacity-100"><MoreHorizontal className="h-3 w-3" /><span className="sr-only">Más</span></Button></DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => handleDownloadDocument(doc)}><Download className="mr-2 h-3.5 w-3.5" /><span>Descargar</span></DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleShareDocument(doc.id)}><Share2 className="mr-2 h-3.5 w-3.5" /><span>Compartir</span></DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem onClick={() => handleViewDocumentDetails(doc.id)}><Edit3 className="mr-2 h-3.5 w-3.5" /><span>Ver/Editar Detalles</span></DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-destructive/10" onClick={() => confirmDeleteDoc(doc.id)}><Trash2 className="mr-2 h-3.5 w-3.5" /><span>Eliminar Doc.</span></DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          </div>
+                          <div className="flex justify-between items-center text-[11px] text-muted-foreground mb-1" onClick={() => handleOpenDocumentLink(doc)}> <span className="truncate" title={doc.category || undefined}>{doc.category}</span> {getStatusBadge(doc.status)} </div>
+                          <div className="mt-auto flex flex-wrap gap-0.5" onClick={() => handleOpenDocumentLink(doc)}>
+                            {doc.tags?.slice(0, 2).map((tag, i) => (<Badge key={i} variant="secondary" className="text-[10px] px-1 py-0 font-normal">{tag}</Badge>))}
+                            {doc.tags?.length > 2 && (<Badge variant="secondary" className="text-[10px] px-1 py-0 font-normal">+{doc.tags.length - 2}</Badge>)}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
             )}
         </div>
       </main>
 
-      {/* AlertDialogs y Dialogs */}
-      <AlertDialog open={deleteDocDialogOpen} onOpenChange={setDeleteDocDialogOpen}>
-        <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Eliminar Documento</AlertDialogTitle><AlertDialogDescription>Esta acción eliminará permanentemente el documento. ¿Estás seguro?</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDeleteDocument} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">Eliminar Documento</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+      {/* Dialogs */}
+      <AlertDialog open={deleteDocDialogOpen} onOpenChange={(open) => {
+        if (isDeletingDoc) return;
+        setDeleteDocDialogOpen(open);
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar Documento</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción eliminará permanentemente el documento. ¿Estás seguro?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeletingDoc}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteDocument}
+              disabled={isDeletingDoc}
+              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+            >
+              {isDeletingDoc && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isDeletingDoc ? 'Eliminando...' : 'Eliminar Documento'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
       </AlertDialog>
+
       <AlertDialog open={deleteFolderDialogOpen} onOpenChange={setDeleteFolderDialogOpen}>
         <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Eliminar Carpeta "{folderToDelete?.name}"</AlertDialogTitle><AlertDialogDescription>¿Estás seguro? <span className="font-semibold text-destructive"> Se eliminarán todas las subcarpetas y documentos que contenga de forma permanente.</span> Esta acción no se puede deshacer.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel disabled={isProcessingFolder}>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDeleteFolderConfirmed} className="bg-destructive hover:bg-destructive/90" disabled={isProcessingFolder}>{isProcessingFolder && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Sí, Eliminar Todo</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
       </AlertDialog>
