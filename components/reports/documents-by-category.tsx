@@ -1,71 +1,46 @@
-"use client"
+// components/reports/documents-by-category.tsx
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
 
-import { useState, useEffect } from "react"
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts"
-import { reportsService, type CategoryCount } from "@/lib/reports-service"
-
-interface DocumentsByCategoryProps {
-  year?: string
+// This is an example, replace with your actual data type for categories
+interface CategoryData {
+  name: string;
+  value: number;
+  color: string;
 }
 
-export function DocumentsByCategory({ year }: DocumentsByCategoryProps) {
-  const [data, setData] = useState<CategoryCount[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true)
-      try {
-        const categoryData = await reportsService.getDocumentsByCategory(year)
-        setData(categoryData)
-      } catch (error) {
-        console.error("Error al cargar datos de categorías:", error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchData()
-  }, [year])
-
-  if (loading) {
-    return (
-      <div className="h-[300px] w-full flex items-center justify-center">
-        <p className="text-muted-foreground">Cargando datos...</p>
-      </div>
-    )
-  }
-
-  if (data.length === 0) {
-    return (
-      <div className="h-[300px] w-full flex items-center justify-center">
-        <p className="text-muted-foreground">No hay datos disponibles</p>
-      </div>
-    )
-  }
-
+export function DocumentsByCategory({ data }: { data: CategoryData[] }) { // Assuming data is passed as a prop
   return (
-    <div className="h-[300px] w-full">
-      <ResponsiveContainer width="100%" height="100%">
-        <PieChart>
-          <Pie
-            data={data}
-            cx="50%"
-            cy="50%"
-            labelLine={false}
-            outerRadius={80}
-            fill="#8884d8"
-            dataKey="value"
-            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-          >
-            {data.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={entry.color} />
-            ))}
-          </Pie>
-          <Tooltip formatter={(value) => [`${value} documentos`, "Cantidad"]} />
-          <Legend />
-        </PieChart>
-      </ResponsiveContainer>
-    </div>
-  )
+    <Card>
+      <CardHeader>
+        <CardTitle>Documentos por Categoría</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {data && data.length > 0 ? (
+          <ResponsiveContainer width="100%" height={300}>
+            <PieChart>
+              <Pie
+                data={data}
+                cx="50%"
+                cy="50%"
+                outerRadius={80}
+                fill="#8884d8"
+                dataKey="value"
+                // Added a nullish coalescing operator to provide a default value of 0 for percent
+                label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
+              >
+                {data.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip />
+              <Legend />
+            </PieChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="text-center text-muted-foreground py-4">No hay datos de categorías disponibles.</div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
