@@ -1,17 +1,24 @@
-//startup\app\dashboard\reportes\page.tsx
-// REMOVED: "use client" - This file is now a Server Component
+// app/dashboard/reportes/page.tsx
 
-import { reportsService, type DocumentStats, type CategoryCount } from "@/lib/reports-service"
-import { documentAnalysisService, type DocumentAnalysis } from "@/lib/document-analysis-service"
-// UPDATED: Import path for the client component
-import ReportesClientContent from './ReportesClientContent';
+import ReportesClientContent from './reportes-client-content';
+import { getDocumentStats, getDocumentsByCategory } from '@/lib/reports-actions';
+import { analyzeDocuments } from '@/lib/analysis-actions';
+
+/**
+ * Página de Reportes (Componente de Servidor).
+ * - Obtiene los datos iniciales de forma asíncrona en el servidor.
+ * - Usa Promise.all para cargar datos en paralelo y mejorar la velocidad.
+ * - Pasa los datos al componente `ReportesClientContent` para la renderización y la interactividad.
+ */
 export default async function ReportesPage() {
   const currentYear = new Date().getFullYear().toString();
 
-  // Fetch all initial data on the server
-  const initialStats: DocumentStats = await reportsService.getDocumentStats(currentYear);
-  const initialCategoryData: CategoryCount[] = await reportsService.getDocumentsByCategory(currentYear);
-  const initialAnalysis: DocumentAnalysis = await documentAnalysisService.analyzeDocuments();
+  // Obtenemos todos los datos iniciales en paralelo para optimizar la carga.
+  const [initialStats, initialCategoryData, initialAnalysis] = await Promise.all([
+    getDocumentStats(currentYear),
+    getDocumentsByCategory(currentYear),
+    analyzeDocuments(),
+  ]);
 
   return (
     <ReportesClientContent
