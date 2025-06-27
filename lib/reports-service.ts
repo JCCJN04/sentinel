@@ -5,7 +5,7 @@ import { supabaseBrowserClient as supabase } from "./supabase"; // Use supabaseB
 
 
 // Interface definitions
-export interface DocumentStats { // CORRECTED: Removed duplicate 'export'
+export interface DocumentStats { // <--- CRITICAL FIX: Ensure this line has ONLY ONE 'export' keyword
     totalDocuments: number;
     categoriesCount: number;
     expiringDocuments: number;
@@ -43,7 +43,7 @@ const categoryColors: Record<string, string> = {
     Trabajo: "#fd7e14",
     Seguros: "#6f42c1",
     Impuestos: "#e83e8c",
-    Servicios: "#20c997",
+    "Servicios": "#20c997", // Consistent with Spanish for "Servicios"
     Alimentación: "#dc3545", // Added example category
     Entretenimiento: "#6610f2", // Added example category
     Transporte: "#fd7e14", // Added example category (can reuse colors or add new)
@@ -62,11 +62,11 @@ function getCategoryColor(category: string): string {
 
 // Define a more specific type for documents used in expense calculations
 interface ExpenseDocumentData {
-    id: string; // Assuming ID is a string, adjust if it's a number
+    id: string;
     category: string | null;
-    amount: string | null; // Supabase might return numbers as strings or numbers
+    amount: string | null;
     currency: string | null;
-    date: string | null; // Dates are often strings from DB, then parsed
+    date: string | null;
 }
 
 
