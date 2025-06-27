@@ -7,13 +7,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ExpenseChart } from "@/components/reports/expense-chart"
-import { DocumentsByCategory } from "@/components/reports/documents-by-category" // Ensure this is imported
+import { DocumentsByCategory } from "@/components/reports/documents-by-category"
 import { DocumentsByMonth } from "@/components/reports/documents-by-month"
 import { DocumentsTable } from "@/components/reports/documents-table"
 import { FileDown, Filter, Loader2 } from "lucide-react"
-// Corrected: DocumentStats is now directly imported because it's exported in reports-service.ts
-import { reportsService, formatFileSize, type DocumentStats } from "@/lib/reports-service" 
-import { getDocumentsByCategoryByYear } from "@/lib/reports-service" // Import the new function
+import { reportsService, formatFileSize, type DocumentStats } from "@/lib/reports-service"
+// REMOVED: import { getDocumentsByCategoryByYear } from "@/lib/reports-service" // This import is incorrect
 import { documentAnalysisService, type DocumentAnalysis } from "@/lib/document-analysis-service"
 import { useRouter } from "next/navigation"
 import { DocumentAnalysisComponent } from "@/components/reports/document-analysis"
@@ -22,12 +21,12 @@ import { DocumentAnalysisComponent } from "@/components/reports/document-analysi
 export default function ReportesPage() {
   const [activeTab, setActiveTab] = useState("general")
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString())
-  const [stats, setStats] = useState<DocumentStats | null>(null) // Used imported DocumentStats directly
+  const [stats, setStats] = useState<DocumentStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [analysis, setAnalysis] = useState<DocumentAnalysis | null>(null)
   const [loadingAnalysis, setLoadingAnalysis] = useState(true)
-  const [categoryData, setCategoryData] = useState<any[]>([]); // New state for category data
-  const [loadingCategoryData, setLoadingCategoryData] = useState(true); // New state for loading category data
+  const [categoryData, setCategoryData] = useState<any[]>([]);
+  const [loadingCategoryData, setLoadingCategoryData] = useState(true);
   const router = useRouter()
 
   useEffect(() => {
@@ -51,12 +50,11 @@ export default function ReportesPage() {
     const fetchCategoryData = async () => {
       setLoadingCategoryData(true);
       try {
-        const { data, error } = await getDocumentsByCategoryByYear(selectedYear);
-        if (error) {
-          console.error("Error al cargar datos por categoría:", error);
-        } else {
-          setCategoryData(data);
-        }
+        // CORRECTED: Use reportsService.getDocumentsByCategory
+        const data = await reportsService.getDocumentsByCategory(selectedYear);
+        // The getDocumentsByCategory function directly returns the data or throws an error.
+        // It does not return an object with { data, error }.
+        setCategoryData(data);
       } catch (error) {
         console.error("Error al cargar datos por categoría (catch):", error);
       } finally {
