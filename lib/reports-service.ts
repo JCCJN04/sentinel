@@ -1,51 +1,54 @@
-// Import the browser client and rename it for convenience
-import { supabaseBrowserClient as supabase } from "./supabase";
+// lib/reports-service.ts
+'use server'; // Indicates this is a Server Action or Server Module
+
+import { supabaseBrowserClient as supabase } from "./supabase"; // Use supabaseBrowserClient for client-side functionality
+
 
 // Interface definitions
-export interface DocumentStats {
-  totalDocuments: number;
-  categoriesCount: number;
-  expiringDocuments: number;
-  storageUsed: number; // Size in bytes
-  storageLimit: number; // Size in bytes
-  recentDocuments: number; // Count of documents added recently
+export interface DocumentStats { // CORRECTED: Removed duplicate 'export'
+    totalDocuments: number;
+    categoriesCount: number;
+    expiringDocuments: number;
+    storageUsed: number; // Size in bytes
+    storageLimit: number; // Size in bytes
+    recentDocuments: number; // Count of documents added recently
 }
 
 export interface CategoryCount {
-  name: string; // Category name
-  value: number; // Number of documents in this category
-  color: string; // Hex color code for the category
+    name: string; // Category name
+    value: number; // Number of documents in this category
+    color: string; // Hex color code for the category
 }
 
 export interface MonthlyCount {
-  name: string; // Month name (e.g., "Ene", "Feb")
-  documentos: number; // Number of documents created in this month
+    name: string; // Month name (e.g., "Ene", "Feb")
+    documentos: number; // Number of documents created in this month
 }
 
 export interface ExpenseData {
-  name: string; // Month name (e.g., "Ene", "Feb")
-  // Dynamically include categories as keys with their total amount as value
-  [key: string]: string | number;
+    name: string; // Month name (e.g., "Ene", "Feb")
+    // Dynamically include categories as keys with their total amount as value
+    [key: string]: string | number;
 }
 
 // --- Color Palette for Categories ---
 // Define a consistent color mapping for categories used in charts.
 const categoryColors: Record<string, string> = {
-  Hogar: "#0e34a0",
-  Finanzas: "#2f3061",
-  Salud: "#5f5980",
-  Vehículos: "#28a745",
-  Educación: "#17a2b8",
-  Identidad: "#ffc107",
-  Trabajo: "#fd7e14",
-  Seguros: "#6f42c1",
-  Impuestos: "#e83e8c",
-  Servicios: "#20c997",
-  Alimentación: "#dc3545", // Added example category
-  Entretenimiento: "#6610f2", // Added example category
-  Transporte: "#fd7e14", // Added example category (can reuse colors or add new)
-  "Sin categoría": "#6c757d", // Color for uncategorized
-  Otros: "#adb5bd", // Color for 'Otros' if different from uncategorized
+    Hogar: "#0e34a0",
+    Finanzas: "#2f3061",
+    Salud: "#5f5980",
+    Vehículos: "#28a745",
+    Educación: "#17a2b8",
+    Identidad: "#ffc107",
+    Trabajo: "#fd7e14",
+    Seguros: "#6f42c1",
+    Impuestos: "#e83e8c",
+    Servicios: "#20c997",
+    Alimentación: "#dc3545", // Added example category
+    Entretenimiento: "#6610f2", // Added example category
+    Transporte: "#fd7e14", // Added example category (can reuse colors or add new)
+    "Sin categoría": "#6c757d", // Color for uncategorized
+    Otros: "#adb5bd", // Color for 'Otros' if different from uncategorized
 };
 
 /**
@@ -54,7 +57,7 @@ const categoryColors: Record<string, string> = {
  * @returns A hex color string.
  */
 function getCategoryColor(category: string): string {
-  return categoryColors[category] || categoryColors["Sin categoría"]; // Fallback to default
+    return categoryColors[category] || categoryColors["Sin categoría"]; // Fallback to default
 }
 
 // Define a more specific type for documents used in expense calculations
@@ -151,12 +154,12 @@ export const reportsService = {
       // Calculate estimated storage used based on fetched (potentially filtered) documents
       let estimatedStorageBytes = 0;
       storageDocumentsData.forEach((doc: {file_type: string | null}) => {
-         switch (doc.file_type?.toLowerCase()) {
+          switch (doc.file_type?.toLowerCase()) {
             case "pdf": estimatedStorageBytes += 2 * 1024 * 1024; break; // ~2MB
             case "jpg": case "jpeg": case "png": estimatedStorageBytes += 1.5 * 1024 * 1024; break; // ~1.5MB
             case "doc": case "docx": estimatedStorageBytes += 1 * 1024 * 1024; break; // ~1MB
             default: estimatedStorageBytes += 500 * 1024; // 500KB default
-         }
+          }
       });
 
       // Storage limit (example: 5GB)
@@ -191,12 +194,12 @@ export const reportsService = {
    * @param year - Optional year (YYYY) to filter data.
    */
   async getDocumentsByCategory(year?: string): Promise<CategoryCount[]> {
-     console.log(`Fetching documents by category ${year ? `for year ${year}` : 'for all time'}...`);
+       console.log(`Fetching documents by category ${year ? `for year ${year}` : 'for all time'}...`);
     try {
       const { data: userData, error: userError } = await supabase.auth.getUser();
 
       if (userError || !userData?.user) {
-         console.error("getDocumentsByCategory: User not authenticated.", userError);
+           console.error("getDocumentsByCategory: User not authenticated.", userError);
         throw new Error("User not authenticated");
       }
       const userId = userData.user.id;
@@ -212,14 +215,14 @@ export const reportsService = {
         const startDate = `${year}-01-01`;
         const endDate = `${year}-12-31T23:59:59.999Z`;
         query = query.gte("date", startDate).lte("date", endDate);
-         console.log(`Applying year filter: ${startDate} to ${endDate}`);
+           console.log(`Applying year filter: ${startDate} to ${endDate}`);
       }
 
       const { data, error } = await query;
 
       if (error) {
-          console.error("Error fetching categories:", error);
-          throw error;
+             console.error("Error fetching categories:", error);
+             throw error;
       }
 
       // Count documents per category
@@ -250,12 +253,12 @@ export const reportsService = {
    * @param year - The year (YYYY) to fetch data for. Defaults to the current year.
    */
   async getDocumentsByMonth(year: string = new Date().getFullYear().toString()): Promise<MonthlyCount[]> {
-     console.log(`Fetching documents by month for year ${year}...`);
+       console.log(`Fetching documents by month for year ${year}...`);
     try {
       const { data: userData, error: userError } = await supabase.auth.getUser();
 
       if (userError || !userData?.user) {
-          console.error("getDocumentsByMonth: User not authenticated.", userError);
+           console.error("getDocumentsByMonth: User not authenticated.", userError);
         throw new Error("User not authenticated");
       }
       const userId = userData.user.id;
@@ -273,15 +276,15 @@ export const reportsService = {
         .lte("created_at", endDate);
 
       if (error) {
-          console.error("Error fetching document creation dates:", error);
-          throw error;
+           console.error("Error fetching document creation dates:", error);
+           throw error;
       }
 
       // Initialize monthly counts with Spanish month abbreviations
       const monthNames = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
       const monthlyCounts: Record<string, number> = monthNames.reduce((acc, month) => {
-          acc[month] = 0;
-          return acc;
+           acc[month] = 0;
+           return acc;
       }, {} as Record<string, number>);
 
 
@@ -298,7 +301,7 @@ export const reportsService = {
                 const month = monthNames[monthIndex];
                 monthlyCounts[month] += 1;
             } else {
-                 console.warn(`Invalid month index derived from created_at: ${doc.created_at}`);
+                   console.warn(`Invalid month index derived from created_at: ${doc.created_at}`);
             }
         } catch(e) {
             console.warn(`Could not parse created_at date: ${doc.created_at}`, e);
@@ -331,7 +334,7 @@ export const reportsService = {
       const { data: userData, error: userError } = await supabase.auth.getUser();
 
       if (userError || !userData?.user) {
-         console.error("getExpensesByMonth: User not authenticated.", userError);
+           console.error("getExpensesByMonth: User not authenticated.", userError);
         throw new Error("User not authenticated");
       }
       const userId = userData.user.id;
@@ -351,16 +354,16 @@ export const reportsService = {
         .not("amount", "is", null); // Only include documents with an amount
 
       if (error) {
-          console.error("Error fetching documents for expense calculation:", error);
-          throw error;
+           console.error("Error fetching documents for expense calculation:", error);
+           throw error;
       }
 
       // Initialize monthly expense data structure with predefined categories
       const monthNames = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
       const expenseCategories = ["Hogar", "Servicios", "Transporte", "Alimentación", "Entretenimiento", "Otros"]; // Define categories for the chart
       const result: ExpenseData[] = monthNames.map((name) => ({
-          name,
-          ...expenseCategories.reduce((acc, cat) => { acc[cat] = 0; return acc; }, {} as Record<string, number>) // Initialize all categories to 0
+           name,
+           ...expenseCategories.reduce((acc, cat) => { acc[cat] = 0; return acc; }, {} as Record<string, number>) // Initialize all categories to 0
       }));
 
       // Process documents and aggregate amounts by category and month
@@ -379,8 +382,8 @@ export const reportsService = {
 
             // Check if parsing was successful
             if (isNaN(amountValue) || isNaN(dateValue.getTime())) {
-                 console.warn(`Skipping document due to invalid amount or date: id=${doc.id}, amount=${doc.amount}, date=${doc.date}`);
-                return;
+                   console.warn(`Skipping document due to invalid amount or date: id=${doc.id}, amount=${doc.amount}, date=${doc.date}`);
+                   return;
             }
         } catch (e) {
             console.warn(`Error parsing amount or date for document id=${doc.id}:`, e);
@@ -396,7 +399,7 @@ export const reportsService = {
         if (expenseCategories.includes(docCategory)) {
             mappedCategory = docCategory;
         } else if (docCategory === "Vehículos") { // Example mapping
-             mappedCategory = "Transporte";
+               mappedCategory = "Transporte";
         }
         // Add more specific mappings if needed
 
@@ -404,7 +407,7 @@ export const reportsService = {
         if (monthIndex >= 0 && monthIndex < 12) {
             // Ensure the category exists on the result object before adding to it
             if (typeof result[monthIndex][mappedCategory] === 'number') {
-                 result[monthIndex][mappedCategory] = (result[monthIndex][mappedCategory] as number) + amountValue;
+                   result[monthIndex][mappedCategory] = (result[monthIndex][mappedCategory] as number) + amountValue;
             } else {
                 // This case should ideally not happen if expenseCategories are initialized correctly
                 console.warn(`Category ${mappedCategory} not initialized for month ${monthNames[monthIndex]}. Initializing to 0.`);
@@ -433,7 +436,7 @@ export const reportsService = {
       const { data: userData, error: userError } = await supabase.auth.getUser();
 
       if (userError || !userData?.user) {
-         console.error("getRecentDocumentsForTable: User not authenticated.", userError);
+           console.error("getRecentDocumentsForTable: User not authenticated.", userError);
         throw new Error("User not authenticated");
       }
       const userId = userData.user.id;
@@ -451,14 +454,14 @@ export const reportsService = {
         const startDate = `${year}-01-01`;
         const endDate = `${year}-12-31T23:59:59.999Z`;
         query = query.gte("date", startDate).lte("date", endDate);
-         console.log(`Applying year filter: ${startDate} to ${endDate}`);
+           console.log(`Applying year filter: ${startDate} to ${endDate}`);
       }
 
       const { data, error } = await query;
 
       if (error) {
-          console.error("Error fetching recent documents for table:", error);
-          throw error;
+           console.error("Error fetching recent documents for table:", error);
+           throw error;
       }
 
       console.log(`Fetched ${data?.length || 0} documents for table.`);
@@ -478,13 +481,13 @@ export const reportsService = {
  * @returns A formatted string representation of the file size.
  */
 export function formatFileSize(bytes: number): string {
-  if (bytes === 0) return "0 Bytes";
-  const k = 1024;
-  const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
-  // Handle potential log(0) or negative bytes
-  if (bytes < 0) bytes = 0;
-  const i = bytes === 0 ? 0 : Math.floor(Math.log(bytes) / Math.log(k));
-  // Ensure index i is within bounds
-  const index = Math.min(i, sizes.length - 1);
-  return Number.parseFloat((bytes / Math.pow(k, index)).toFixed(2)) + " " + sizes[index];
+    if (bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
+    // Handle potential log(0) or negative bytes
+    if (bytes < 0) bytes = 0;
+    const i = bytes === 0 ? 0 : Math.floor(Math.log(bytes) / Math.log(k));
+    // Ensure index i is within bounds
+    const index = Math.min(i, sizes.length - 1);
+    return Number.parseFloat((bytes / Math.pow(k, index)).toFixed(2)) + " " + sizes[index];
 }

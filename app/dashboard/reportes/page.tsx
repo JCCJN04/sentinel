@@ -7,22 +7,27 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ExpenseChart } from "@/components/reports/expense-chart"
-import { DocumentsByCategory } from "@/components/reports/documents-by-category"
+import { DocumentsByCategory } from "@/components/reports/documents-by-category" // Ensure this is imported
 import { DocumentsByMonth } from "@/components/reports/documents-by-month"
 import { DocumentsTable } from "@/components/reports/documents-table"
 import { FileDown, Filter, Loader2 } from "lucide-react"
-import { reportsService, formatFileSize, type DocumentStats } from "@/lib/reports-service"
+// Corrected: DocumentStats is now directly imported because it's exported in reports-service.ts
+import { reportsService, formatFileSize, type DocumentStats } from "@/lib/reports-service" 
+import { getDocumentsByCategoryByYear } from "@/lib/reports-service" // Import the new function
 import { documentAnalysisService, type DocumentAnalysis } from "@/lib/document-analysis-service"
 import { useRouter } from "next/navigation"
 import { DocumentAnalysisComponent } from "@/components/reports/document-analysis"
 
+
 export default function ReportesPage() {
   const [activeTab, setActiveTab] = useState("general")
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString())
-  const [stats, setStats] = useState<DocumentStats | null>(null)
+  const [stats, setStats] = useState<DocumentStats | null>(null) // Used imported DocumentStats directly
   const [loading, setLoading] = useState(true)
   const [analysis, setAnalysis] = useState<DocumentAnalysis | null>(null)
   const [loadingAnalysis, setLoadingAnalysis] = useState(true)
+  const [categoryData, setCategoryData] = useState<any[]>([]); // New state for category data
+  const [loadingCategoryData, setLoadingCategoryData] = useState(true); // New state for loading category data
   const router = useRouter()
 
   useEffect(() => {
@@ -40,6 +45,28 @@ export default function ReportesPage() {
 
     fetchStats()
   }, [selectedYear])
+
+  // New useEffect to fetch category data when selectedYear changes
+  useEffect(() => {
+    const fetchCategoryData = async () => {
+      setLoadingCategoryData(true);
+      try {
+        const { data, error } = await getDocumentsByCategoryByYear(selectedYear);
+        if (error) {
+          console.error("Error al cargar datos por categoría:", error);
+        } else {
+          setCategoryData(data);
+        }
+      } catch (error) {
+        console.error("Error al cargar datos por categoría (catch):", error);
+      } finally {
+        setLoadingCategoryData(false);
+      }
+    };
+
+    fetchCategoryData();
+  }, [selectedYear]);
+
 
   useEffect(() => {
     const fetchAnalysis = async () => {
@@ -101,11 +128,6 @@ export default function ReportesPage() {
 
             <Button variant="outline">
               <Filter className="mr-2 h-4 w-4" />
-              Filtros
-            </Button>
-
-            <Button onClick={handleExport}>
-              <FileDown className="mr-2 h-4 w-4" />
               Exportar
             </Button>
           </div>
@@ -165,7 +187,15 @@ export default function ReportesPage() {
                 <CardDescription>Distribución de documentos según su categoría</CardDescription>
               </CardHeader>
               <CardContent>
-                <DocumentsByCategory year={selectedYear} />
+                {/* Pass the fetched categoryData and year to DocumentsByCategory */}
+                {loadingCategoryData ? (
+                  <div className="flex justify-center items-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary mr-2" />
+                    <span>Cargando datos por categoría...</span>
+                  </div>
+                ) : (
+                  <DocumentsByCategory data={categoryData} year={selectedYear} />
+                )}
               </CardContent>
             </Card>
 
@@ -239,7 +269,6 @@ export default function ReportesPage() {
           <Card>
             <CardHeader>
               <CardTitle>Gastos mensuales</CardTitle>
-              <CardDescription>Evolución de gastos por categoría</CardDescription>
             </CardHeader>
             <CardContent className="h-[400px]">
               <ExpenseChart year={selectedYear} />

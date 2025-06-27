@@ -8,7 +8,7 @@ interface CategoryData {
   color: string;
 }
 
-// Modify the component to accept a 'year' prop in its interface
+// Ensure this component accepts both 'data' and 'year'
 export function DocumentsByCategory({ data, year }: { data: CategoryData[]; year: string }) {
   return (
     <Card>
