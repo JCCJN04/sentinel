@@ -3,7 +3,8 @@
 
 import { reportsService, type DocumentStats, type CategoryCount } from "@/lib/reports-service"
 import { documentAnalysisService, type DocumentAnalysis } from "@/lib/document-analysis-service"
-import { ReportesClientContent } from "./reportes-client-content" // Import the new client component
+// UPDATED: Import path for the client component
+import { ReportesClientContent } from "./components/reportes-client-content" 
 
 export default async function ReportesPage() {
   const currentYear = new Date().getFullYear().toString();
