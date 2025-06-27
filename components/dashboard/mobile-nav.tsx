@@ -3,14 +3,14 @@
 import { useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { Home, FileText, Bell, Settings, Menu, LogOut, Upload, Users, BarChart3, Share2 } from "lucide-react" // Added more icons
-import { Button } from "@/components/ui/button"
+import { Home, FileText, Bell, Settings, Menu, LogOut, Upload, Users, BarChart3, Share2, HeartPulse } from "lucide-react" // Added more icons and HeartPulseimport { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
 // Remove direct supabase import
 // import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/hooks/use-auth" // Import the auth hook
 import { Loader2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
 export function MobileNav() {
   const pathname = usePathname();
@@ -40,7 +40,7 @@ export function MobileNav() {
     { name: "Dashboard", href: "/dashboard", icon: Home },
     // Consider renaming "Documentos" to "Expedientes" or "Historial Médico"
     { name: "Documentos", href: "/dashboard/documentos", icon: FileText },
-    { name: "Subir", href: "/dashboard/subir", icon: Upload }, // Added Upload link
+    { name: "Recetas", href: "/dashboard/prescriptions", icon: HeartPulse }, // Added Upload link
     //{ name: "Alertas", href: "/dashboard/alertas", icon: Bell },
     //{ name: "Compartidos", href: "/dashboard/compartidos", icon: Share2 }, // Added Shared link
     //{ name: "Reportes", href: "/dashboard/reportes", icon: BarChart3 }, // Added Reports link

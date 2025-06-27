@@ -8,41 +8,41 @@ import type { Database } from './database.types';
 
 // Interfaz de perfil de usuario, usando first_name y last_name
 export interface UserProfile {
-  id: string;
+  id: string;
   first_name: string;
   last_name: string;
-  email?: string;
-  phone: string;
-  avatar_url: string;
-  language: string;
-  timezone: string;
-  date_format: string;
-  notification_preferences: NotificationPreferences;
-  last_active: string;
+  email?: string;
+  phone: string;
+  avatar_url: string;
+  language: string;
+  timezone: string;
+  date_format: string;
+  notification_preferences: NotificationPreferences;
+  last_active: string;
 }
 
 export interface NotificationPreferences {
-  documentReminders: boolean;
-  expiryAlerts: boolean;
-  paymentReminders: boolean;
-  securityAlerts: boolean;
-  newsletterUpdates: boolean;
-  emailNotifications: boolean;
-  pushNotifications: boolean;
-  smsNotifications: boolean;
-  reminderFrequency: "daily" | "weekly" | "monthly";
+  documentReminders: boolean;
+  expiryAlerts: boolean;
+  paymentReminders: boolean;
+  securityAlerts: boolean;
+  newsletterUpdates: boolean;
+  emailNotifications: boolean;
+  pushNotifications: boolean;
+  smsNotifications: boolean;
+  reminderFrequency: "daily" | "weekly" | "monthly";
 }
 
 const defaultNotificationPreferences: NotificationPreferences = {
-  documentReminders: true,
-  expiryAlerts: true,
-  paymentReminders: true,
-  securityAlerts: true,
-  newsletterUpdates: false,
-  emailNotifications: true,
+  documentReminders: true,
+  expiryAlerts: true,
+  paymentReminders: true,
+  securityAlerts: true,
+  newsletterUpdates: false,
+  emailNotifications: true,
   pushNotifications: true,
-  smsNotifications: false,
-  reminderFrequency: "weekly",
+  smsNotifications: false,
+  reminderFrequency: "weekly",
 };
 
 
@@ -51,8 +51,8 @@ const defaultNotificationPreferences: NotificationPreferences = {
 // =================================================================
 
 /**
- * Obtiene el perfil del usuario autenticado.
- */
+ * Obtiene el perfil del usuario autenticado.
+ */
 export const getUserProfile = async (): Promise<UserProfile | null> => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
@@ -113,11 +113,11 @@ export const getUserProfile = async (): Promise<UserProfile | null> => {
 
 
 /**
- * Actualiza el perfil del usuario o lo crea si no existe (upsert).
+ * Actualiza el perfil del usuario o lo crea si no existe (upsert).
  * ¡ESTA ES LA VERSIÓN CORREGIDA!
- */
+ */
 export const updateUserProfile = async (
-  updates: Partial<Omit<UserProfile, 'id' | 'email' | 'last_active'>>
+  updates: Partial<Omit<UserProfile, 'id' | 'email' | 'last_active'>>
 ): Promise<{ success: boolean; error?: string }> => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
@@ -152,8 +152,8 @@ export const updateUserProfile = async (
 };
 
 /**
- * Sube un nuevo avatar para el usuario.
- */
+ * Sube un nuevo avatar para el usuario.
+ */
 export const updateUserAvatar = async (file: File): Promise<{ success: boolean; url?: string; error?: string }> => {
     try {
         const { data: { user } } = await supabase.auth.getUser();
@@ -181,89 +181,122 @@ export const updateUserAvatar = async (file: File): Promise<{ success: boolean; 
 
 
 // =================================================================
-// FUNCIONES ADICIONALES (CONSERVADAS)
+// FUNCIONES ADICIONALES (CONSERVADAS Y MODIFICADAS)
 // =================================================================
 
 export const saveNotificationPreferences = async (
-  preferences: NotificationPreferences,
+  preferences: NotificationPreferences,
 ): Promise<{ success: boolean; error?: string }> => {
-   console.log("Guardando preferencias de notificación:", preferences);
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Usuario no autenticado");
-
-    // Usar upsert aquí también para robustez
-    const { error: updateError } = await supabase
-      .from("profiles")
-      .upsert({ id: user.id, notification_preferences: preferences, updated_at: new Date().toISOString() });
-
-    if (updateError) {
-      return { success: false, error: updateError.message };
-    }
-    console.log(`Preferencias de notificación actualizadas para el usuario ${user.id}.`);
-    return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message || "Ocurrió un error desconocido" };
-  }
-};
-
-export const changeUserPassword = async (
-  newPassword: string,
-): Promise<{ success: boolean; error?: string }> => {
-   console.log("Intentando cambiar la contraseña...");
-  try {
+  console.log("Guardando preferencias de notificación:", preferences);
+  try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error("Usuario no autenticado");
 
-    const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+    // Usar upsert aquí también para robustez
+    const { error: updateError } = await supabase
+      .from("profiles")
+      .upsert({ id: user.id, notification_preferences: preferences, updated_at: new Date().toISOString() });
 
-    if (updateError) {
-      let errorMessage = updateError.message;
-      if (errorMessage.includes("weak password")) {
-          errorMessage = "La nueva contraseña es demasiado débil.";
-      } else if (errorMessage.includes("same password")) {
-          errorMessage = "La nueva contraseña no puede ser igual a la anterior.";
-      }
-      return { success: false, error: errorMessage };
-    }
-    console.log(`Contraseña actualizada para el usuario ${user.id}.`);
-    return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message || "Ocurrió un error desconocido" };
-  }
+    if (updateError) {
+      return { success: false, error: updateError.message };
+    }
+    console.log(`Preferencias de notificación actualizadas para el usuario ${user.id}.`);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Ocurrió un error desconocido" };
+  }
 };
 
+export const changeUserPassword = async (
+  currentPassword: string, // Added to match the call in security-settings.tsx
+  newPassword: string,
+): Promise<{ success: boolean; error?: string }> => {
+  console.log("Intentando cambiar la contraseña...");
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Usuario no autenticado");
+
+    // NOTE: Supabase's client-side updateUser does not verify currentPassword.
+    // If strict current password verification is required, it should be done
+    // by re-authenticating the user (e.g., supabase.auth.signInWithPassword)
+    // or through a server-side function.
+    const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+
+    if (updateError) {
+      let errorMessage = updateError.message;
+      if (errorMessage.includes("weak password")) {
+          errorMessage = "La nueva contraseña es demasiado débil.";
+      } else if (errorMessage.includes("same password")) {
+          errorMessage = "La nueva contraseña no puede ser igual a la anterior.";
+      }
+      return { success: false, error: errorMessage };
+    }
+    console.log(`Contraseña actualizada para el usuario ${user.id}.`);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Ocurrió un error desconocido" };
+  }
+};
+
+export const signOut = async (): Promise<{ success: boolean; error?: string }> => {
+  console.log("Intentando cerrar sesión desde user-service...");
+  try {
+    const { error: signOutError } = await supabase.auth.signOut();
+    if (signOutError) {
+      return { success: false, error: signOutError.message };
+    }
+    console.log("Sesión cerrada correctamente desde user-service.");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Ocurrió un error desconocido al cerrar sesión" };
+  }
+};
+
+
 // =================================================================
-// FUNCIONES SIMULADAS (CONSERVADAS)
+// FUNCIONES SIMULADAS (CONSERVADAS Y NUEVAS)
 // =================================================================
 
 export const getUserSessions = async (): Promise<any[]> => {
-  console.warn("getUserSessions: Función es simulada.");
-  return [
-    { id: "session-current", device: "Este dispositivo (Chrome en Windows)", location: "Ciudad de México", last_active: new Date().toISOString(), current: true },
-    { id: "session-old-1", device: "Safari en iPhone", location: "Guadalajara", last_active: new Date(Date.now() - 86400000 * 2).toISOString(), current: false },
-  ];
+  console.warn("getUserSessions: Función es simulada.");
+  return [
+    { id: "session-current", device: "Este dispositivo (Chrome en Windows)", location: "Ciudad de México", last_active: new Date().toISOString(), current: true },
+    { id: "session-old-1", device: "Safari en iPhone", location: "Guadalajara", last_active: new Date(Date.now() - 86400000 * 2).toISOString(), current: false },
+  ];
 };
 
 export const closeSession = async (sessionId: string): Promise<{ success: boolean; error?: string }> => {
-   console.warn(`closeSession: Función es simulada para session ID: ${sessionId}`);
+    console.warn(`closeSession: Función es simulada para session ID: ${sessionId}`);
    if (sessionId === "session-current") return { success: false, error: "No puedes cerrar la sesión actual." };
-   await new Promise(resolve => setTimeout(resolve, 500));
-   return { success: true };
+    await new Promise(resolve => setTimeout(resolve, 500));
+    return { success: true };
 };
 
 export const closeAllOtherSessions = async (): Promise<{ success: boolean; error?: string }> => {
-   console.warn("closeAllOtherSessions: Función es simulada.");
-   await new Promise(resolve => setTimeout(resolve, 800));
-   return { success: true };
+    console.warn("closeAllOtherSessions: Función es simulada.");
+    await new Promise(resolve => setTimeout(resolve, 800));
+    return { success: true };
 };
 
 export const deleteUserAccount = async (): Promise<{ success: boolean; error?: string }> => {
-  console.warn("deleteUserAccount: Función es simulada.");
-  try {
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message || "Ocurrió un error desconocido" };
-  }
+  console.warn("deleteUserAccount: Función es simulada.");
+  try {
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Ocurrió un error desconocido" };
+  }
+};
+
+export const getActivityHistory = async (limit: number = 10): Promise<any[]> => {
+  console.warn("getActivityHistory: Función es simulada.");
+  // Simulate fetching recent activity
+  const simulatedActivities = [
+    { id: "act-1", activity_type: "login", description: "Inicio de sesión desde Chrome en Windows", ip_address: "192.168.1.100", created_at: new Date(Date.now() - 60 * 60 * 1000).toISOString() },
+    { id: "act-2", activity_type: "profile_update", description: "Actualización de perfil (Nombre)", ip_address: "192.168.1.100", created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString() },
+    { id: "act-3", activity_type: "security_update", description: "Cambio de contraseña", ip_address: "192.168.1.101", created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString() },
+    { id: "act-4", activity_type: "document_upload", description: "Documento subido: Receta_Medica.pdf", ip_address: "192.168.1.100", created_at: new Date(Date.now() - 30 * 60 * 60 * 1000).toISOString() },
+    { id: "act-5", activity_type: "login", description: "Inicio de sesión desde Safari en iPhone", ip_address: "10.0.0.5", created_at: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString() },
+  ];
+  return simulatedActivities.slice(0, limit);
 };

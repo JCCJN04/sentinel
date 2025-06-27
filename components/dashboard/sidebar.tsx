@@ -2,17 +2,17 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { cn } from "@/lib/utils" // Ya estás importando cn, ¡genial!
-import { AlertCircle, Shield, BarChart3, FileText, Home, Settings, Share2, Upload, Users, type LucideIcon } from "lucide-react"
-// import { Logo } from "@/components/icons" // Logo no se usa en este archivo, se podría quitar si no se va a usar.
+import { cn } from "@/lib/utils"
+import { HeartPulse, Shield, FileText, Home, Settings, type LucideIcon } from "lucide-react"
 
-// Definimos una interfaz para los items de la barra lateral para mejor tipado
+// Interfaz para los items de la barra lateral
 interface SidebarItem {
   title: string;
   href: string;
-  icon: LucideIcon; // Usamos el tipo LucideIcon para el icono
+  icon: LucideIcon;
 }
 
+// Array con los elementos de la barra lateral
 const sidebarItems: SidebarItem[] = [
   {
     title: "Dashboard",
@@ -23,6 +23,11 @@ const sidebarItems: SidebarItem[] = [
     title: "Documentos",
     href: "/dashboard/documentos",
     icon: FileText,
+  },
+  {
+    title: "Recetas", // <--- NUEVO ELEMENTO AÑADIDO
+    href: "/dashboard/prescriptions",
+    icon: HeartPulse,
   },
   /*
   {
@@ -58,17 +63,16 @@ const sidebarItems: SidebarItem[] = [
   },
 ]
 
-// 1. Define una interfaz para las props del Sidebar
+// Interfaz para las props del Sidebar
 interface SidebarProps {
-  className?: string; // className es opcional y de tipo string
+  className?: string;
 }
 
-// 2. Actualiza la firma de la función para aceptar props y desestructura className
+// Componente Sidebar actualizado
 export function Sidebar({ className }: SidebarProps) {
   const pathname = usePathname()
 
   return (
-    // 3. Usa `cn` para fusionar las clases existentes con la prop className
     <div className={cn("hidden border-r bg-muted/40 md:block md:w-64", className)}>
       <div className="flex h-full max-h-screen flex-col gap-2">
         <div className="flex items-center gap-2 p-4">
@@ -79,7 +83,8 @@ export function Sidebar({ className }: SidebarProps) {
           <nav className="grid items-start px-2 text-sm font-medium">
             {sidebarItems.map((item, index) => {
               const Icon = item.icon
-              const isActive = pathname === item.href
+              const isActive = pathname.startsWith(item.href) && (item.href !== "/dashboard" || pathname === "/dashboard");
+
 
               return (
                 <Link
