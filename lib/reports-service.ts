@@ -5,7 +5,7 @@ import { supabaseBrowserClient as supabase } from "./supabase"; // Use supabaseB
 
 
 // Interface definitions
-export interface DocumentStats { // <--- CRITICAL FIX: Ensure this line has ONLY ONE 'export' keyword
+export interface DocumentStats {
     totalDocuments: number;
     categoriesCount: number;
     expiringDocuments: number;
@@ -480,7 +480,7 @@ export const reportsService = {
  * @param bytes - The file size in bytes.
  * @returns A formatted string representation of the file size.
  */
-export function formatFileSize(bytes: number): string {
+export async function formatFileSize(bytes: number): Promise<string> { // Changed to async and returns Promise<string>
     if (bytes === 0) return "0 Bytes";
     const k = 1024;
     const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
