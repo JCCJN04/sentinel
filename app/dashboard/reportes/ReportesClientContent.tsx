@@ -451,3 +451,5 @@ export function ReportesClientContent({ initialStats, initialCategoryData, initi
     </div>
   );
 }
+
+export default ReportesClientContent;
