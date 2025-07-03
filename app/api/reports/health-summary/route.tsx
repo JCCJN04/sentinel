@@ -5,8 +5,8 @@ import { cookies } from 'next/headers'
 
 // --- FUNCIÓN ACTUALIZADA ---
 async function getHealthSummaryData(userId: string) {
-  const cookieStore = cookies()
-  const supabase = createClient(cookieStore)
+  // Se llama a createClient sin argumentos
+  const supabase = createClient();
   
   // Se especifican todos los campos para asegurar que se obtengan.
   const { data: profile } = await supabase
@@ -46,8 +46,8 @@ async function getHealthSummaryData(userId: string) {
 // El resto del archivo no cambia
 export async function GET(req: NextRequest) {
   try {
-    const cookieStore = cookies()
-    const supabase = createClient(cookieStore)
+    // Se llama a createClient sin argumentos
+    const supabase = createClient();
 
     const { data: { user } } = await supabase.auth.getUser();
 
