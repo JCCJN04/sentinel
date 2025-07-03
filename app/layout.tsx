@@ -2,7 +2,8 @@ import type React from "react"
 import { Inter, Roboto, Roboto_Slab } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
 import { AuthProvider } from "@/hooks/use-auth"
-import { Toaster } from "@/components/ui/toaster"
+// 1. Cambia esta importación
+import { Toaster } from "sonner" 
 import "./globals.css"
 import { Providers } from "./providers"
 
@@ -20,7 +21,7 @@ const robotoSlab = Roboto_Slab({
 export const metadata = {
   title: "Sentinel",
   description: "Sentinel",
-    generator: 'JC'
+  generator: 'JC'
 }
 
 export default function RootLayout({
@@ -35,7 +36,8 @@ export default function RootLayout({
           <AuthProvider>
             <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
               {children}
-              <Toaster />
+              {/* 2. Añade la propiedad 'richColors' para los estilos de éxito/error */}
+              <Toaster richColors />
             </ThemeProvider>
           </AuthProvider>
         </Providers>

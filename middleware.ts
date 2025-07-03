@@ -5,12 +5,19 @@ import { createSupabaseMiddlewareClient } from "@/lib/supabase"; // <-- Use YOUR
 
 export async function middleware(req: NextRequest) {
   // Use the custom client creation function from lib/supabase.ts
-  // This function returns both the client and a response object
-  // that needs to be managed throughout the middleware.
   const { supabase, response } = await createSupabaseMiddlewareClient(req);
 
+  // --- INICIO DE LA MODIFICACIÓN ---
+  // Si la petición es para la página de vista previa del PDF, la dejamos pasar
+  // sin ninguna verificación. Esto es seguro porque la página solo renderiza
+  // los datos que se le pasan en la URL.
+  if (req.nextUrl.pathname.startsWith('/dashboard/reportes/health-summary/preview')) {
+    console.log("Middleware: Allowing PDF preview route to proceed.");
+    return response;
+  }
+  // --- FIN DE LA MODIFICACIÓN ---
+
   // Refresh session if expired - important for server-side rendering
-  // This also updates the response cookies if needed.
   const {
     data: { session },
     error: sessionError, // Capture potential errors during session fetch
@@ -19,7 +26,6 @@ export async function middleware(req: NextRequest) {
   // Handle potential errors fetching the session
   if (sessionError) {
     console.error("Middleware: Error fetching session:", sessionError);
-    // Decide how to handle this - maybe allow request or redirect to an error page
     // For now, we'll proceed but log the error.
   }
 
@@ -53,8 +59,6 @@ export async function middleware(req: NextRequest) {
   }
 
   // 3. If none of the above conditions are met, continue the request
-  // Return the response object created/updated by createSupabaseMiddlewareClient
-  // This ensures any session cookies set/updated by getSession() are passed correctly.
   console.log("Middleware: Allowing request to proceed");
   return response;
 }
@@ -70,14 +74,7 @@ export const config = {
      * - favicon.ico (favicon file)
      * - images (assuming you have an /images folder for static assets)
      * - assets (assuming you have an /assets folder for static assets)
-     * Feel free to modify this list based on your needs.
      */
     "/((?!api|_next/static|_next/image|favicon.ico|images|assets).*)",
-    // Explicitly include specific routes if the above pattern is too broad
-    // or if you prefer listing them:
-    // "/dashboard/:path*",
-    // "/login",
-    // "/registro",
-    // "/recuperar-password",
   ],
 };

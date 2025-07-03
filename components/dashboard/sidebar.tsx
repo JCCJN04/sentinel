@@ -3,7 +3,21 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { HeartPulse, Shield, FileText, Home, Settings, type LucideIcon } from "lucide-react"
+// --- 1. SE AÑADIERON TODOS LOS ICONOS QUE FALTABAN ---
+import { 
+  HeartPulse, 
+  Shield, 
+  FileText, 
+  Home, 
+  Settings, 
+  ShieldAlert, 
+  Upload, 
+  AlertCircle, 
+  Share2, 
+  BarChart3, 
+  Users,
+  type LucideIcon 
+} from "lucide-react" 
 
 // Interfaz para los items de la barra lateral
 interface SidebarItem {
@@ -12,7 +26,7 @@ interface SidebarItem {
   icon: LucideIcon;
 }
 
-// Array con los elementos de la barra lateral
+// Array con los elementos de la barra lateral (descomentados)
 const sidebarItems: SidebarItem[] = [
   {
     title: "Dashboard",
@@ -25,17 +39,20 @@ const sidebarItems: SidebarItem[] = [
     icon: FileText,
   },
   {
-    title: "Recetas", // <--- NUEVO ELEMENTO AÑADIDO
+    title: "Recetas",
     href: "/dashboard/prescriptions",
     icon: HeartPulse,
   },
-  /*
+  {
+    title: "Alergias",
+    href: "/dashboard/alergias",
+    icon: ShieldAlert,
+  },
   {
     title: "Subir documento",
     href: "/dashboard/subir",
     icon: Upload,
   },
-  
   {
     title: "Alertas",
     href: "/dashboard/alertas",
@@ -55,7 +72,7 @@ const sidebarItems: SidebarItem[] = [
     title: "Familia",
     href: "/dashboard/familia",
     icon: Users,
-  },*/
+  },
   {
     title: "Configuración",
     href: "/dashboard/configuracion",
@@ -84,7 +101,6 @@ export function Sidebar({ className }: SidebarProps) {
             {sidebarItems.map((item, index) => {
               const Icon = item.icon
               const isActive = pathname.startsWith(item.href) && (item.href !== "/dashboard" || pathname === "/dashboard");
-
 
               return (
                 <Link

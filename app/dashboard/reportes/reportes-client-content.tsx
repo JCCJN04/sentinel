@@ -11,7 +11,8 @@ import { ExpenseChart } from "@/components/reports/expense-chart";
 import { DocumentsByCategory } from "@/components/reports/documents-by-category";
 import { DocumentsByMonth } from "@/components/reports/documents-by-month";
 import { DocumentsTable } from "@/components/reports/documents-table";
-import { FileDown, Filter, Loader2 } from "lucide-react";
+// --- 1. Importa los íconos necesarios ---
+import { FileDown, Loader2 } from "lucide-react";
 import { DocumentAnalysisComponent } from "@/components/reports/document-analysis";
 
 import { getDocumentStats, getDocumentsByCategory } from "@/lib/reports-actions";
@@ -39,6 +40,8 @@ export default function ReportesClientContent({
   const [analysis, setAnalysis] = useState<DocumentAnalysis>(initialAnalysis);
 
   const [loading, setLoading] = useState(false);
+  // --- 2. Añade un estado específico para la generación del PDF ---
+  const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
     if (selectedYear === initialYear) {
@@ -63,20 +66,40 @@ export default function ReportesClientContent({
 
   const handleYearChange = (year: string) => setSelectedYear(year);
   const handleTabChange = (value: string) => setActiveTab(value);
-  const handleExport = () => alert("Funcionalidad de exportación en desarrollo");
+
+  // --- 3. Crea la función para manejar la generación del PDF ---
+  const handleGenerateReport = () => {
+    setIsGenerating(true);
+    // Abre la API en una nueva pestaña para iniciar la descarga del PDF
+    window.open('/api/reports/health-summary', '_blank');
+    
+    // Resetea el estado del botón después de un tiempo
+    setTimeout(() => setIsGenerating(false), 4000);
+  };
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Análisis y Reportes</h1>
-        <p className="text-muted-foreground">Visualiza estadísticas y genera reportes sobre tus documentos.</p>
+      <div className="flex justify-between items-start flex-wrap gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Análisis y Reportes</h1>
+          <p className="text-muted-foreground">Visualiza estadísticas y genera reportes sobre tus documentos.</p>
+        </div>
+        {/* --- 4. Añade el botón de descarga del Expediente de Salud aquí --- */}
+        <Button onClick={handleGenerateReport} disabled={isGenerating} size="lg">
+          {isGenerating ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <FileDown className="mr-2 h-4 w-4" />
+          )}
+          {isGenerating ? "Generando Expediente..." : "Exportar Expediente (PDF)"}
+        </Button>
       </div>
 
       <Tabs defaultValue="general" className="space-y-4" value={activeTab} onValueChange={handleTabChange}>
         <div className="flex justify-between items-center flex-wrap gap-4">
           <TabsList>
             <TabsTrigger value="general">General</TabsTrigger>
-            <TabsTrigger value="financiero">Financiero</TabsTrigger>
+            {/* <TabsTrigger value="financiero">Financiero</TabsTrigger> */}
             <TabsTrigger value="analisis">Análisis</TabsTrigger>
           </TabsList>
           <div className="flex items-center gap-2">
@@ -88,9 +111,7 @@ export default function ReportesClientContent({
                 <SelectItem value="2023">2023</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" onClick={handleExport}>
-              <Filter className="mr-2 h-4 w-4" /> Exportar
-            </Button>
+            {/* Se elimina el botón de exportación anterior que solo mostraba una alerta */}
           </div>
         </div>
 
@@ -151,7 +172,6 @@ export default function ReportesClientContent({
         </TabsContent>
 
         <TabsContent value="analisis" className="space-y-6">
-          {/* AHORA LA LLAMADA ES CORRECTA PORQUE EL COMPONENTE HIJO ESTÁ BIEN DEFINIDO */}
           <DocumentAnalysisComponent analysis={analysis} />
         </TabsContent>
       </Tabs>

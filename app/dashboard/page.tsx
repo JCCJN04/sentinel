@@ -37,7 +37,6 @@ export default function DashboardPage() {
               <UpcomingMedication />
             </CardContent>
           </Card>
-
           <Card>
             <CardHeader>
               <CardTitle>Vencimiento de Documentos</CardTitle>

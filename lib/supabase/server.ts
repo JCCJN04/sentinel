@@ -1,9 +1,13 @@
 // lib/supabase/server.ts
-
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
-export function createClient(cookieStore: ReturnType<typeof cookies>) {
+// NOTA: No es necesario pasar la cookieStore como argumento en esta versión.
+// Esta es la implementación estándar que debería funcionar en todos los contextos
+// del servidor (Server Components, Route Handlers, Server Actions).
+export const createClient = () => {
+  const cookieStore = cookies()
+
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
