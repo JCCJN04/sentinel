@@ -3,8 +3,9 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-// --- 1. SE AÑADIERON TODOS LOS ICONOS QUE FALTABAN ---
+// --- 1. SE AÑADIERON TODOS LOS ICONOS NECESARIOS ---
 import { 
+  ClipboardList,
   HeartPulse, 
   Shield, 
   FileText, 
@@ -16,6 +17,7 @@ import {
   Share2, 
   BarChart3, 
   Users,
+  Syringe, // <-- ÍCONO AÑADIDO
   type LucideIcon 
 } from "lucide-react" 
 
@@ -26,7 +28,7 @@ interface SidebarItem {
   icon: LucideIcon;
 }
 
-// Array con los elementos de la barra lateral (descomentados)
+// Array con los elementos de la barra lateral (con "Vacunas" incluido)
 const sidebarItems: SidebarItem[] = [
   {
     title: "Dashboard",
@@ -47,6 +49,17 @@ const sidebarItems: SidebarItem[] = [
     title: "Alergias",
     href: "/dashboard/alergias",
     icon: ShieldAlert,
+  },
+  // --- 2. SE AÑADIÓ EL NUEVO ENLACE AQUÍ ---
+  {
+    title: "Vacunas",
+    href: "/dashboard/vacunas",
+    icon: Syringe,
+  },
+  {
+    title: "Antecedentes",
+    href: "/dashboard/antecedentes",
+    icon: ClipboardList,
   },
   {
     title: "Subir documento",
@@ -99,7 +112,7 @@ export function Sidebar({ className }: SidebarProps) {
         <div className="flex-1 overflow-auto py-2">
           <nav className="grid items-start px-2 text-sm font-medium">
             {sidebarItems.map((item, index) => {
-              const Icon = item.icon
+              const Icon = item.icon;
               const isActive = pathname.startsWith(item.href) && (item.href !== "/dashboard" || pathname === "/dashboard");
 
               return (
