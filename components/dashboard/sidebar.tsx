@@ -3,125 +3,34 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-// --- 1. SE AÑADIERON TODOS LOS ICONOS NECESARIOS ---
-import { 
-  ClipboardList,
-  HeartPulse, 
-  Shield, 
-  FileText, 
-  Home, 
-  Settings, 
-  ShieldAlert, 
-  Upload, 
-  AlertCircle, 
-  Share2, 
-  BarChart3, 
-  Users,
-  Syringe, // <-- ÍCONO AÑADIDO
-  type LucideIcon 
-} from "lucide-react" 
+import { Shield } from "lucide-react"
+import { sidebarItems } from "@/config/dashboard-nav" // <-- Importa la configuración central
 
-// Interfaz para los items de la barra lateral
-interface SidebarItem {
-  title: string;
-  href: string;
-  icon: LucideIcon;
-}
-
-// Array con los elementos de la barra lateral (con "Vacunas" incluido)
-const sidebarItems: SidebarItem[] = [
-  {
-    title: "Dashboard",
-    href: "/dashboard",
-    icon: Home,
-  },
-  {
-    title: "Documentos",
-    href: "/dashboard/documentos",
-    icon: FileText,
-  },
-  {
-    title: "Recetas",
-    href: "/dashboard/prescriptions",
-    icon: HeartPulse,
-  },
-  {
-    title: "Alergias",
-    href: "/dashboard/alergias",
-    icon: ShieldAlert,
-  },
-  // --- 2. SE AÑADIÓ EL NUEVO ENLACE AQUÍ ---
-  {
-    title: "Vacunas",
-    href: "/dashboard/vacunas",
-    icon: Syringe,
-  },
-  {
-    title: "Antecedentes",
-    href: "/dashboard/antecedentes",
-    icon: ClipboardList,
-  },
-  {
-    title: "Subir documento",
-    href: "/dashboard/subir",
-    icon: Upload,
-  },
-  {
-    title: "Alertas",
-    href: "/dashboard/alertas",
-    icon: AlertCircle,
-  },
-  {
-    title: "Compartidos",
-    href: "/dashboard/compartidos",
-    icon: Share2,
-  },
-  {
-    title: "Reportes",
-    href: "/dashboard/reportes",
-    icon: BarChart3,
-  },
-  {
-    title: "Familia",
-    href: "/dashboard/familia",
-    icon: Users,
-  },
-  {
-    title: "Configuración",
-    href: "/dashboard/configuracion",
-    icon: Settings,
-  },
-]
-
-// Interfaz para las props del Sidebar
-interface SidebarProps {
-  className?: string;
-}
-
-// Componente Sidebar actualizado
-export function Sidebar({ className }: SidebarProps) {
+export function Sidebar({ className }: { className?: string }) {
   const pathname = usePathname()
 
   return (
-    <div className={cn("hidden border-r bg-muted/40 md:block md:w-64", className)}>
+    // 'hidden md:block' oculta esta barra en móviles
+    <div className={cn("hidden border-r bg-muted/40 md:block", className)}>
       <div className="flex h-full max-h-screen flex-col gap-2">
-        <div className="flex items-center gap-2 p-4">
-          <Shield className="h-6 w-6 text-primary" />
-          <span className="font-bold">Sentinel</span>
+        <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
+          <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
+            <Shield className="h-6 w-6 text-primary" />
+            <span className="">Sentinel</span>
+          </Link>
         </div>
-        <div className="flex-1 overflow-auto py-2">
-          <nav className="grid items-start px-2 text-sm font-medium">
-            {sidebarItems.map((item, index) => {
-              const Icon = item.icon;
+        <div className="flex-1 overflow-y-auto">
+          <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
+            {sidebarItems.map((item) => {
+              const Icon = item.icon
               const isActive = pathname.startsWith(item.href) && (item.href !== "/dashboard" || pathname === "/dashboard");
-
               return (
                 <Link
-                  key={index}
+                  key={item.href}
                   href={item.href}
                   className={cn(
                     "flex items-center gap-3 rounded-lg px-3 py-2 transition-all hover:text-primary",
-                    isActive ? "bg-muted text-primary" : "text-muted-foreground",
+                    isActive ? "bg-muted text-primary" : "text-muted-foreground"
                   )}
                 >
                   <Icon className="h-4 w-4" />
