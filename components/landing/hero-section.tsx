@@ -1,31 +1,38 @@
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
+"use client";
+
+import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
+import { ArrowRight, ShieldCheck } from "lucide-react";
 
 export function HeroSection() {
+  const router = useRouter();
+  const handleGetStarted = () => router.push("/registro");
+
   return (
-    <section className="py-20 md:py-32 bg-gradient-to-b from-background to-muted/30">
-      <div className="container px-4 md:px-6">
-        <div className="flex flex-col items-center gap-4 text-center">
-          <h1 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl lg:text-6xl">
-            Gestiona tus documentos de forma segura y eficiente
+    <section className="relative w-full bg-gradient-to-b from-background to-muted/50 py-20 md:py-32 lg:py-40">
+      <div className="container mx-auto px-4 md:px-6 text-center">
+        <div className="max-w-3xl mx-auto">
+          <h1 className="text-4xl font-bold tracking-tighter sm:text-5xl md:text-6xl lg:text-7xl text-foreground">
+            Tu expediente médico, <span className="text-primary">organizado y seguro</span>
           </h1>
-          <p className="max-w-[700px] text-muted-foreground md:text-xl">
-            Database te permite organizar, compartir y acceder a tus documentos importantes desde cualquier lugar.
+          <p className="mt-6 text-lg md:text-xl text-muted-foreground">
+            Sentinel es la plataforma definitiva para centralizar, gestionar y acceder a toda tu información de salud y la de tu familia, en cualquier momento y lugar.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 mt-6">
-            <Link href="/registro">
-              <Button size="lg" className="h-12 px-8">
-                Comenzar gratis
-              </Button>
-            </Link>
-            <Link href="#beneficios">
-              <Button size="lg" variant="outline" className="h-12 px-8">
-                Conocer más
-              </Button>
-            </Link>
+          <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
+            <Button size="lg" onClick={handleGetStarted}>
+              Crea tu cuenta segura
+              <ArrowRight className="ml-2 h-5 w-5" />
+            </Button>
+            <Button size="lg" variant="outline" onClick={() => router.push("#beneficios")}>
+              Conocer más
+            </Button>
+          </div>
+          <div className="mt-6 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+            <ShieldCheck className="h-4 w-4 text-green-500" />
+            <span>Cifrado de nivel bancario. Tu privacidad es nuestra prioridad.</span>
           </div>
         </div>
       </div>
     </section>
-  )
+  );
 }

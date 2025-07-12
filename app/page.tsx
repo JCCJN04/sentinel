@@ -1,603 +1,206 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { ArrowRight, Shield, FileText, Share2, Bell, BarChart } from "lucide-react"
+import { ArrowRight, ShieldCheck, FileCheck, Users, HeartPulse, Lock } from "lucide-react"
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 
 export default function LandingPage() {
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col min-h-screen bg-background text-foreground">
       {/* Header */}
-      <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Shield className="h-6 w-6 text-primary" />
-            {/* Nombre cambiado aquí */}
+          <Link href="/" className="flex items-center gap-2">
+            <ShieldCheck className="h-6 w-6 text-primary" />
             <span className="text-xl font-bold">Sentinel</span>
-          </div>
+          </Link>
           <nav className="hidden md:flex items-center gap-6">
-            <Link href="#features" className="text-sm font-medium hover:text-primary">
-              Características
+            <Link href="#beneficios" className="text-sm font-medium text-muted-foreground hover:text-primary">
+              Beneficios
             </Link>
-            <Link href="#how-it-works" className="text-sm font-medium hover:text-primary">
-              Cómo funciona
+            <Link href="#como-funciona" className="text-sm font-medium text-muted-foreground hover:text-primary">
+              Cómo Funciona
             </Link>
-            <Link href="#pricing" className="text-sm font-medium hover:text-primary">
-              Precios
+            <Link href="#faq" className="text-sm font-medium text-muted-foreground hover:text-primary">
+              Preguntas Frecuentes
             </Link>
           </nav>
-          <div className="flex items-center gap-4">
-            <Link href="/login">
-              <Button variant="outline" size="sm">
-                Iniciar sesión
-              </Button>
-            </Link>
-            <Link href="/registro">
-              <Button size="sm">Registrarse</Button>
-            </Link>
+          <div className="flex items-center gap-2">
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/login">Iniciar sesión</Link>
+            </Button>
+            <Button asChild size="sm">
+              <Link href="/registro">Crear Cuenta</Link>
+            </Button>
           </div>
         </div>
       </header>
 
-      {/* Hero Section - Modificado para una sola columna centrada */}
-      <section className="py-20 md:py-32 bg-gradient-to-b from-background to-muted/30">
-        <div className="container px-4 md:px-6">
-          <div className="flex justify-center">
-            <div className="space-y-6 text-center max-w-3xl">
-              <h1 className="text-4xl font-bold tracking-tighter sm:text-5xl md:text-6xl">
-                Organiza tus documentos medicos
+      <main>
+        {/* Hero Section */}
+        <section className="py-24 md:py-32 lg:py-40 text-center bg-gradient-to-b from-background to-muted/40">
+          <div className="container px-4 md:px-6">
+            <div className="max-w-3xl mx-auto space-y-4">
+              <h1 className="text-4xl font-bold tracking-tighter sm:text-5xl md:text-6xl lg:text-7xl">
+                Tu expediente médico, <span className="text-primary">organizado y seguro</span>
               </h1>
-              <p className="text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
-                {/* Nombre cambiado aquí */}
-                Sentinel te ayuda a almacenar, organizar y acceder a tus documentos medicos de forma segura.
+              <p className="text-lg md:text-xl text-muted-foreground">
+                Sentinel es la plataforma definitiva para centralizar, gestionar y acceder a toda tu información de salud y la de tu familia, en cualquier momento y lugar.
               </p>
-              <div className="flex flex-col gap-2 min-[400px]:flex-row justify-center">
-                <Link href="/registro">
-                  <Button size="lg" className="gap-1">
-                    Comenzar ahora
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </Link>
-                <Link href="#how-it-works">
-                  <Button size="lg" variant="outline">
-                    Cómo funciona
-                  </Button>
-                </Link>
+              <div className="mt-6 flex flex-col sm:flex-row gap-4 justify-center">
+                <Button asChild size="lg">
+                  <Link href="/registro">
+                    Crea tu cuenta segura <ArrowRight className="ml-2 h-5 w-5" />
+                  </Link>
+                </Button>
+              </div>
+              <div className="mt-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                <Lock className="h-4 w-4 text-green-600" />
+                <span>Cifrado de nivel bancario. Tu privacidad es nuestra prioridad.</span>
               </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Features Section */}
-      <section id="features" className="py-16 md:py-24">
-         <div className="container px-4 md:px-6">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl">
-              Todo lo que necesitas para gestionar tus documentos medicos
-            </h2>
-            <p className="mx-auto mt-4 max-w-[700px] text-muted-foreground md:text-xl/relaxed">
-              {/* Nombre cambiado aquí */}
-              Sentinel ofrece todas las herramientas necesarias para mantener tus documentos medicos organizados, seguros y
-              accesibles.
-            </p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <div className="flex flex-col items-center text-center p-6 bg-muted/30 rounded-lg">
-              <div className="rounded-full bg-primary/10 p-3 mb-4">
-                <FileText className="h-6 w-6 text-primary" />
-              </div>
-              <h3 className="text-xl font-bold mb-2">Almacenamiento seguro</h3>
-              <p className="text-muted-foreground">
-                Guarda tus documentos importantes con encriptación de extremo a extremo y accede a ellos cuando los
-                necesites.
-              </p>
-            </div>
-            <div className="flex flex-col items-center text-center p-6 bg-muted/30 rounded-lg">
-              <div className="rounded-full bg-primary/10 p-3 mb-4">
-                <Share2 className="h-6 w-6 text-primary" />
-              </div>
-              <h3 className="text-xl font-bold mb-2">Compartir documentos</h3>
-              <p className="text-muted-foreground">
-                Comparte documentos de forma segura con quien tu quieras.
-              </p>
-            </div>
-            <div className="flex flex-col items-center text-center p-6 bg-muted/30 rounded-lg">
-              <div className="rounded-full bg-primary/10 p-3 mb-4">
-                <Bell className="h-6 w-6 text-primary" />
-              </div>
-              <h3 className="text-xl font-bold mb-2">Alertas y recordatorios</h3>
-              <p className="text-muted-foreground">
-                Recibe notificaciones sobre documentos medicos próximos a vencer o que requieren tu atención.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* How It Works Section */}
-      <section id="how-it-works" className="py-16 md:py-24 bg-muted/30">
+        {/* Benefits Section */}
+        <section id="beneficios" className="py-16 md:py-24 bg-background">
           <div className="container px-4 md:px-6">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl">Cómo funciona</h2>
-            <p className="mx-auto mt-4 max-w-[700px] text-muted-foreground md:text-xl/relaxed">
-              {/* Nombre cambiado aquí */}
-              Comenzar a usar Sentinel es fácil y rápido. Sigue estos simples pasos:
-            </p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="flex flex-col items-center text-center">
-              <div className="rounded-full bg-primary text-primary-foreground w-12 h-12 flex items-center justify-center text-xl font-bold mb-4">
-                1
-              </div>
-              <h3 className="text-xl font-bold mb-2">Crea una cuenta</h3>
-              <p className="text-muted-foreground">
-                Regístrate con un correo y contraseña de tu elección.
+            <div className="text-center mb-12">
+              <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl">La tranquilidad de tener el control</h2>
+              <p className="mx-auto mt-4 max-w-[700px] text-muted-foreground md:text-xl/relaxed">
+                Sentinel te da las herramientas para que la gestión de tu salud sea simple, segura e inteligente.
               </p>
             </div>
-            <div className="flex flex-col items-center text-center">
-              <div className="rounded-full bg-primary text-primary-foreground w-12 h-12 flex items-center justify-center text-xl font-bold mb-4">
-                2
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+              <div className="flex flex-col items-center text-center p-6">
+                <FileCheck className="h-10 w-10 text-primary mb-4" />
+                <h3 className="text-xl font-bold mb-2">Todo en un solo lugar</h3>
+                <p className="text-muted-foreground">
+                  Centraliza análisis, recetas y estudios. Accede a tu historial completo con un solo clic.
+                </p>
               </div>
-              <h3 className="text-xl font-bold mb-2">Sube tus documentos</h3>
-              <p className="text-muted-foreground">
-                Sube tus documentos medicos y organízalos con categorías y etiquetas de tu preferencia.
-              </p>
-            </div>
-            <div className="flex flex-col items-center text-center">
-              <div className="rounded-full bg-primary text-primary-foreground w-12 h-12 flex items-center justify-center text-xl font-bold mb-4">
-                3
+              <div className="flex flex-col items-center text-center p-6">
+                <ShieldCheck className="h-10 w-10 text-primary mb-4" />
+                <h3 className="text-xl font-bold mb-2">Seguridad y Privacidad</h3>
+                <p className="text-muted-foreground">
+                  Tus datos están protegidos con cifrado de extremo a extremo. Eres el único dueño de tu información.
+                </p>
               </div>
-              <h3 className="text-xl font-bold mb-2">Accede desde cualquier lugar</h3>
-              <p className="text-muted-foreground">
-                Accede a tus documentos desde cualquier dispositivo, en cualquier momento y lugar.
-              </p>
+              <div className="flex flex-col items-center text-center p-6">
+                <Users className="h-10 w-10 text-primary mb-4" />
+                <h3 className="text-xl font-bold mb-2">Gestión Familiar</h3>
+                <p className="text-muted-foreground">
+                  Administra el expediente de tus hijos, padres o cualquier miembro de tu familia desde una sola cuenta.
+                </p>
+              </div>
+              <div className="flex flex-col items-center text-center p-6">
+                <HeartPulse className="h-10 w-10 text-primary mb-4" />
+                <h3 className="text-xl font-bold mb-2">Preparado para Emergencias</h3>
+                <p className="text-muted-foreground">
+                  Genera un resumen de salud para compartirlo al instante con cualquier médico.
+                </p>
+              </div>
             </div>
           </div>
-          <div className="mt-12 text-center">
-            <Link href="/registro">
-              <Button size="lg">Comenzar ahora</Button>
-            </Link>
-          </div>
-        </div>
-      </section>
+        </section>
 
-      
-      {/* 
-
-      <section id="pricing" className="py-16 md:py-24">
+        {/* How It Works Section */}
+        <section id="como-funciona" className="py-16 md:py-24 bg-muted/40">
           <div className="container px-4 md:px-6">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl">
-              Planes simples y transparentes
-            </h2>
-            <p className="mx-auto mt-4 max-w-[700px] text-muted-foreground md:text-xl/relaxed">
-              Elige el plan que mejor se adapte a tus necesidades. Todos los planes incluyen nuestras funciones básicas.
-            </p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="flex flex-col p-6 bg-muted/30 rounded-lg border border-border">
-              <div className="mb-4">
-                <h3 className="text-xl font-bold">Básico</h3>
-                <p className="text-muted-foreground">Para uso personal básico</p>
-              </div>
-              <div className="mb-4">
-                <span className="text-3xl font-bold">Gratis</span>
-              </div>
-              <ul className="mb-6 space-y-2">
-                <li className="flex items-center">
-                  <svg
-                    className="mr-2 h-4 w-4 text-primary"
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M20 6L9 17l-5-5" />
-                  </svg>
-                  Hasta 50 documentos
-                </li>
-                <li className="flex items-center">
-                  <svg
-                    className="mr-2 h-4 w-4 text-primary"
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M20 6L9 17l-5-5" />
-                  </svg>
-                  Almacenamiento de 1GB
-                </li>
-                <li className="flex items-center">
-                  <svg
-                    className="mr-2 h-4 w-4 text-primary"
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M20 6L9 17l-5-5" />
-                  </svg>
-                  Alertas básicas
-                </li>
-                <li className="flex items-center">
-                  <svg
-                    className="mr-2 h-4 w-4 text-primary"
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M20 6L9 17l-5-5" />
-                  </svg>
-                  Acceso desde cualquier dispositivo
-                </li>
-              </ul>
-              <Link href="/registro" className="mt-auto">
-                <Button className="w-full" variant="outline">
-                  Comenzar gratis
-                </Button>
-              </Link>
-            </div>
-            <div className="flex flex-col p-6 bg-primary/5 rounded-lg border border-primary relative">
-              <div className="absolute -top-3 left-0 right-0 mx-auto w-fit px-4 py-1 bg-primary text-primary-foreground text-xs font-medium rounded-full">
-                Popular
-              </div>
-              <div className="mb-4">
-                <h3 className="text-xl font-bold">Premium</h3>
-                <p className="text-muted-foreground">Para individuos y familias</p>
-              </div>
-              <div className="mb-4">
-                <span className="text-3xl font-bold">$9.99</span>
-                <span className="text-muted-foreground"> /mes</span>
-              </div>
-              <ul className="mb-6 space-y-2">
-                <li className="flex items-center">
-                  <svg
-                    className="mr-2 h-4 w-4 text-primary"
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M20 6L9 17l-5-5" />
-                  </svg>
-                  Documentos ilimitados
-                </li>
-                <li className="flex items-center">
-                  <svg
-                    className="mr-2 h-4 w-4 text-primary"
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M20 6L9 17l-5-5" />
-                  </svg>
-                  Almacenamiento de 10GB
-                </li>
-                <li className="flex items-center">
-                  <svg
-                    className="mr-2 h-4 w-4 text-primary"
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M20 6L9 17l-5-5" />
-                  </svg>
-                  Plan familiar (hasta 5 miembros)
-                </li>
-                <li className="flex items-center">
-                  <svg
-                    className="mr-2 h-4 w-4 text-primary"
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M20 6L9 17l-5-5" />
-                  </svg>
-                  Alertas avanzadas
-                </li>
-                <li className="flex items-center">
-                  <svg
-                    className="mr-2 h-4 w-4 text-primary"
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M20 6L9 17l-5-5" />
-                  </svg>
-                  Reportes y análisis
-                </li>
-              </ul>
-              <Link href="/registro" className="mt-auto">
-                <Button className="w-full">Elegir Premium</Button>
-              </Link>
-            </div>
-            <div className="flex flex-col p-6 bg-muted/30 rounded-lg border border-border">
-              <div className="mb-4">
-                <h3 className="text-xl font-bold">Empresarial</h3>
-                <p className="text-muted-foreground">Para empresas y equipos</p>
-              </div>
-              <div className="mb-4">
-                <span className="text-3xl font-bold">$24.99</span>
-                <span className="text-muted-foreground"> /mes</span>
-              </div>
-              <ul className="mb-6 space-y-2">
-                <li className="flex items-center">
-                  <svg
-                    className="mr-2 h-4 w-4 text-primary"
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M20 6L9 17l-5-5" />
-                  </svg>
-                  Documentos ilimitados
-                </li>
-                <li className="flex items-center">
-                  <svg
-                    className="mr-2 h-4 w-4 text-primary"
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M20 6L9 17l-5-5" />
-                  </svg>
-                  Almacenamiento de 50GB
-                </li>
-                <li className="flex items-center">
-                  <svg
-                    className="mr-2 h-4 w-4 text-primary"
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M20 6L9 17l-5-5" />
-                  </svg>
-                  Usuarios ilimitados
-                </li>
-                <li className="flex items-center">
-                  <svg
-                    className="mr-2 h-4 w-4 text-primary"
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M20 6L9 17l-5-5" />
-                  </svg>
-                  Control de acceso avanzado
-                </li>
-                <li className="flex items-center">
-                  <svg
-                    className="mr-2 h-4 w-4 text-primary"
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M20 6L9 17l-5-5" />
-                  </svg>
-                  Soporte prioritario
-                </li>
-              </ul>
-              <Link href="/registro" className="mt-auto">
-                <Button className="w-full" variant="outline">
-                  Contactar ventas
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </div>
-      </section>
-      */}
-
-      {/* CTA Section */}
-      <section className="py-16 md:py-24 bg-primary text-primary-foreground">
-         <div className="container px-4 md:px-6">
-          <div className="grid gap-6 lg:grid-cols-2 lg:gap-12 items-center">
-            <div className="space-y-4">
-              <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl">
-                Comienza a organizar tus documentos medicos hoy mismo
-              </h2>
-              <p className="max-w-[600px] md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed opacity-90">
-                {/* Nombre cambiado aquí */}
-                Te ha pasado que tienes que ir a una cita con tu medico, y olvidas algún documento, pues con 
-                sentinel eso quedo en el pasado, tendras tus documentos mediccos en la palma de tu mano siempre.
+            <div className="text-center mb-12">
+              <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl">Comenzar es muy fácil</h2>
+              <p className="mx-auto mt-4 max-w-[700px] text-muted-foreground md:text-xl/relaxed">
+                En solo tres pasos tendrás el control total de tu información médica.
               </p>
             </div>
-            <div className="flex flex-col gap-2 min-[400px]:flex-row justify-center lg:justify-end">
-              <Link href="/registro">
-                <Button size="lg" variant="secondary" className="gap-1">
-                  Registrarse gratis
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-              </Link>
-              <Link href="/login">
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="bg-transparent border-primary-foreground text-primary-foreground hover:bg-primary-foreground/10"
-                >
-                  Iniciar sesión
-                </Button>
-              </Link>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="flex flex-col items-center text-center">
+                <div className="rounded-full bg-primary text-primary-foreground w-12 h-12 flex items-center justify-center text-xl font-bold mb-4">1</div>
+                <h3 className="text-xl font-bold mb-2">Crea tu cuenta segura</h3>
+                <p className="text-muted-foreground">Regístrate en menos de un minuto. Solo necesitas tu correo y una contraseña.</p>
+              </div>
+              <div className="flex flex-col items-center text-center">
+                <div className="rounded-full bg-primary text-primary-foreground w-12 h-12 flex items-center justify-center text-xl font-bold mb-4">2</div>
+                <h3 className="text-xl font-bold mb-2">Sube tus documentos</h3>
+                <p className="text-muted-foreground">Añade tus recetas, análisis y estudios. Sentinel los organizará por ti.</p>
+              </div>
+              <div className="flex flex-col items-center text-center">
+                <div className="rounded-full bg-primary text-primary-foreground w-12 h-12 flex items-center justify-center text-xl font-bold mb-4">3</div>
+                <h3 className="text-xl font-bold mb-2">Accede desde donde sea</h3>
+                <p className="text-muted-foreground">Tu información de salud, disponible en tu celular o computadora, 24/7.</p>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+        
+        {/* FAQ Section */}
+        <section id="faq" className="py-16 md:py-24 bg-background">
+          <div className="container px-4 md:px-6">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl">Preguntas Frecuentes</h2>
+              <p className="mx-auto mt-4 max-w-[700px] text-muted-foreground md:text-xl/relaxed">
+                Resolvemos tus dudas más importantes sobre la seguridad y privacidad de tus datos.
+              </p>
+            </div>
+            <div className="mx-auto max-w-3xl">
+              <Accordion type="single" collapsible className="w-full">
+                <AccordionItem value="item-1">
+                  <AccordionTrigger>¿Quién puede ver mis documentos y mi información?</AccordionTrigger>
+                  <AccordionContent>
+                    Solamente tú. En Sentinel, tú eres el único dueño de tus datos. La información está cifrada y nadie, ni siquiera nuestro equipo, tiene acceso a ella. Solo se puede compartir si tú explícitamente decides hacerlo con un familiar o un médico.
+                  </AccordionContent>
+                </AccordionItem>
+                <AccordionItem value="item-2">
+                  <AccordionTrigger>¿Qué tan segura es la plataforma?</AccordionTrigger>
+                  <AccordionContent>
+                    Muy segura. Utilizamos cifrado de nivel bancario (AES-256) para toda tu información, tanto en tránsito como en reposo. Nuestra infraestructura se basa en proveedores líderes en la industria y seguimos las mejores prácticas de seguridad para proteger tu privacidad en todo momento.
+                  </AccordionContent>
+                </AccordionItem>
+                <AccordionItem value="item-3">
+                  <AccordionTrigger>¿Mis datos se venden a terceros?</AccordionTrigger>
+                  <AccordionContent>
+                    No, nunca. Nuestra política es clara: tus datos son tuyos. No los vendemos ni los compartimos con anunciantes, farmacéuticas ni ninguna otra entidad. Nuestro modelo de negocio se basa en ofrecerte un servicio valioso, no en explotar tu información.
+                  </AccordionContent>
+                </AccordionItem>
+                <AccordionItem value="item-4">
+                  <AccordionTrigger>¿Qué pasa si decido cancelar mi cuenta?</AccordionTrigger>
+                  <AccordionContent>
+                    Si decides cancelar tu cuenta, te daremos la opción de descargar toda tu información en un archivo comprimido. Una vez confirmado, todos tus datos serán eliminados permanentemente de nuestros servidores de forma irrecuperable.
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            </div>
+          </div>
+        </section>
+
+        {/* CTA Section */}
+        <section className="py-16 md:py-24 bg-primary text-primary-foreground">
+          <div className="container px-4 md:px-6">
+            <div className="grid gap-6 lg:grid-cols-2 lg:gap-12 items-center">
+              <div className="space-y-4">
+                <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl">¿Listo para tomar el control de tu salud?</h2>
+                <p className="max-w-[600px] md:text-xl/relaxed opacity-90">
+                  No más papeles perdidos ni olvidos en tus citas médicas. Con Sentinel, tu tranquilidad está a un clic de distancia.
+                </p>
+              </div>
+              <div className="flex flex-col gap-2 min-[400px]:flex-row justify-center lg:justify-end">
+                <Button asChild size="lg" variant="secondary">
+                  <Link href="/registro">
+                    Comienza gratis ahora <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
 
       {/* Footer */}
-      <footer className="border-t py-12 md:py-16">
-          <div className="container px-4 md:px-6">
-          <div className="grid gap-8 lg:grid-cols-2">
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <Shield className="h-6 w-6 text-primary" />
-                {/* Nombre cambiado aquí */}
-                <span className="text-xl font-bold">Sentinel</span>
-              </div>
-              <p className="max-w-[400px] text-muted-foreground">
-                {/* Nombre cambiado aquí */}
-                Sentinel es la solución definitiva para guardar tus documentos medicos. Organiza, protege y
-                accede a tus documentos importantes desde cualquier lugar.
-              </p>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-8">
-              <div className="space-y-4">
-                <h3 className="text-sm font-medium">Producto</h3>
-                <ul className="space-y-2">
-                  <li>
-                    <Link href="#features" className="text-sm text-muted-foreground hover:text-foreground">
-                      Características
-                    </Link>
-                  </li>
-                  <li>
-                    <Link href="#pricing" className="text-sm text-muted-foreground hover:text-foreground">
-                      Precios
-                    </Link>
-                  </li>
-                </ul>
-              </div>
-              <div className="space-y-4">
-                <h3 className="text-sm font-medium">Empresa</h3>
-                <ul className="space-y-2">
-                  <li>
-                    <Link href="#" className="text-sm text-muted-foreground hover:text-foreground">
-                      Acerca de
-                    </Link>
-                  </li>
-                  <li>
-                    <Link href="#" className="text-sm text-muted-foreground hover:text-foreground">
-                      Blog
-                    </Link>
-                  </li>
-                  <li>
-                    <Link href="#" className="text-sm text-muted-foreground hover:text-foreground">
-                      Contacto
-                    </Link>
-                  </li>
-                </ul>
-              </div>
-              <div className="space-y-4">
-                <h3 className="text-sm font-medium">Legal</h3>
-                <ul className="space-y-2">
-                  <li>
-                    <Link href="#" className="text-sm text-muted-foreground hover:text-foreground">
-                      Privacidad
-                    </Link>
-                  </li>
-                  <li>
-                    <Link href="#" className="text-sm text-muted-foreground hover:text-foreground">
-                      Términos
-                    </Link>
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </div>
-          <div className="mt-8 border-t pt-8 flex flex-col md:flex-row justify-between items-center">
-            <p className="text-sm text-muted-foreground">
-              {/* Nombre cambiado aquí */}
-              &copy; {new Date().getFullYear()} Sentinel. Todos los derechos reservados.
-            </p>
-            <div className="flex items-center gap-4 mt-4 md:mt-0">
-              <Link href="#" className="text-muted-foreground hover:text-foreground">
-                <svg
-                  className="h-5 w-5"
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
-                </svg>
-                <span className="sr-only">Facebook</span>
-              </Link>
-              <Link href="#" className="text-muted-foreground hover:text-foreground">
-                <svg
-                  className="h-5 w-5"
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M23 3a10.9 10.9 0 0 1-3.14 1.53 4.48 4.48 0 0 0-7.86 3v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z" />
-                </svg>
-                <span className="sr-only">Twitter</span>
-              </Link>
-              <Link href="#" className="text-muted-foreground hover:text-foreground">
-                <svg
-                  className="h-5 w-5"
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
-                  <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-                  <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
-                </svg>
-                <span className="sr-only">Instagram</span>
-              </Link>
-            </div>
+      <footer className="border-t py-12">
+        <div className="container px-4 md:px-6 text-center text-sm text-muted-foreground">
+          <p>&copy; {new Date().getFullYear()} Sentinel. Todos los derechos reservados.</p>
+          <div className="flex justify-center gap-4 mt-4">
+              <Link href="#" className="hover:text-primary">Términos de Servicio</Link>
+              <Link href="#" className="hover:text-primary">Política de Privacidad</Link>
           </div>
         </div>
       </footer>
