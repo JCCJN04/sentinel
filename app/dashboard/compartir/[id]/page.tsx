@@ -14,42 +14,41 @@ import { Separator } from "@/components/ui/separator";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ArrowLeft, Link2, Mail, QrCode, Shield, FileText, Check, Loader2, CalendarIcon, CopyIcon } from "lucide-react";
-import { shareService, type ShareServiceOptions, type ShareResult } from "@/lib/share-service"; 
-import { documentService, type Document } from "@/lib/document-service"; 
+import { shareService, type ShareServiceOptions, type ShareResult } from "@/lib/share-service";
+import { documentService, type Document } from "@/lib/document-service";
 import { useToast } from "@/components/ui/use-toast";
-import { QRCodeCanvas } from "qrcode.react"; 
+import { QRCodeCanvas } from "qrcode.react";
 import { format } from 'date-fns';
 import { cn } from "@/lib/utils"; // Ensure cn is imported
 
-type ShareMethod = "link" | "email" | "qr";
+type ShareMethod = "link"; // Only "link" is allowed
 
 export default function CompartirDocumentoPage() {
   const router = useRouter();
   const params = useParams();
   const { toast } = useToast();
-  
+
   const documentId = Array.isArray(params.id) ? params.id[0] : params.id as string;
 
   const [documentInfo, setDocumentInfo] = useState<Document | null>(null);
   const [isLoadingDocument, setIsLoadingDocument] = useState(true);
   const [documentError, setDocumentError] = useState<string | null>(null);
 
-  const [shareMethod, setShareMethod] = useState<ShareMethod>("link");
+  const [shareMethod, setShareMethod] = useState<ShareMethod>("link"); // Default to link
   const [accessDuration, setAccessDuration] = useState<"1day" | "7days" | "30days" | "unlimited">("7days");
   const [permissions, setPermissions] = useState({
     view: true,
     download: false,
-    print: false, 
+    print: false,
     edit: false,
   });
   const [password, setPassword] = useState("");
   const [usePassword, setUsePassword] = useState(false);
-  const [emails, setEmails] = useState("");
-  const [message, setMessage] = useState("");
-  
+  // Removed emails and message states
+  // Removed qrCodeData state
+
   const [shareLink, setShareLink] = useState("");
-  const [qrCodeData, setQrCodeData] = useState(""); 
-  
+
   const [copied, setCopied] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -87,68 +86,49 @@ export default function CompartirDocumentoPage() {
         accessDuration,
         permissions,
         password: usePassword && password.trim() !== "" ? password.trim() : undefined,
-        emails: shareMethod === 'email' ? emails.split(",").map(e => e.trim()).filter(email => email && /\S+@\S+\.\S+/.test(email)) : undefined,
-        message: shareMethod === 'email' ? message.trim() || undefined : undefined,
+        // Removed emails and message
         customShareIdentifier: documentInfo?.name.replace(/\s+/g, '-').toLowerCase() || `doc-${documentId}`
     };
   };
-  
+
   const handleMainShareAction = async () => {
     if (!documentId) {
         toast({ title: "Error", description: "ID de documento no válido.", variant: "destructive" });
         return;
     }
     const currentOptions = activeShareOptions();
-    if (shareMethod === 'email' && (!currentOptions.emails || currentOptions.emails.length === 0)) {
-        toast({ title: "Error", description: "Por favor, ingresa al menos un correo electrónico válido para compartir.", variant: "destructive" });
-        return;
-    }
 
     setIsProcessing(true);
-    setShareLink(""); // Reset previous link/qr
-    setQrCodeData("");
+    setShareLink(""); // Reset previous link
 
     let result: ShareResult | null = null;
 
     try {
-        if (shareMethod === "link") {
-            result = await shareService.generateShareLink(currentOptions);
-            if (result.success && result.shareLink) {
-                setShareLink(result.shareLink);
-                toast({ title: "Enlace Generado", description: "Enlace copiado al portapapeles." });
-                try {
-                    await navigator.clipboard.writeText(result.shareLink);
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 2000);
-                } catch (err) {
-                    console.warn("Fallo al copiar al portapapeles:", err);
-                }
-            }
-        } else if (shareMethod === "email") {
-            result = await shareService.shareViaEmail(currentOptions);
-             if (result.success) {
-                toast({ title: "Compartido por Email", description: `Solicitud de compartición enviada a: ${currentOptions.emails?.join(', ')}` });
-            }
-        } else if (shareMethod === "qr") {
-            result = await shareService.generateQRCode(currentOptions);
-            if (result.success && result.qrCodeData) {
-                setQrCodeData(result.qrCodeData); 
-                setShareLink(result.qrCodeData); 
-                toast({ title: "Código QR Generado", description: "El QR está listo para ser escaneado." });
+        // Only generate share link
+        result = await shareService.generateShareLink(currentOptions);
+        if (result.success && result.shareLink) {
+            setShareLink(result.shareLink);
+            toast({ title: "Enlace Generado", description: "Enlace copiado al portapapeles." });
+            try {
+                await navigator.clipboard.writeText(result.shareLink);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+            } catch (err) {
+                console.warn("Fallo al copiar al portapapeles:", err);
             }
         }
 
         if (result && !result.success) {
-            toast({ title: "Error al Compartir", description: result.error || `No se pudo completar la acción de compartir (${shareMethod}).`, variant: "destructive" });
+            toast({ title: "Error al Compartir", description: result.error || `No se pudo completar la acción de compartir.`, variant: "destructive" });
         }
     } catch (error: any) {
-        console.error(`Error en handleMainShareAction (${shareMethod}):`, error);
+        console.error(`Error en handleMainShareAction:`, error);
         toast({ title: "Error Inesperado", description: error.message || "Ocurrió un error.", variant: "destructive" });
     } finally {
         setIsProcessing(false);
     }
   };
-  
+
   const handleCopyLink = () => {
     if (!shareLink) return;
     navigator.clipboard.writeText(shareLink)
@@ -203,21 +183,12 @@ export default function CompartirDocumentoPage() {
             <CardDescription>Configura cómo quieres compartir: <span className="font-semibold text-primary">{documentInfo.name}</span></CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <Tabs value={shareMethod} onValueChange={(v) => {
-                setShareMethod(v as ShareMethod);
-                setShareLink(""); 
-                setQrCodeData("");
-            }} className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
+            <Tabs value={shareMethod} className="w-full"> {/* Removed onValueChange */}
+              <TabsList className="grid w-full grid-cols-1"> {/* Changed to grid-cols-1 */}
                 <TabsTrigger value="link" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
                   <Link2 className="h-4 w-4" /><span>Enlace</span>
                 </TabsTrigger>
-                <TabsTrigger value="email" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
-                  <Mail className="h-4 w-4" /><span>Email</span>
-                </TabsTrigger>
-                <TabsTrigger value="qr" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
-                  <QrCode className="h-4 w-4" /><span>Código QR</span>
-                </TabsTrigger>
+                {/* Removed TabsTrigger for email and qr */}
               </TabsList>
 
               <TabsContent value="link" className="space-y-4 pt-4">
@@ -233,64 +204,11 @@ export default function CompartirDocumentoPage() {
                         </div>
                     </div>
                 ) : (
-                    <p className="text-sm text-muted-foreground">Haz clic en "{(
-                        shareMethod === "link" ? (shareLink ? "Enlace Generado ✓" : "Generar Enlace") :
-                        shareMethod === "email" ? "Enviar por Email" :
-                        shareMethod === "qr" ? (qrCodeData ? "QR Generado ✓" : "Generar Código QR") :
-                        "Compartir"
-                    )}" abajo para generar el enlace.</p>
+                    <p className="text-sm text-muted-foreground">Haz clic en "Generar Enlace" abajo para generar el enlace.</p>
                 )}
               </TabsContent>
 
-              <TabsContent value="email" className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label htmlFor="emails">Enviar a correos electrónicos</Label>
-                  <Textarea
-                    id="emails"
-                    placeholder="email1@ejemplo.com, email2@ejemplo.com"
-                    value={emails}
-                    onChange={(e) => setEmails(e.target.value)}
-                    disabled={isProcessing}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Ingresa múltiples direcciones separadas por comas.
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="message">Mensaje personalizado (opcional)</Label>
-                  <Textarea
-                    id="message"
-                    placeholder="Echa un vistazo a este documento..."
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    disabled={isProcessing}
-                  />
-                </div>
-              </TabsContent>
-
-              <TabsContent value="qr" className="space-y-4 pt-4">
-                <div className="flex flex-col items-center justify-center p-4 sm:p-6 border rounded-md">
-                  {qrCodeData ? (
-                    <div className="w-40 h-40 sm:w-48 sm:h-48 flex items-center justify-center bg-white p-2 rounded-md shadow">
-                      <QRCodeCanvas value={qrCodeData} size={176} level="H" includeMargin={false} />
-                    </div>
-                  ) : (
-                    <div className="w-40 h-40 sm:w-48 sm:h-48 bg-muted rounded-md flex items-center justify-center">
-                      <QrCode className="h-20 w-20 sm:h-24 sm:w-24 text-muted-foreground" />
-                    </div>
-                  )}
-                  <p className="mt-3 text-sm text-muted-foreground text-center">
-                    {qrCodeData
-                      ? "Escanea este código QR para acceder al documento."
-                      : `Haz clic en "${(
-                          shareMethod === "link" ? (shareLink ? "Enlace Generado ✓" : "Generar Enlace") :
-                          shareMethod === "email" ? "Enviar por Email" :
-                          shareMethod === "qr" ? (qrCodeData ? "QR Generado ✓" : "Generar Código QR") :
-                          "Compartir"
-                      )}" abajo para generar el código QR.`}
-                  </p>
-                </div>
-              </TabsContent>
+              {/* Removed TabsContent for email and qr */}
             </Tabs>
 
             <Separator />
@@ -322,15 +240,13 @@ export default function CompartirDocumentoPage() {
                 <Label className="text-base font-medium mb-2 block">Permisos del destinatario</Label>
                 <div className="space-y-3">
                   {permissionsArray.map(perm => {
-                    // Agregamos un console.log para depurar el objeto perm
-                    // console.log("Rendering permission:", perm); 
                     return (
                         <div key={perm.key} className="flex items-center justify-between">
-                        <Label 
-                            htmlFor={`perm-${perm.key}`} 
+                        <Label
+                            htmlFor={`perm-${perm.key}`}
                             className={cn(
-                                "cursor-pointer", 
-                                {"text-muted-foreground": perm.disabled} // Usando objeto para cn
+                                "cursor-pointer",
+                                {"text-muted-foreground": perm.disabled}
                             )}
                         >
                             {perm.label}
@@ -339,7 +255,7 @@ export default function CompartirDocumentoPage() {
                             id={`perm-${perm.key}`}
                             checked={permissions[perm.key as keyof typeof permissions]}
                             onCheckedChange={(checked) => {
-                                if (!perm.disabled) { // Solo actualiza si no está deshabilitado (view está deshabilitado)
+                                if (!perm.disabled) {
                                     setPermissions(prev => ({ ...prev, [perm.key]: checked }));
                                 }
                             }}
@@ -352,7 +268,7 @@ export default function CompartirDocumentoPage() {
               </div>
 
               <Separator />
-              
+
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <Label htmlFor="use-password-switch" className="text-base font-medium">Protección con contraseña</Label>
@@ -378,23 +294,20 @@ export default function CompartirDocumentoPage() {
             <Button variant="outline" onClick={() => router.back()} disabled={isProcessing}>
               Cancelar
             </Button>
-            <Button 
-                onClick={handleMainShareAction} 
-                disabled={isProcessing || (shareMethod === 'email' && (!emails.trim() || !emails.split(",").map(e => e.trim()).filter(Boolean).length))}
+            <Button
+                onClick={handleMainShareAction}
+                disabled={isProcessing}
                 className="w-full sm:w-auto"
             >
               {isProcessing ? (
                 <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Procesando...</>
               ) : (
-                shareMethod === "link" ? (shareLink ? "Enlace Generado ✓" : "Generar Enlace") :
-                shareMethod === "email" ? "Enviar por Email" :
-                shareMethod === "qr" ? (qrCodeData ? "QR Generado ✓" : "Generar Código QR") :
-                "Compartir"
+                shareLink ? "Enlace Generado ✓" : "Generar Enlace"
               )}
             </Button>
           </CardFooter>
         </Card>
-        
+
         <Card className="hidden md:block sticky top-24">
              <CardHeader>
                 <CardTitle className="text-lg">Documento a Compartir</CardTitle>
@@ -413,7 +326,7 @@ export default function CompartirDocumentoPage() {
                 <Separator/>
                 <h4 className="font-medium text-muted-foreground">Configuración actual:</h4>
                 <div className="space-y-1">
-                    <div className="flex justify-between"><span className="text-muted-foreground">Método:</span> <span className="font-medium">{shareMethod === "link" ? "Enlace" : shareMethod === "email" ? "Email" : "Código QR"}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Método:</span> <span className="font-medium">Enlace</span></div> {/* Hardcoded to Enlace */}
                     <div className="flex justify-between"><span className="text-muted-foreground">Duración:</span> <span className="font-medium">{accessDuration === "1day" ? "1 día" : accessDuration === "7days" ? "7 días" : accessDuration === "30days" ? "30 días" : "Sin límite"}</span></div>
                     <div className="flex justify-between"><span className="text-muted-foreground">Contraseña:</span> <span className="font-medium">{usePassword && password ? "Sí" : "No"}</span></div>
                     <div className="text-muted-foreground">Permisos:

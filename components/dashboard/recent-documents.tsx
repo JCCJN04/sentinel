@@ -1,129 +1,95 @@
-"use client"
+// components/dashboard/recent-documents.tsx
+"use client"; // Esta directiva es necesaria para usar hooks de React
 
-import { useEffect, useState } from "react"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { FileText, FileImage, FileIcon as FilePdf, FileSpreadsheet } from "lucide-react"
-import { documentService, type Document } from "@/lib/document-service"
-import { Skeleton } from "@/components/ui/skeleton"
-import Link from "next/link"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { documentService, type Document } from "@/lib/document-service";
+import { Loader2, FileText, FileWarning, ArrowRight } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useToast } from "@/components/ui/use-toast";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { format } from "date-fns"; // Para formatear la fecha
 
 export function RecentDocuments() {
-  const [documents, setDocuments] = useState<Document[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const { toast } = useToast();
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
+  // useEffect para cargar los documentos recientes
   useEffect(() => {
-    async function loadRecentDocuments() {
+    const fetchDocuments = async () => {
+      setIsLoading(true); // Inicia el estado de carga
+      setError(null); // Limpia cualquier error previo
       try {
-        setLoading(true)
-        const docs = await documentService.getRecentDocuments(5)
-        setDocuments(docs)
-        setError(null)
-      } catch (err) {
-        console.error("Error al cargar documentos recientes:", err)
-        setError("No se pudieron cargar los documentos recientes")
+        // Obtiene los 5 documentos más recientes
+        const fetchedDocuments = await documentService.getRecentDocuments(5);
+        setDocuments(fetchedDocuments); // Actualiza el estado con los documentos
+      } catch (err: any) {
+        console.error("Error fetching recent documents:", err);
+        setError("No se pudieron cargar los documentos recientes."); // Establece el mensaje de error
+        toast({
+          title: "Error de Carga",
+          description: "No se pudieron cargar los documentos recientes.",
+          variant: "destructive",
+        });
       } finally {
-        setLoading(false)
+        setIsLoading(false); // Finaliza el estado de carga
       }
-    }
-
-    loadRecentDocuments()
-  }, [])
-
-  const getFileIcon = (type: string) => {
-    const fileType = type.toLowerCase()
-    if (fileType === "pdf") {
-      return <FilePdf className="h-4 w-4 text-red-500" />
-    } else if (["jpg", "jpeg", "png", "gif", "webp"].includes(fileType)) {
-      return <FileImage className="h-4 w-4 text-blue-500" />
-    } else if (["xls", "xlsx", "csv"].includes(fileType)) {
-      return <FileSpreadsheet className="h-4 w-4 text-green-500" />
-    } else {
-      return <FileText className="h-4 w-4 text-gray-500" />
-    }
-  }
-
-  // Función para formatear la fecha relativa
-  const getRelativeTime = (dateString: string) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
-
-    if (diffInSeconds < 60) {
-      return "Hace unos segundos"
-    } else if (diffInSeconds < 3600) {
-      const minutes = Math.floor(diffInSeconds / 60)
-      return `Hace ${minutes} ${minutes === 1 ? "minuto" : "minutos"}`
-    } else if (diffInSeconds < 86400) {
-      const hours = Math.floor(diffInSeconds / 3600)
-      return `Hace ${hours} ${hours === 1 ? "hora" : "horas"}`
-    } else if (diffInSeconds < 604800) {
-      const days = Math.floor(diffInSeconds / 86400)
-      return `Hace ${days} ${days === 1 ? "día" : "días"}`
-    } else if (diffInSeconds < 2592000) {
-      const weeks = Math.floor(diffInSeconds / 604800)
-      return `Hace ${weeks} ${weeks === 1 ? "semana" : "semanas"}`
-    } else {
-      const months = Math.floor(diffInSeconds / 2592000)
-      return `Hace ${months} ${months === 1 ? "mes" : "meses"}`
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className="space-y-4">
-        {[...Array(5)].map((_, index) => (
-          <div key={index} className="flex items-center justify-between space-x-4 rounded-md border p-3">
-            <div className="flex items-center space-x-4">
-              <Skeleton className="h-9 w-9 rounded-full" />
-              <div>
-                <Skeleton className="h-4 w-32 mb-2" />
-                <Skeleton className="h-3 w-20" />
-              </div>
-            </div>
-            <Skeleton className="h-3 w-16" />
-          </div>
-        ))}
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="p-4 bg-red-50 text-red-800 rounded-md">
-        {error}. Por favor, recarga la página para intentar nuevamente.
-      </div>
-    )
-  }
-
-  if (documents.length === 0) {
-    return (
-      <div className="p-4 text-center text-muted-foreground">
-        No hay documentos recientes. ¡Comienza subiendo tu primer documento!
-      </div>
-    )
-  }
+    };
+    fetchDocuments();
+  }, [toast]); // Se ejecuta al montar el componente
 
   return (
-    <div className="space-y-4">
-      {documents.map((doc) => (
-        <Link
-          href={`/dashboard/documentos/${doc.id}`}
-          key={doc.id}
-          className="flex items-center justify-between space-x-4 rounded-md border p-3 hover:bg-muted/50 transition-colors cursor-pointer"
-        >
-          <div className="flex items-center space-x-4">
-            <Avatar className="h-9 w-9">
-              <AvatarFallback className="bg-primary/10">{getFileIcon(doc.file_type)}</AvatarFallback>
-            </Avatar>
-            <div>
-              <p className="text-sm font-medium leading-none">{doc.name}</p>
-              <p className="text-sm text-muted-foreground">{doc.category}</p>
-            </div>
+    // La tarjeta ocupa una columna en pantallas pequeñas y más en grandes
+    <Card className="col-span-1 lg:col-span-2 xl:col-span-1">
+      <CardHeader>
+        <CardTitle>Documentos Recientes</CardTitle>
+        <CardDescription>Los últimos documentos que has subido o modificado.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          // Muestra un indicador de carga
+          <div className="flex justify-center items-center h-32">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="ml-2 text-muted-foreground">Cargando documentos...</p>
           </div>
-          <div className="text-sm text-muted-foreground">{getRelativeTime(doc.created_at)}</div>
-        </Link>
-      ))}
-    </div>
-  )
+        ) : error ? (
+          // Muestra un mensaje de error si la carga falló
+          <div className="flex flex-col items-center justify-center h-32 text-red-600">
+            <FileWarning className="h-8 w-8 mb-2" />
+            <p className="text-sm">{error}</p>
+          </div>
+        ) : documents.length === 0 ? (
+          // Muestra un mensaje si no hay documentos recientes
+          <div className="text-center py-8 text-muted-foreground">
+            <p>No hay documentos recientes.</p>
+            <p className="text-sm">¡Sube tu primer documento para empezar!</p>
+          </div>
+        ) : (
+          // Muestra la lista de documentos como tarjetas
+          <div className="grid gap-4">
+            {documents.map((doc) => (
+              <Link key={doc.id} href={`/dashboard/documentos/${doc.id}`} className="block">
+                <div className="flex items-center gap-3 p-3 border rounded-md hover:bg-muted/50 transition-colors">
+                  <FileText className="h-5 w-5 text-primary flex-shrink-0" /> {/* Icono del documento */}
+                  <div className="flex-grow">
+                    <p className="font-medium text-sm truncate">{doc.name}</p> {/* Nombre del documento */}
+                    <p className="text-xs text-muted-foreground">
+                      {doc.category} - {format(new Date(doc.created_at), "dd/MM/yyyy")} {/* Categoría y fecha */}
+                    </p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground flex-shrink-0" /> {/* Flecha indicadora */}
+                </div>
+              </Link>
+            ))}
+            {/* Botón para ver todos los documentos */}
+            <Button variant="outline" className="w-full mt-2" asChild>
+              <Link href="/dashboard/documentos">Ver todos los documentos</Link>
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }

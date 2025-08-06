@@ -1,129 +1,137 @@
-"use client"
+// components/dashboard/dashboard-stats.tsx
+"use client"; // Esta directiva es crucial para que este componente funcione en el navegador
 
-import { useEffect, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { FileText, HardDrive, AlertTriangle, Bell } from "lucide-react"
-import { getUserStats, formatFileSize } from "@/lib/document-service"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { documentService } from "@/lib/document-service";
+import { formatFileSize } from "@/lib/document-service"; // Asegúrate de importar esto
+import { Loader2, FileText, Clock, HardDrive, AlertCircle } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useToast } from "@/components/ui/use-toast";
 
-export function DashboardStats() {
+interface DashboardStatsProps {
+  // Puedes pasar props si es necesario, por ejemplo, para filtros de tiempo
+}
+
+export function DashboardStats({}: DashboardStatsProps) {
+  const { toast } = useToast();
   const [stats, setStats] = useState({
     totalDocuments: 0,
     recentDocuments: 0,
     storageUsed: 0,
-    storageLimit: 5 * 1024 * 1024 * 1024, // 5GB por defecto
+    storageLimit: 0,
     expiringDocuments: 0,
-    activeAlerts: 0,
-  })
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+    activeAlerts: 0, // Asumiendo que esta métrica viene de algún lado
+  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
+  // useEffect para cargar las estadísticas cuando el componente se monta
   useEffect(() => {
-    async function loadStats() {
+    const fetchStats = async () => {
+      setIsLoading(true); // Inicia el estado de carga
+      setError(null); // Limpia cualquier error previo
       try {
-        setLoading(true)
-        const userStats = await getUserStats()
-        setStats(userStats)
-        setError(null)
-      } catch (err) {
-        console.error("Error al cargar estadísticas:", err)
-        setError("No se pudieron cargar las estadísticas")
+        const userStats = await documentService.getUserStats();
+        setStats(userStats); // Actualiza el estado con las estadísticas obtenidas
+      } catch (err: any) {
+        console.error("Error fetching dashboard stats:", err);
+        // Captura el mensaje de error específico del servicio
+        setError(err.message || "No se pudieron cargar las estadísticas del dashboard."); // Establece el mensaje de error
+        toast({
+          title: "Error de Carga",
+          description: err.message || "No se pudieron cargar las estadísticas del dashboard.", // Usa el error específico en el toast
+          variant: "destructive",
+        });
       } finally {
-        setLoading(false)
+        setIsLoading(false); // Finaliza el estado de carga
       }
-    }
+    };
+    fetchStats();
+  }, [toast]); // Se ejecuta solo una vez al montar el componente, o si `toast` cambia (aunque `toast` es estable)
 
-    loadStats()
-  }, [])
-
-  // Calcular el porcentaje de almacenamiento utilizado
-  const storagePercentage = Math.min(100, (stats.storageUsed / stats.storageLimit) * 100)
-
-  // Formatear el espacio utilizado
-  const formattedStorageUsed = formatFileSize(stats.storageUsed)
-  const formattedStorageLimit = formatFileSize(stats.storageLimit)
-
-  if (loading) {
+  // Muestra un estado de carga mientras se obtienen los datos
+  if (isLoading) {
     return (
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {[...Array(4)].map((_, index) => (
-          <Card key={index}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-4 w-4 rounded-full" />
-            </CardHeader>
-            <CardContent>
-              <Skeleton className="h-8 w-16 mb-2" />
-              <Skeleton className="h-3 w-full" />
-            </CardContent>
+        {[...Array(4)].map((_, i) => ( // Renderiza 4 tarjetas de esqueleto para el estado de carga
+          <Card key={i} className="flex flex-col items-center justify-center p-6 h-32 animate-pulse bg-muted/50">
+            <Loader2 className="h-8 w-8 text-primary animate-spin" />
+            <p className="mt-2 text-sm text-muted-foreground">Cargando...</p>
           </Card>
         ))}
       </div>
-    )
+    );
   }
 
+  // Muestra un mensaje de error si la carga falló
   if (error) {
     return (
-      <div className="p-4 bg-red-50 text-red-800 rounded-md">
-        {error}. Por favor, recarga la página para intentar nuevamente.
+      <div className="flex flex-col items-center justify-center p-6 text-red-600">
+        <AlertCircle className="h-12 w-12 mb-2" />
+        <p>{error}</p> {/* Muestra el mensaje de error específico */}
       </div>
-    )
+    );
   }
+
+  // Calcula el porcentaje de almacenamiento usado
+  const storagePercentage = stats.storageLimit > 0 ? (stats.storageUsed / stats.storageLimit) * 100 : 0;
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {/* Tarjeta de Documentos Totales */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Total de documentos</CardTitle>
+          <CardTitle className="text-sm font-medium">Documentos Totales</CardTitle>
           <FileText className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">{stats.totalDocuments}</div>
-          <p className="text-xs text-muted-foreground">+{stats.recentDocuments} en los últimos 7 días</p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Espacio utilizado</CardTitle>
-          <HardDrive className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{formattedStorageUsed}</div>
-          <div className="mt-2 h-2 w-full rounded-full bg-muted">
-            <div className="h-full rounded-full bg-primary" style={{ width: `${storagePercentage}%` }}></div>
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {Math.round(storagePercentage)}% de {formattedStorageLimit} disponibles
+          <p className="text-xs text-muted-foreground">
+            {stats.recentDocuments} en la última semana
           </p>
         </CardContent>
       </Card>
-
+      {/* Tarjeta de Próximos a Vencer */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Próximos a vencer</CardTitle>
-          <AlertTriangle className="h-4 w-4 text-warning" />
+          <CardTitle className="text-sm font-medium">Próximos a Vencer</CardTitle>
+          <Clock className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">{stats.expiringDocuments}</div>
-          <p className="text-xs text-muted-foreground">En los próximos 30 días</p>
+          <p className="text-xs text-muted-foreground">
+            Documentos con fecha de caducidad cercana
+          </p>
         </CardContent>
       </Card>
-
+      {/* Tarjeta de Almacenamiento Usado */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Alertas activas</CardTitle>
-          <Bell className="h-4 w-4 text-muted-foreground" />
+          <CardTitle className="text-sm font-medium">Almacenamiento Usado</CardTitle>
+          <HardDrive className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">
+            {formatFileSize(stats.storageUsed)}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            de {formatFileSize(stats.storageLimit)} ({storagePercentage.toFixed(1)}%)
+          </p>
+        </CardContent>
+      </Card>
+      {/* Tarjeta de Alertas Activas */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Alertas Activas</CardTitle>
+          <AlertCircle className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">{stats.activeAlerts}</div>
           <p className="text-xs text-muted-foreground">
-            {stats.activeAlerts > 0
-              ? `${Math.min(stats.activeAlerts, 2)} requieren atención inmediata`
-              : "No hay alertas pendientes"}
+            Recordatorios y notificaciones pendientes
           </p>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

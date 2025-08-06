@@ -1,6 +1,4 @@
-// startupv2/lib/document-service.ts
-
-// Import the browser client and rename it for convenience
+// lib/document-service.ts
 import { supabaseBrowserClient as supabase } from "./supabase";
 
 // Interface definitions
@@ -56,6 +54,29 @@ export interface ShareOptions {
   password?: string;
 }
 
+// Nueva interfaz para un registro de documento compartido
+export interface DocumentShareRecord {
+  id: string;
+  document_id: string;
+  owner_id: string;
+  shared_with: string;
+  permissions: {
+    view: boolean;
+    download: boolean;
+    print: boolean;
+    edit: boolean;
+  };
+  share_method: "link" | "email" | "qr";
+  password?: string | null;
+  expiry_date?: string | null;
+  access_count: number;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  document: Document; // Relación con la tabla de documentos
+}
+
+
 export const MEDICAL_CATEGORIES: string[] = [
   "General",
   "Cardiology",
@@ -63,72 +84,6 @@ export const MEDICAL_CATEGORIES: string[] = [
   "Pediatrics",
   "Radiology",
 ];
-
-// ELIMINADO: La función getPublicUrl ya no es necesaria aquí
-
-/**
- * Fetches user statistics related to documents.
- */
-export async function getUserStats() {
-  try {
-    const { data: userData, error: userError } = await supabase.auth.getUser();
-    if (userError || !userData?.user) {
-      console.error("getUserStats: Error fetching user or user not authenticated", userError);
-      throw new Error("User not authenticated");
-    }
-    const userId = userData.user.id;
-    const [
-      totalDocumentsResult,
-      recentDocumentsResult,
-      expiringDocumentsResult,
-      storageDocumentsResult,
-    ] = await Promise.all([
-      supabase.from("documents").select("*", { count: "exact", head: true }).eq("user_id", userId),
-      supabase.from("documents").select("*", { count: "exact", head: true }).eq("user_id", userId).gte("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()),
-      supabase.from("documents").select("*", { count: "exact", head: true }).eq("user_id", userId).eq("status", "próximo a vencer"),
-      supabase.from("documents").select("file_type").eq("user_id", userId),
-    ]);
-
-    if (totalDocumentsResult.error) throw totalDocumentsResult.error;
-    if (recentDocumentsResult.error) throw recentDocumentsResult.error;
-    if (expiringDocumentsResult.error) throw expiringDocumentsResult.error;
-    if (storageDocumentsResult.error) throw storageDocumentsResult.error;
-
-    const totalDocuments = totalDocumentsResult.count ?? 0;
-    const recentDocuments = recentDocumentsResult.count ?? 0;
-    const expiringDocuments = expiringDocumentsResult.count ?? 0;
-    const storageDocs = storageDocumentsResult.data ?? [];
-
-    let estimatedStorageBytes = 0;
-    storageDocs.forEach((doc: any) => {
-      switch (doc.file_type?.toLowerCase()) {
-        case "pdf": estimatedStorageBytes += 2 * 1024 * 1024; break;
-        case "jpg": case "jpeg": case "png": estimatedStorageBytes += 1.5 * 1024 * 1024; break;
-        case "doc": case "docx": estimatedStorageBytes += 1 * 1024 * 1024; break;
-        default: estimatedStorageBytes += 500 * 1024;
-      }
-    });
-    const storageLimit = 5 * 1024 * 1024 * 1024;
-    return {
-        totalDocuments,
-        recentDocuments,
-        storageUsed: estimatedStorageBytes,
-        storageLimit,
-        expiringDocuments,
-        activeAlerts: 0
-    };
-  } catch (error) {
-    console.error("Error getting user stats:", error);
-    return {
-        totalDocuments: 0,
-        recentDocuments: 0,
-        storageUsed: 0,
-        storageLimit: 5 * 1024 * 1024 * 1024,
-        expiringDocuments: 0,
-        activeAlerts: 0,
-    };
-  }
-}
 
 /**
  * Formats file size in bytes to a human-readable string (KB, MB, GB).
@@ -175,8 +130,7 @@ export async function uploadDocument(documentData: DocumentUpload): Promise<Docu
       throw new Error(`Error al subir el archivo: ${uploadError.message}`);
     }
     console.log("Archivo subido exitosamente a Storage.");
-    
-    // ELIMINADO: No se genera publicURL aquí
+
     let status = "vigente";
     if (documentData.expiry_date) {
       try {
@@ -209,7 +163,6 @@ export async function uploadDocument(documentData: DocumentUpload): Promise<Docu
       notes: documentData.notes || null,
       file_path: filePath,
       file_type: fileExt,
-      // ELIMINADO: file_url ya no se guarda en la BD
       user_id: userId,
       patient_name: documentData.patient_name || null,
       doctor_name: documentData.doctor_name || null,
@@ -245,6 +198,64 @@ export async function uploadDocument(documentData: DocumentUpload): Promise<Docu
  */
 export const documentService = {
   /**
+   * Fetches user statistics related to documents.
+   */
+  async getUserStats() { // <-- Ahora es un método de documentService
+    try {
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData?.user) {
+        console.error("getUserStats: Error fetching user or user not authenticated", userError);
+        throw new Error("User not authenticated");
+      }
+      const userId = userData.user.id;
+      const [
+        totalDocumentsResult,
+        recentDocumentsResult,
+        expiringDocumentsResult,
+        storageDocumentsResult,
+      ] = await Promise.all([
+        supabase.from("documents").select("*", { count: "exact", head: true }).eq("user_id", userId),
+        supabase.from("documents").select("*", { count: "exact", head: true }).eq("user_id", userId).gte("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()),
+        supabase.from("documents").select("*", { count: "exact", head: true }).eq("user_id", userId).eq("status", "próximo a vencer"),
+        supabase.from("documents").select("file_type").eq("user_id", userId),
+      ]);
+
+      if (totalDocumentsResult.error) throw totalDocumentsResult.error;
+      if (recentDocumentsResult.error) throw recentDocumentsResult.error;
+      if (expiringDocumentsResult.error) throw expiringDocumentsResult.error;
+      if (storageDocumentsResult.error) throw storageDocumentsResult.error;
+
+      const totalDocuments = totalDocumentsResult.count ?? 0;
+      const recentDocuments = recentDocumentsResult.count ?? 0;
+      const expiringDocuments = expiringDocumentsResult.count ?? 0;
+      const storageDocs = storageDocumentsResult.data ?? [];
+
+      let estimatedStorageBytes = 0;
+      storageDocs.forEach((doc: any) => {
+        switch (doc.file_type?.toLowerCase()) {
+          case "pdf": estimatedStorageBytes += 2 * 1024 * 1024; break;
+          case "jpg": case "jpeg": case "png": estimatedStorageBytes += 1.5 * 1024 * 1024; break;
+          case "doc": case "docx": estimatedStorageBytes += 1 * 1024 * 1024; break;
+          default: estimatedStorageBytes += 500 * 1024;
+        }
+      });
+      const storageLimit = 5 * 1024 * 1024 * 1024;
+      return {
+          totalDocuments,
+          recentDocuments,
+          storageUsed: estimatedStorageBytes,
+          storageLimit,
+          expiringDocuments,
+          activeAlerts: 0
+      };
+    } catch (error) {
+      console.error("Error getting user stats:", error);
+      // Es importante propagar el error para que el componente que llama pueda manejarlo
+      throw error; // Propaga el error para que el componente DashboardStats lo capture
+    }
+  },
+
+  /**
    * Fetches all documents for the currently authenticated user.
    */
   async getDocuments(): Promise<Document[]> {
@@ -264,8 +275,7 @@ export const documentService = {
       console.error("Error fetching documents:", error);
       throw error;
     }
-    
-    // MODIFICADO: Simplemente retorna los datos, sin mapear file_url
+
     return data || [];
   },
 
@@ -350,11 +360,10 @@ export const documentService = {
       console.error(`Error updating document with id ${id}:`, error);
       throw error;
     }
-    
+
     return data as Document;
   },
 
-  // ... (El resto de las funciones como deleteDocument, reminders, sharing, etc., no necesitan cambios)
   /**
    * Deletes a document record and its associated file from storage.
    * @param id - The ID of the document to delete.
@@ -394,7 +403,7 @@ export const documentService = {
       const { error: deleteError } = await supabase
         .from("documents")
         .delete()
-        .eq("id", id); 
+        .eq("id", id);
 
       if (deleteError) {
         console.error(`Error deleting document record ${id}:`, deleteError);
@@ -434,7 +443,7 @@ export const documentService = {
    * Creates a new reminder associated with a document.
    * @param reminderData - Data for the new reminder. Should include document_id, date, etc.
    */
-  async createReminder(reminderData: any): Promise<any> { 
+  async createReminder(reminderData: any): Promise<any> {
     const { data: userData, error: userError } = await supabase.auth.getUser();
     if (userError || !userData?.user) {
       console.error("createReminder: User not authenticated.", userError);
@@ -444,7 +453,7 @@ export const documentService = {
     reminderData.user_id = userData.user.id;
 
     const { data, error } = await supabase
-      .from("document_reminders") 
+      .from("document_reminders")
       .insert(reminderData)
       .select()
       .single();
@@ -459,7 +468,7 @@ export const documentService = {
   /**
    * Fetches all reminders for the authenticated user, joining with document data.
    */
-  async getReminders(): Promise<any[]> { 
+  async getReminders(): Promise<any[]> {
     const { data: userData, error: userError } = await supabase.auth.getUser();
       if (userError || !userData?.user) {
       console.error("getReminders: User not authenticated.", userError);
@@ -468,7 +477,7 @@ export const documentService = {
 
     const { data, error } = await supabase
       .from("document_reminders")
-      .select(`*, document:documents(*)`) 
+      .select(`*, document:documents(*)`)
       .eq("user_id", userData.user.id)
       .order("date", { ascending: true });
 
@@ -484,7 +493,7 @@ export const documentService = {
    * @param id - The ID of the reminder to update.
    * @param updates - An object containing the fields to update.
    */
-  async updateReminder(id: string, updates: any): Promise<any> { 
+  async updateReminder(id: string, updates: any): Promise<any> {
     const { data, error } = await supabase
       .from("document_reminders")
       .update(updates)
@@ -521,7 +530,7 @@ export const documentService = {
    * @param documentId - The ID of the document being shared.
    * @param shareData - Options for sharing (recipient, permissions, etc.).
    */
-  async shareDocument(documentId: string, shareData: ShareOptions): Promise<any> { 
+  async shareDocument(documentId: string, shareData: ShareOptions): Promise<any> {
     const { data: userData, error: userError } = await supabase.auth.getUser();
     if (userError || !userData?.user) {
       console.error("shareDocument: User not authenticated.", userError);
@@ -529,15 +538,15 @@ export const documentService = {
     }
 
     const { data, error } = await supabase
-      .from("document_shares") 
+      .from("document_shares")
       .insert({
         document_id: documentId,
-        owner_id: userData.user.id, 
+        owner_id: userData.user.id,
         shared_with: shareData.sharedWith,
         expiry_date: shareData.expiryDate,
         permissions: shareData.permissions,
         share_method: shareData.method,
-        password: shareData.password, 
+        password: shareData.password,
         access_count: 0,
         status: "active",
       })
@@ -554,7 +563,7 @@ export const documentService = {
   /**
    * Fetches all share records created by the authenticated user.
    */
-  async getSharedDocuments(): Promise<any[]> { 
+  async getSharedDocuments(): Promise<any[]> {
     const { data: userData, error: userError } = await supabase.auth.getUser();
     if (userError || !userData?.user) {
       console.error("getSharedDocuments: User not authenticated.", userError);
@@ -563,8 +572,8 @@ export const documentService = {
 
     const { data, error } = await supabase
       .from("document_shares")
-      .select(`*, document:documents(*)`) 
-      .eq("owner_id", userData.user.id) 
+      .select(`*, document:documents(*)`)
+      .eq("owner_id", userData.user.id)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -572,6 +581,65 @@ export const documentService = {
       throw error;
     }
     return data || [];
+  },
+
+  /**
+   * Fetches a specific shared document record by its share ID.
+   * This function is used by the public shared document view.
+   * It also increments the access count.
+   * @param shareId - The ID of the share record.
+   * @param providedPassword - Optional password provided by the user.
+   */
+  async getSharedDocumentById(shareId: string, providedPassword?: string): Promise<{ documentShare: DocumentShareRecord | null; documentUrl: string | null; error?: string }> {
+    try {
+      // Fetch the share record and the associated document
+      const { data: shareRecord, error: shareError } = await supabase
+        .from("document_shares")
+        .select(`*, document:documents(*)`)
+        .eq("id", shareId)
+        .single();
+
+      if (shareError) {
+        if (shareError.code === 'PGRST116') {
+          return { documentShare: null, documentUrl: null, error: "Enlace de documento compartido no encontrado." };
+        }
+        console.error(`Error fetching shared document record ${shareId}:`, shareError);
+        return { documentShare: null, documentUrl: null, error: "Error al cargar el enlace compartido." };
+      }
+
+      if (!shareRecord) {
+        return { documentShare: null, documentUrl: null, error: "Enlace de documento compartido no encontrado." };
+      }
+
+      // Check expiry date
+      if (shareRecord.expiry_date && new Date(shareRecord.expiry_date) < new Date()) {
+        await supabase.from("document_shares").update({ status: "expired" }).eq("id", shareId);
+        return { documentShare: null, documentUrl: null, error: "Este enlace de compartición ha caducado." };
+      }
+
+      // Check password if required
+      if (shareRecord.password && shareRecord.password !== providedPassword) {
+        return { documentShare: shareRecord as DocumentShareRecord, documentUrl: null, error: "Contraseña incorrecta." };
+      }
+
+      // Increment access count (fire and forget, or handle errors if critical)
+      await supabase.rpc('increment_share_access_count', { share_id: shareId });
+
+      // Get the public URL for the document file
+      const { data: publicUrlData } = supabase.storage
+        .from("documents")
+        .getPublicUrl(shareRecord.document.file_path);
+
+      if (!publicUrlData || !publicUrlData.publicUrl) {
+        return { documentShare: shareRecord as DocumentShareRecord, documentUrl: null, error: "No se pudo obtener la URL del archivo del documento." };
+      }
+
+      return { documentShare: shareRecord as DocumentShareRecord, documentUrl: publicUrlData.publicUrl };
+
+    } catch (error: any) {
+      console.error(`Error in getSharedDocumentById for shareId ${shareId}:`, error);
+      return { documentShare: null, documentUrl: null, error: error.message || "Error inesperado al acceder al documento compartido." };
+    }
   },
 
   /**
@@ -696,7 +764,7 @@ export const documentService = {
       console.error(`Error fetching documents with category ${category}:`, error);
       throw error;
     }
-    
+
     return data || [];
   },
 
@@ -710,7 +778,7 @@ export const documentService = {
           console.error("searchDocuments: User not authenticated.", userError);
           throw new Error("User not authenticated");
       }
-      
+
     const { data, error } = await supabase
       .from("documents")
       .select("*")
@@ -722,7 +790,7 @@ export const documentService = {
       console.error(`Error searching documents with query "${query}":`, error);
       throw error;
     }
-      
+
     return data || [];
   },
 };
