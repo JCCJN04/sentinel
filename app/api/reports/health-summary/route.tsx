@@ -5,6 +5,10 @@ import { cookies } from 'next/headers';
 import { HealthReportTemplate } from "@/components/reports/health-report-template";
 import ReactDOMServer from 'react-dom/server';
 
+// Solución 1: Especificar el runtime 'nodejs' para evitar conflictos con el Edge Runtime
+// Los APIs como puppeteer solo funcionan en un entorno Node.js
+export const runtime = 'nodejs';
+
 // Esta función ahora solo se usa aquí para obtener los datos
 async function getHealthSummaryData(userId: string) {
   // Se llama a createClient sin argumentos, ya que obtiene las cookies internamente
@@ -38,12 +42,7 @@ async function getHealthSummaryData(userId: string) {
 
 export async function GET(req: NextRequest) {
   try {
-    // --- INICIO DE LA CORRECCIÓN ---
-    // Se llama a createClient sin argumentos.
-    // La función ya se encarga de obtener las cookies internamente.
     const supabase = createClient();
-    // --- FIN DE LA CORRECCIÓN ---
-
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
@@ -52,15 +51,12 @@ export async function GET(req: NextRequest) {
 
     const reportData = await getHealthSummaryData(user.id);
     
-    // La arquitectura correcta requiere separar el renderizado del HTML.
-    // Usaremos una página de vista previa para esto.
     const encodedData = Buffer.from(JSON.stringify(reportData)).toString('base64');
     
     const protocol = req.nextUrl.protocol;
     const host = req.nextUrl.host;
     const baseUrl = `${protocol}//${host}`;
     
-    // Construimos la URL a la página de vista previa con los datos
     const reportUrl = `${baseUrl}/dashboard/reportes/health-summary/preview?data=${encodedData}`;
 
     console.log(`[PDF Generation] Visiting URL...`);
@@ -81,7 +77,15 @@ export async function GET(req: NextRequest) {
 
     await browser.close();
 
-    return new NextResponse(pdfBuffer, {
+    // Solución 2: Convertir el Uint8Array a un ReadableStream para el NextResponse
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(pdfBuffer);
+        controller.close();
+      },
+    });
+
+    return new NextResponse(stream, {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="expediente-salud-sentinel-${new Date().toISOString().split('T')[0]}.pdf"`,
