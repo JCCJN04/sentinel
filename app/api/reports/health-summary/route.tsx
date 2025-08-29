@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { type NextRequest, NextResponse } from "next/server";
 import { cookies } from 'next/headers';
 
-// --- 1. Importaciones dinámicas para desarrollo vs. producción ---
+// Importaciones dinámicas para desarrollo vs. producción
 import puppeteer from "puppeteer"; // Para desarrollo local
 import core from "puppeteer-core"; // Para producción
 import chromium from "@sparticuz/chromium"; // Para producción
@@ -22,7 +22,7 @@ async function getHealthSummaryData(userId: string) {
     supabase.from("user_family_history").select('*').eq('user_id', userId).order('created_at', { ascending: false }),
     supabase.from("vaccinations").select('*').eq('user_id', userId).order('administration_date', { ascending: false })
   ]);
-  return { profile: profileRes.data || {}, allergies: allergiesRes.data || [], activePrescriptions: activePrescriptionsRes.data || [], personalHistory: personalHistoryRes.data || [], familyHistory: familyHistoryRes.data || [], vaccinations: vaccinationsRes.data || [] };
+  return { profile: profileRes.data || {}, allergies: allergiesRes.data || [], activePrescriptions: activePrescriptionsRes.data || [], personalHistory: personalHistoryRes.data || [], familyHistory: familyRes.data || [], vaccinations: vaccinationsRes.data || [] };
 }
 
 export async function GET(req: NextRequest) {
@@ -43,17 +43,16 @@ export async function GET(req: NextRequest) {
 
     console.log(`[PDF Generation] Iniciando la generación del PDF en modo: ${process.env.NODE_ENV}`);
 
-    // --- 2. Lógica condicional para el navegador ---
+    // Lógica condicional para el navegador
     if (process.env.NODE_ENV === 'development') {
-      // Usamos el puppeteer completo en desarrollo local, es más robusto aquí.
       console.log("[PDF Generation] Usando puppeteer estándar para desarrollo.");
       browser = await puppeteer.launch({ headless: true });
     } else {
-      // Usamos la configuración optimizada para producción (Vercel, AWS, etc.)
       console.log("[PDF Generation] Usando puppeteer-core con @sparticuz/chromium para producción.");
       browser = await core.launch({
         args: chromium.args,
-        defaultViewport: chromium.defaultViewport,
+        // --- SOLUCIÓN: La siguiente línea se ha eliminado ---
+        // defaultViewport: chromium.defaultViewport, 
         executablePath: await chromium.executablePath(),
         headless: chromium.headless,
         ignoreHTTPSErrors: true,
