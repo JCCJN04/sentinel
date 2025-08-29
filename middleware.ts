@@ -1,51 +1,66 @@
-import { NextResponse, type NextRequest } from 'next/server'
-import { createClient } from '@/lib/supabase/middleware'
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+// Se respeta tu importación original desde lib/supabase.ts
+import { createSupabaseMiddlewareClient } from "@/lib/supabase";
 
-// --- SOLUCIÓN: Añade esta línea al principio del archivo ---
-// Esto asegura que el middleware se ejecute en el entorno Node.js,
-// eliminando las advertencias de compatibilidad con Supabase.
+// --- SOLUCIÓN: Añade esta línea para eliminar las advertencias en Vercel ---
 export const runtime = 'nodejs';
 
-export async function middleware(request: NextRequest) {
-  const { supabase, response } = createClient(request)
-  const { data: { session } } = await supabase.auth.getSession()
+export async function middleware(req: NextRequest) {
+  // Se usa tu función personalizada para crear el cliente
+  const { supabase, response } = await createSupabaseMiddlewareClient(req);
 
-  const { pathname } = request.nextUrl
-
-  // Si el usuario está en una ruta de autenticación y ya tiene sesión, redirige al dashboard
-  if ((pathname === '/login' || pathname === '/registro') && session) {
-    return NextResponse.redirect(new URL('/dashboard', request.url))
-  }
-  
-  // Rutas protegidas
-  if (pathname.startsWith('/dashboard')) {
-    if (!session) {
-      // Si no hay sesión, redirige a la página de login
-      return NextResponse.redirect(new URL('/login', request.url))
-    }
+  // Excepción para la vista previa del PDF
+  if (req.nextUrl.pathname.startsWith('/dashboard/reportes/health-summary/preview')) {
+    console.log("Middleware: Allowing PDF preview route to proceed.");
+    return response;
   }
 
-  // Si el usuario intenta acceder a la raíz y tiene sesión, llévalo al dashboard
-  if (pathname === '/' && session) {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+  const {
+    data: { session },
+    error: sessionError,
+  } = await supabase.auth.getSession();
+
+  if (sessionError) {
+    console.error("Middleware: Error fetching session:", sessionError);
   }
 
-  return response
+  const protectedRoutes = ["/dashboard"];
+  const authRoutes = ["/login", "/registro", "/recuperar-password"];
+
+  const isProtectedRoute = protectedRoutes.some((route) =>
+    req.nextUrl.pathname.startsWith(route)
+  );
+  const isAuthRoute = authRoutes.some(
+    (route) => req.nextUrl.pathname === route
+  );
+
+  // 1. Redirigir a login si se intenta acceder a una ruta protegida sin sesión
+  if (isProtectedRoute && !session) {
+    const redirectUrl = req.nextUrl.clone();
+    redirectUrl.pathname = "/login";
+    redirectUrl.searchParams.set("redirect", req.nextUrl.pathname);
+    console.log("Middleware: Redirecting to login from protected route");
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  // 2. Redirigir al dashboard si se intenta acceder a una ruta de autenticación con sesión activa
+  if (isAuthRoute && session) {
+    const redirectUrl = req.nextUrl.clone();
+    redirectUrl.pathname = "/dashboard";
+    redirectUrl.search = "";
+    console.log("Middleware: Redirecting to dashboard from auth route");
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  // 3. Si no se cumple ninguna condición, continuar
+  console.log("Middleware: Allowing request to proceed");
+  return response;
 }
 
+// Se mantiene tu configuración de rutas para el middleware
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * Feel free to modify this pattern to include more paths.
-     */
-    '/((?!_next/static|_next/image|favicon.ico).*)',
-    '/',
-    '/login',
-    '/registro',
-    '/dashboard/:path*',
+    "/((?!api|_next/static|_next/image|favicon.ico|images|assets).*)",
   ],
-}
+};
