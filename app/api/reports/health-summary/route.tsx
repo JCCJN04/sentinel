@@ -52,9 +52,8 @@ export async function GET(req: NextRequest) {
       browser = await core.launch({
         args: chromium.args,
         executablePath: await chromium.executablePath(),
-        // --- SOLUCIÓN: La siguiente línea se ha eliminado porque ya no es necesaria ---
-        // headless: chromium.headless,
-        ignoreHTTPSErrors: true,
+        // --- SOLUCIÓN: La siguiente línea se ha eliminado porque ya no es una opción válida ---
+        // ignoreHTTPSErrors: true,
       });
     }
 
