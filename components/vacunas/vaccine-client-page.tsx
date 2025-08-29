@@ -119,12 +119,14 @@ export function VaccineClientPage({ initialVaccines, vaccineCatalog }: VaccineCl
         </Dialog>
       </div>
 
-      <div className="border rounded-lg overflow-hidden">
+      {/* MODIFICACIÓN: Se añade un div contenedor para el scroll horizontal solo en la tabla si fuera necesario */}
+      <div className="w-full overflow-x-auto border rounded-lg">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Vacuna</TableHead>
-              <TableHead>Protege Contra</TableHead>
+              {/* MODIFICACIÓN: Columna oculta en móviles (hidden) y visible a partir de sm (sm:table-cell) */}
+              <TableHead className="hidden sm:table-cell">Protege Contra</TableHead>
               <TableHead>Dosis</TableHead>
               <TableHead>Fecha</TableHead>
               <TableHead className="text-right">Acciones</TableHead>
@@ -133,9 +135,11 @@ export function VaccineClientPage({ initialVaccines, vaccineCatalog }: VaccineCl
           <TableBody>
             {initialVaccines.length > 0 ? initialVaccines.map(v => (
               <TableRow key={v.id}>
-                <TableCell className="font-medium">{v.vaccine_name}</TableCell>
-                <TableCell>{v.disease_protected}</TableCell>
-                <TableCell>{v.dose_details || 'N/A'}</TableCell>
+                {/* MODIFICACIÓN: Se trunca el texto si es muy largo */}
+                <TableCell className="font-medium max-w-[150px] truncate" title={v.vaccine_name}>{v.vaccine_name}</TableCell>
+                {/* MODIFICACIÓN: Celda oculta en móviles */}
+                <TableCell className="hidden sm:table-cell max-w-[200px] truncate" title={v.disease_protected}>{v.disease_protected}</TableCell>
+                <TableCell className="max-w-[120px] truncate" title={v.dose_details || 'N/A'}>{v.dose_details || 'N/A'}</TableCell>
                 <TableCell>{new Date(v.administration_date).toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })}</TableCell>
                 <TableCell className="text-right">
                   <Button variant="ghost" size="icon" onClick={() => handleDelete(v.id)}>

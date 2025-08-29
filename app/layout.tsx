@@ -21,7 +21,9 @@ const robotoSlab = Roboto_Slab({
 export const metadata = {
   title: "Sentinel",
   description: "Sentinel",
-  generator: 'JC'
+  generator: 'JC',
+  // Añade esta configuración para el viewport
+  viewport: 'width=device-width, initial-scale=1, maximum-scale=1',
 }
 
 export default function RootLayout({
