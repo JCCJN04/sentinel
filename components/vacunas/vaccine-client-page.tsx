@@ -119,13 +119,11 @@ export function VaccineClientPage({ initialVaccines, vaccineCatalog }: VaccineCl
         </Dialog>
       </div>
 
-      {/* MODIFICACIÓN: Se añade un div contenedor para el scroll horizontal solo en la tabla si fuera necesario */}
       <div className="w-full overflow-x-auto border rounded-lg">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Vacuna</TableHead>
-              {/* MODIFICACIÓN: Columna oculta en móviles (hidden) y visible a partir de sm (sm:table-cell) */}
               <TableHead className="hidden sm:table-cell">Protege Contra</TableHead>
               <TableHead>Dosis</TableHead>
               <TableHead>Fecha</TableHead>
@@ -135,10 +133,9 @@ export function VaccineClientPage({ initialVaccines, vaccineCatalog }: VaccineCl
           <TableBody>
             {initialVaccines.length > 0 ? initialVaccines.map(v => (
               <TableRow key={v.id}>
-                {/* MODIFICACIÓN: Se trunca el texto si es muy largo */}
                 <TableCell className="font-medium max-w-[150px] truncate" title={v.vaccine_name}>{v.vaccine_name}</TableCell>
-                {/* MODIFICACIÓN: Celda oculta en móviles */}
-                <TableCell className="hidden sm:table-cell max-w-[200px] truncate" title={v.disease_protected}>{v.disease_protected}</TableCell>
+                {/* --- SOLUCIÓN: Se añade '|| ""' para asegurar que el valor nunca sea null --- */}
+                <TableCell className="hidden sm:table-cell max-w-[200px] truncate" title={v.disease_protected || ''}>{v.disease_protected}</TableCell>
                 <TableCell className="max-w-[120px] truncate" title={v.dose_details || 'N/A'}>{v.dose_details || 'N/A'}</TableCell>
                 <TableCell>{new Date(v.administration_date).toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })}</TableCell>
                 <TableCell className="text-right">
