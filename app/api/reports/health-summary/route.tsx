@@ -22,7 +22,6 @@ async function getHealthSummaryData(userId: string) {
     supabase.from("user_family_history").select('*').eq('user_id', userId).order('created_at', { ascending: false }),
     supabase.from("vaccinations").select('*').eq('user_id', userId).order('administration_date', { ascending: false })
   ]);
-  // --- SOLUCIÓN: Se corrige el nombre de la variable de 'familyRes' a 'familyHistoryRes' ---
   return { profile: profileRes.data || {}, allergies: allergiesRes.data || [], activePrescriptions: activePrescriptionsRes.data || [], personalHistory: personalHistoryRes.data || [], familyHistory: familyHistoryRes.data || [], vaccinations: vaccinationsRes.data || [] };
 }
 
@@ -53,7 +52,8 @@ export async function GET(req: NextRequest) {
       browser = await core.launch({
         args: chromium.args,
         executablePath: await chromium.executablePath(),
-        headless: chromium.headless,
+        // --- SOLUCIÓN: La siguiente línea se ha eliminado porque ya no es necesaria ---
+        // headless: chromium.headless,
         ignoreHTTPSErrors: true,
       });
     }
