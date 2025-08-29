@@ -22,7 +22,8 @@ async function getHealthSummaryData(userId: string) {
     supabase.from("user_family_history").select('*').eq('user_id', userId).order('created_at', { ascending: false }),
     supabase.from("vaccinations").select('*').eq('user_id', userId).order('administration_date', { ascending: false })
   ]);
-  return { profile: profileRes.data || {}, allergies: allergiesRes.data || [], activePrescriptions: activePrescriptionsRes.data || [], personalHistory: personalHistoryRes.data || [], familyHistory: familyRes.data || [], vaccinations: vaccinationsRes.data || [] };
+  // --- SOLUCIÓN: Se corrige el nombre de la variable de 'familyRes' a 'familyHistoryRes' ---
+  return { profile: profileRes.data || {}, allergies: allergiesRes.data || [], activePrescriptions: activePrescriptionsRes.data || [], personalHistory: personalHistoryRes.data || [], familyHistory: familyHistoryRes.data || [], vaccinations: vaccinationsRes.data || [] };
 }
 
 export async function GET(req: NextRequest) {
@@ -51,8 +52,6 @@ export async function GET(req: NextRequest) {
       console.log("[PDF Generation] Usando puppeteer-core con @sparticuz/chromium para producción.");
       browser = await core.launch({
         args: chromium.args,
-        // --- SOLUCIÓN: La siguiente línea se ha eliminado ---
-        // defaultViewport: chromium.defaultViewport, 
         executablePath: await chromium.executablePath(),
         headless: chromium.headless,
         ignoreHTTPSErrors: true,
