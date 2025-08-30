@@ -1,13 +1,13 @@
 // lib/actions/prescriptions.actions.ts
 'use server';
 
-import { createServerClient, type CookieOptions } from '@supabase/ssr'; // Ensure CookieOptions is imported
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 
-// Función helper para crear un cliente de Supabase en el servidor.
+// Función helper (sin cambios)
 const createSupabaseClient = () => {
     const cookieStore = cookies();
     return createServerClient(
@@ -15,33 +15,21 @@ const createSupabaseClient = () => {
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
         {
             cookies: {
-                // Removed 'getAll' as it is not part of the expected CookieMethodsServer interface for createServerClient
-                get: (name: string) => cookieStore.get(name)?.value, // 'get' method for retrieving a specific cookie
-                set: (name: string, value: string, options: CookieOptions) => { // 'set' method for setting a cookie
-                    try { 
-                        cookieStore.set({ name, value, ...options }); 
-                    } catch (error) { 
-                        // This can be ignored if you have middleware refreshing user sessions,
-                        // or if the set operation happens after headers have been sent.
-                        console.error("Error setting cookie in createSupabaseClient:", error);
-                    }
+                get: (name: string) => cookieStore.get(name)?.value,
+                set: (name: string, value: string, options: CookieOptions) => {
+                    try { cookieStore.set({ name, value, ...options }); } catch (error) { console.error("Error setting cookie:", error); }
                 },
-                remove: (name: string, options: CookieOptions) => { // 'remove' method for deleting a cookie
-                    try { 
-                        cookieStore.set({ name, value: '', ...options }); 
-                    } catch (error) { 
-                        // Similar to 'set', this might be ignored depending on context.
-                        console.error("Error removing cookie in createSupabaseClient:", error);
-                    }
+                remove: (name: string, options: CookieOptions) => {
+                    try { cookieStore.set({ name, value: '', ...options }); } catch (error) { console.error("Error removing cookie:", error); }
                 },
             },
         }
     );
 };
 
-// Esquema actualizado para incluir la hora de inicio
+// Esquema de validación (sin cambios)
 const PrescriptionFormSchema = z.object({
-    diagnosis: z.string().min(3, 'El diagnóstico es requerido.'),
+    diagnosis: z.string().min(3, 'El diagnóstico debe tener al menos 3 caracteres.'),
     doctor_name: z.string().optional(),
     start_date: z.string().min(1, 'La fecha de inicio es requerida.'),
     start_time: z.string().min(1, 'La hora de inicio es requerida.'),
@@ -50,18 +38,36 @@ const PrescriptionFormSchema = z.object({
     medicines: z.string().min(2, 'Debe haber al menos un medicamento.'),
 });
 
-/**
- * Crea una receta, sus medicamentos y genera el calendario de dosis.
- * Modificado para lanzar errores en lugar de retornar objetos en casos de fallo.
- */
-export async function createPrescription(formData: FormData) {
+
+// --- MODIFICACIÓN CLAVE EN createPrescription ---
+
+// 1. Definimos el tipo de estado que devolverá la función para el hook useFormState
+export type PrescriptionFormState = {
+  errors?: {
+    diagnosis?: string[];
+    doctor_name?: string[];
+    start_date?: string[];
+    start_time?: string[];
+    end_date?: string[];
+    notes?: string[];
+    medicines?: string[];
+  };
+  message?: string | null;
+};
+
+// 2. Modificamos la firma de la función para que acepte el estado previo
+export async function createPrescription(
+    prevState: PrescriptionFormState,
+    formData: FormData
+): Promise<PrescriptionFormState> {
     const supabase = createSupabaseClient();
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-        throw new Error('No autorizado'); // Changed to throw Error
+        return { message: 'No autorizado.' };
     }
 
+    // 3. Validamos los campos y en caso de error, devolvemos los errores
     const validatedFields = PrescriptionFormSchema.safeParse({
         diagnosis: formData.get('diagnosis'),
         doctor_name: formData.get('doctor_name'),
@@ -73,15 +79,13 @@ export async function createPrescription(formData: FormData) {
     });
 
     if (!validatedFields.success) {
-        // For validation errors, if you need to display specific field errors on the client,
-        // you would typically use `useFormState` and return an object, or serialize the errors
-        // into the error message itself. For direct form action, throwing a general error is type-compatible.
-        const fieldErrors = validatedFields.error.flatten().fieldErrors;
-        const errorMessage = Object.values(fieldErrors).flat().join('. ') || 'Faltan campos o son inválidos.';
-        throw new Error(errorMessage); // Changed to throw Error
+        return {
+            errors: validatedFields.error.flatten().fieldErrors,
+            message: 'Faltan campos o son inválidos. Por favor, revisa el formulario.',
+        };
     }
     
-    // --- PASO 1: Crear la receta principal ---
+    // --- El resto de la lógica permanece igual, pero con manejo de errores mejorado ---
     const { diagnosis, doctor_name, start_date, start_time, end_date, notes, medicines } = validatedFields.data;
     const { data: prescriptionData, error: prescriptionError } = await supabase
         .from('prescriptions')
@@ -90,12 +94,11 @@ export async function createPrescription(formData: FormData) {
 
     if (prescriptionError) {
         console.error('Error al crear la receta:', prescriptionError);
-        throw new Error('Error en la base de datos al crear la receta.'); // Changed to throw Error
+        return { message: 'Error en la base de datos al crear la receta.' };
     }
 
     const prescriptionId = prescriptionData.id;
 
-    // --- PASO 2: Procesar y guardar los medicamentos ---
     let createdMedicines = [];
     try {
         const medicinesArray = JSON.parse(medicines);
@@ -114,15 +117,12 @@ export async function createPrescription(formData: FormData) {
             if (medicinesError) { throw medicinesError; }
             createdMedicines = createdMedicinesData || [];
         }
-    } catch (e: any) { // Catching 'any' for e for broader compatibility
+    } catch (e: any) {
         console.error("Error al procesar medicamentos:", e);
-        throw new Error(`Error en el formato de los medicamentos enviados: ${e.message || 'Error desconocido'}`); // Changed to throw Error
+        return { message: `Error en el formato de los medicamentos enviados: ${e.message || 'Error desconocido'}`};
     }
 
-    // --- PASO 3: Generar todas las dosis futuras ---
     const allDosesToInsert = [];
-    
-    // Combinamos la fecha y la hora para obtener el punto de partida exacto
     const prescriptionStartDate = new Date(`${start_date}T${start_time}`);
     
     for (const med of createdMedicines) {
@@ -149,28 +149,22 @@ export async function createPrescription(formData: FormData) {
         const { error: dosesError } = await supabase.from('medication_doses').insert(allDosesToInsert);
         if (dosesError) {
              console.error('Error al generar las dosis:', dosesError);
-             throw new Error('Receta creada, pero falló la generación del calendario de dosis.'); // Changed to throw Error
+             return { message: 'Receta creada, pero falló la generación del calendario de dosis.' };
         }
     }
 
-    // --- PASO 4: Redireccionar ---
     revalidatePath('/dashboard');
     revalidatePath('/dashboard/prescriptions');
     redirect('/dashboard/prescriptions');
 }
 
 
-// ===== OTRAS FUNCIONES =====
+// ===== OTRAS FUNCIONES (sin cambios) =====
 
-/**
- * Obtiene las próximas 5 dosis pendientes.
- */
 export async function getUpcomingDoses() {
     const supabase = createSupabaseClient();
     const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) return { error: 'No autorizado', data: [] }; // Still returns object, but not used in form action
-
+    if (!user) return { error: 'No autorizado', data: [] };
     const { data, error } = await supabase
         .from('medication_doses')
         .select(`id, scheduled_at, prescription_medicines ( medicine_name, dosage )`)
@@ -178,22 +172,16 @@ export async function getUpcomingDoses() {
         .eq('status', 'scheduled')
         .order('scheduled_at', { ascending: true })
         .limit(5);
-
     if (error) {
         console.error("Error fetching upcoming doses:", error);
-        return { error: 'No se pudieron cargar los recordatorios.', data: [] }; // Still returns object, but not used in form action
+        return { error: 'No se pudieron cargar los recordatorios.', data: [] };
     }
-    return { data: data || [] }; // Still returns object, but not used in form action
+    return { data: data || [] };
 }
 
-/**
- * Marca una dosis como "tomada".
- * Modificado para lanzar errores en lugar de retornar objetos.
- */
 export async function markDoseAsTaken(formData: FormData) {
     const doseId = formData.get('doseId') as string;
-    if (!doseId) { throw new Error('ID de dosis no proporcionado'); } // Changed to throw Error
-
+    if (!doseId) { throw new Error('ID de dosis no proporcionado'); }
     const supabase = createSupabaseClient();
     const { error } = await supabase
         .from('medication_doses')
@@ -202,60 +190,45 @@ export async function markDoseAsTaken(formData: FormData) {
             status: 'taken' 
         })
         .eq('id', doseId);
-
     if (error) {
         console.error('Error al actualizar la dosis:', error);
-        throw new Error('No se pudo actualizar la dosis.'); // Changed to throw Error
+        throw new Error('No se pudo actualizar la dosis.');
     };
-
     revalidatePath('/dashboard');
-    // No return statement needed here, as revalidatePath handles success and updates UI.
 }
 
-/**
- * Obtiene todas las recetas de un usuario.
- */
 export async function getPrescriptions() {
     const supabase = createSupabaseClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { return { error: 'No autorizado', data: [] }; } // Still returns object
-
+    if (!user) { return { error: 'No autorizado', data: [] }; }
     const { data, error } = await supabase
         .from('prescriptions')
         .select(`id, diagnosis, doctor_name, start_date, prescription_medicines ( id, medicine_name, dosage, frequency_hours )`)
         .eq('user_id', user.id)
         .order('start_date', { ascending: false });
-    if (error) { return { error: 'No se pudieron cargar las recetas.', data: [] }; } // Still returns object
-    return { data: data || [] }; // Still returns object
+    if (error) { return { error: 'No se pudieron cargar las recetas.', data: [] }; }
+    return { data: data || [] };
 }
 
-/**
- * Obtiene una receta específica por su ID.
- */
 export async function getPrescriptionById(id: string) {
     const supabase = createSupabaseClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { return { error: 'No autorizado', data: null }; } // Still returns object
+    if (!user) { return { error: 'No autorizado', data: null }; }
     const { data, error } = await supabase
         .from('prescriptions').select(`*, prescription_medicines (*)`).eq('id', id).eq('user_id', user.id).single();
-    if (error) { return { error: 'No se pudo encontrar la receta.', data: null }; } // Still returns object
-    return { data }; // Still returns object
+    if (error) { return { error: 'No se pudo encontrar la receta.', data: null }; }
+    return { data };
 }
 
-/**
- * Elimina una receta y sus datos asociados.
- * Modificado para lanzar errores en lugar de retornar objetos.
- */
 export async function deletePrescription(formData: FormData) {
     const id = formData.get('id') as string;
-    if (!id) { throw new Error('ID de receta no proporcionado.'); } // Changed to throw Error
+    if (!id) { throw new Error('ID de receta no proporcionado.'); }
     const supabase = createSupabaseClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { throw new Error('No autorizado'); } // Changed to throw Error
+    if (!user) { throw new Error('No autorizado'); }
     const { error } = await supabase.from('prescriptions').delete().eq('id', id);
-    if (error) { throw new Error('Error en la base de datos al eliminar la receta.'); } // Changed to throw Error
+    if (error) { throw new Error('Error en la base de datos al eliminar la receta.'); }
     revalidatePath('/dashboard');
     revalidatePath('/dashboard/prescriptions');
     redirect('/dashboard/prescriptions');
-    // No return statement needed here as redirect terminates the function.
 }

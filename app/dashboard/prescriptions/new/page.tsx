@@ -2,14 +2,17 @@
 "use client";
 
 import { useState } from 'react';
-import { createPrescription } from '@/lib/actions/prescriptions.actions';
+// --- 1. Importaciones para el manejo del estado del formulario ---
+import { useFormState, useFormStatus } from 'react-dom';
+import { createPrescription, type PrescriptionFormState } from '@/lib/actions/prescriptions.actions';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { MedicationAutocomplete } from '@/components/prescriptions/MedicationAutocomplete';
+import { Loader2 } from 'lucide-react';
 
-// El tipo para el estado del medicamento
 type Medicine = {
   medicine_name: string;
   dosage: string;
@@ -18,10 +21,26 @@ type Medicine = {
   instructions: string;
 };
 
+// --- 2. Creamos un componente para el botón de envío ---
+// Esto nos permite deshabilitarlo mientras se envía el formulario
+function SubmitButton() {
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" size="lg" disabled={pending}>
+      {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+      {pending ? 'Guardando...' : 'Guardar Receta Completa'}
+    </Button>
+  );
+}
+
 export default function NewPrescriptionPage() {
   const [medicines, setMedicines] = useState<Medicine[]>([
     { medicine_name: '', dosage: '', frequency_hours: '', duration: '', instructions: '' },
   ]);
+
+  // --- 3. Inicializamos el hook useFormState ---
+  const initialState: PrescriptionFormState = { message: null, errors: {} };
+  const [state, dispatch] = useFormState(createPrescription, initialState);
 
   const handleMedicineChange = (index: number, field: keyof Medicine, value: string) => {
     const newMedicines = [...medicines];
@@ -42,14 +61,20 @@ export default function NewPrescriptionPage() {
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-6">Añadir Nueva Receta</h1>
       
-      <form action={createPrescription} className="space-y-6 max-w-2xl">
+      {/* --- 4. El formulario ahora usa 'dispatch' como action --- */}
+      <form action={dispatch} className="space-y-6 max-w-2xl">
         <input type="hidden" name="medicines" value={JSON.stringify(medicines)} />
         
         <div className="space-y-4 p-4 border rounded-lg">
             <h2 className="text-xl font-semibold">Detalles de la Receta</h2>
             <div>
               <Label htmlFor="diagnosis">Diagnóstico</Label>
-              <Input id="diagnosis" name="diagnosis" placeholder="Ej: Faringitis aguda" required />
+              <Input id="diagnosis" name="diagnosis" placeholder="Ej: Faringitis aguda" />
+              {/* --- 5. Mostramos el error de validación si existe --- */}
+              {state.errors?.diagnosis &&
+                state.errors.diagnosis.map((error: string) => (
+                  <p className="text-sm font-medium text-destructive mt-2" key={error}>{error}</p>
+              ))}
             </div>
             <div>
               <Label htmlFor="doctor_name">Nombre del Médico</Label>
@@ -58,13 +83,19 @@ export default function NewPrescriptionPage() {
             <div className="flex flex-col sm:flex-row sm:space-x-4 space-y-4 sm:space-y-0">
               <div className="w-full sm:w-1/2">
                 <Label htmlFor="start_date">Fecha de Inicio</Label>
-                <Input id="start_date" name="start_date" type="date" required />
+                <Input id="start_date" name="start_date" type="date" />
+                 {state.errors?.start_date &&
+                    state.errors.start_date.map((error: string) => (
+                    <p className="text-sm font-medium text-destructive mt-2" key={error}>{error}</p>
+                ))}
               </div>
-              
-              {/* CAMPO AÑADIDO PARA LA HORA DE INICIO */}
               <div className="w-full sm:w-1/2">
                 <Label htmlFor="start_time">Hora de la Primera Dosis</Label>
-                <Input id="start_time" name="start_time" type="time" required />
+                <Input id="start_time" name="start_time" type="time" />
+                 {state.errors?.start_time &&
+                    state.errors.start_time.map((error: string) => (
+                    <p className="text-sm font-medium text-destructive mt-2" key={error}>{error}</p>
+                ))}
               </div>
             </div>
             <div className="flex space-x-4">
@@ -101,25 +132,11 @@ export default function NewPrescriptionPage() {
                     </div>
                     <div>
                         <Label htmlFor={`med_freq_${index}`}>Frecuencia (en horas)</Label>
-                        <Input 
-                            id={`med_freq_${index}`} 
-                            type="number" 
-                            value={med.frequency_hours} 
-                            onChange={e => handleMedicineChange(index, 'frequency_hours', e.target.value)} 
-                            placeholder="Ej: 8" 
-                            min="1"
-                        />
+                        <Input id={`med_freq_${index}`} type="number" value={med.frequency_hours} onChange={e => handleMedicineChange(index, 'frequency_hours', e.target.value)} placeholder="Ej: 8" min="1"/>
                     </div>
                      <div>
                         <Label htmlFor={`med_duration_${index}`}>Duración (días)</Label>
-                        <Input 
-                            id={`med_duration_${index}`} 
-                            type="number" 
-                            value={med.duration} 
-                            onChange={e => handleMedicineChange(index, 'duration', e.target.value)} 
-                            placeholder="Ej: 7"
-                            min="1"
-                        />
+                        <Input id={`med_duration_${index}`} type="number" value={med.duration} onChange={e => handleMedicineChange(index, 'duration', e.target.value)} placeholder="Ej: 7" min="1"/>
                     </div>
                 </div>
                  <div>
@@ -131,9 +148,17 @@ export default function NewPrescriptionPage() {
             <Button type="button" variant="outline" onClick={addMedicine}>
               + Añadir otro medicamento
             </Button>
+            {state.errors?.medicines &&
+                state.errors.medicines.map((error: string) => (
+                <p className="text-sm font-medium text-destructive mt-2" key={error}>{error}</p>
+            ))}
         </div>
+        
+        {/* --- 6. Se usa el nuevo componente de botón --- */}
+        <SubmitButton />
 
-        <Button type="submit" size="lg">Guardar Receta Completa</Button>
+        {/* --- Mostramos un mensaje general de error si existe --- */}
+        {state.message && <p className="text-sm font-medium text-destructive mt-2">{state.message}</p>}
       </form>
     </div>
   );
