@@ -157,26 +157,27 @@ export async function createPrescription(
 
 // --- MODIFICACIÓN CLAVE ---
 
-// 1. Se define y exporta un tipo explícito para las dosis
+// 1. Se define y exporta un tipo explícito para la forma final de los datos
 export type UpcomingDose = {
     id: string;
     scheduled_at: string;
     prescription_medicines: {
         medicine_name: string;
         dosage: string;
-    } | null; // Es un objeto o null, NO un array
+    } | null; // Es un objeto o null
 };
 
 /**
  * Obtiene las próximas 5 dosis pendientes.
  */
-// 2. La función ahora devuelve el tipo que definimos
+// 2. La función se actualiza para transformar los datos
 export async function getUpcomingDoses(): Promise<{ data: UpcomingDose[], error?: string | null }> {
     const supabase = createSupabaseClient();
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) return { error: 'No autorizado', data: [] };
 
+    // La consulta no cambia
     const { data, error } = await supabase
         .from('medication_doses')
         .select(`id, scheduled_at, prescription_medicines ( medicine_name, dosage )`)
@@ -189,8 +190,18 @@ export async function getUpcomingDoses(): Promise<{ data: UpcomingDose[], error?
         console.error("Error fetching upcoming doses:", error);
         return { error: 'No se pudieron cargar los recordatorios.', data: [] };
     }
-    // 3. Se asegura que los datos retornados coincidan con el tipo
-    return { data: (data as UpcomingDose[]) || [], error: null };
+
+    // 3. Se transforman los datos recibidos para que coincidan con el tipo esperado
+    const mappedData: UpcomingDose[] = (data || []).map(dose => ({
+        id: dose.id,
+        scheduled_at: dose.scheduled_at,
+        // Se toma el primer elemento del array de medicamentos, o null si está vacío
+        prescription_medicines: (dose.prescription_medicines && Array.isArray(dose.prescription_medicines) && dose.prescription_medicines.length > 0)
+            ? dose.prescription_medicines[0]
+            : null
+    }));
+
+    return { data: mappedData, error: null };
 }
 
 // markDoseAsTaken (sin cambios)
