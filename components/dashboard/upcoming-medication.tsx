@@ -1,18 +1,10 @@
 // components/dashboard/upcoming-medication.tsx
-import { getUpcomingDoses, markDoseAsTaken } from "@/lib/actions/prescriptions.actions";
+import { getUpcomingDoses, markDoseAsTaken, type UpcomingDose } from "@/lib/actions/prescriptions.actions";
 import { Button } from "@/components/ui/button";
-import { Pill } from "lucide-react"; // Un ícono apropiado
+import { Pill } from "lucide-react";
 
-// --- 1. Se corrige la interfaz ---
-// 'prescription_medicines' ahora es un objeto, no un array.
-interface Dose {
-  id: string;
-  scheduled_at: string;
-  prescription_medicines: {
-    medicine_name: string;
-    dosage: string;
-  } | null; // Puede ser null si no hay un medicamento asociado
-}
+// No se necesita una interfaz local, se importa directamente de las actions
+// interface Dose { ... }
 
 export async function UpcomingMedication() {
   const { data: doses, error } = await getUpcomingDoses();
@@ -25,8 +17,8 @@ export async function UpcomingMedication() {
         <p className="text-sm text-center text-muted-foreground py-4">No tienes medicamentos programados.</p>
       ) : (
         <ul className="space-y-3">
-          {doses.map((dose: Dose) => {
-            // --- 2. Se accede directamente al objeto del medicamento ---
+          {doses.map((dose: UpcomingDose) => {
+            // Se accede directamente al objeto del medicamento
             const medicine = dose.prescription_medicines;
 
             return (
@@ -34,7 +26,6 @@ export async function UpcomingMedication() {
                 <div className="flex items-center gap-3">
                   <Pill className="h-5 w-5 text-primary" />
                   <div>
-                    {/* --- 3. Se muestra la información combinada --- */}
                     <p className="font-medium">
                       {medicine ? `${medicine.medicine_name} (${medicine.dosage})` : 'Medicamento no especificado'}
                     </p>

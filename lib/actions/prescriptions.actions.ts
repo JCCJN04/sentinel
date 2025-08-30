@@ -27,7 +27,7 @@ const createSupabaseClient = () => {
     );
 };
 
-// Esquema de validación (sin cambios)
+// Esquema de validación y estado del formulario (sin cambios)
 const PrescriptionFormSchema = z.object({
     diagnosis: z.string().min(3, 'El diagnóstico debe tener al menos 3 caracteres.'),
     doctor_name: z.string().optional(),
@@ -38,10 +38,6 @@ const PrescriptionFormSchema = z.object({
     medicines: z.string().min(2, 'Debe haber al menos un medicamento.'),
 });
 
-
-// --- MODIFICACIÓN CLAVE EN createPrescription ---
-
-// 1. Definimos el tipo de estado que devolverá la función para el hook useFormState
 export type PrescriptionFormState = {
   errors?: {
     diagnosis?: string[];
@@ -55,7 +51,7 @@ export type PrescriptionFormState = {
   message?: string | null;
 };
 
-// 2. Modificamos la firma de la función para que acepte el estado previo
+// Función createPrescription (sin cambios)
 export async function createPrescription(
     prevState: PrescriptionFormState,
     formData: FormData
@@ -67,7 +63,6 @@ export async function createPrescription(
         return { message: 'No autorizado.' };
     }
 
-    // 3. Validamos los campos y en caso de error, devolvemos los errores
     const validatedFields = PrescriptionFormSchema.safeParse({
         diagnosis: formData.get('diagnosis'),
         doctor_name: formData.get('doctor_name'),
@@ -85,7 +80,6 @@ export async function createPrescription(
         };
     }
     
-    // --- El resto de la lógica permanece igual, pero con manejo de errores mejorado ---
     const { diagnosis, doctor_name, start_date, start_time, end_date, notes, medicines } = validatedFields.data;
     const { data: prescriptionData, error: prescriptionError } = await supabase
         .from('prescriptions')
@@ -159,12 +153,30 @@ export async function createPrescription(
 }
 
 
-// ===== OTRAS FUNCIONES (sin cambios) =====
+// ===== OTRAS FUNCIONES =====
 
-export async function getUpcomingDoses() {
+// --- MODIFICACIÓN CLAVE ---
+
+// 1. Se define y exporta un tipo explícito para las dosis
+export type UpcomingDose = {
+    id: string;
+    scheduled_at: string;
+    prescription_medicines: {
+        medicine_name: string;
+        dosage: string;
+    } | null; // Es un objeto o null, NO un array
+};
+
+/**
+ * Obtiene las próximas 5 dosis pendientes.
+ */
+// 2. La función ahora devuelve el tipo que definimos
+export async function getUpcomingDoses(): Promise<{ data: UpcomingDose[], error?: string | null }> {
     const supabase = createSupabaseClient();
     const { data: { user } } = await supabase.auth.getUser();
+
     if (!user) return { error: 'No autorizado', data: [] };
+
     const { data, error } = await supabase
         .from('medication_doses')
         .select(`id, scheduled_at, prescription_medicines ( medicine_name, dosage )`)
@@ -172,13 +184,16 @@ export async function getUpcomingDoses() {
         .eq('status', 'scheduled')
         .order('scheduled_at', { ascending: true })
         .limit(5);
+
     if (error) {
         console.error("Error fetching upcoming doses:", error);
         return { error: 'No se pudieron cargar los recordatorios.', data: [] };
     }
-    return { data: data || [] };
+    // 3. Se asegura que los datos retornados coincidan con el tipo
+    return { data: (data as UpcomingDose[]) || [], error: null };
 }
 
+// markDoseAsTaken (sin cambios)
 export async function markDoseAsTaken(formData: FormData) {
     const doseId = formData.get('doseId') as string;
     if (!doseId) { throw new Error('ID de dosis no proporcionado'); }
@@ -197,6 +212,7 @@ export async function markDoseAsTaken(formData: FormData) {
     revalidatePath('/dashboard');
 }
 
+// getPrescriptions (sin cambios)
 export async function getPrescriptions() {
     const supabase = createSupabaseClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -210,6 +226,7 @@ export async function getPrescriptions() {
     return { data: data || [] };
 }
 
+// getPrescriptionById (sin cambios)
 export async function getPrescriptionById(id: string) {
     const supabase = createSupabaseClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -220,6 +237,7 @@ export async function getPrescriptionById(id: string) {
     return { data };
 }
 
+// deletePrescription (sin cambios)
 export async function deletePrescription(formData: FormData) {
     const id = formData.get('id') as string;
     if (!id) { throw new Error('ID de receta no proporcionado.'); }
