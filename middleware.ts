@@ -1,66 +1,54 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-// Se respeta tu importación original desde lib/supabase.ts
-import { createSupabaseMiddlewareClient } from "@/lib/supabase";
 
-// --- SOLUCIÓN: Añade esta línea para eliminar las advertencias en Vercel ---
-export const runtime = 'nodejs';
+const PROTECTED_PREFIXES = ["/dashboard"];
+const AUTH_ROUTES = ["/login", "/registro", "/recuperar-password"];
 
-export async function middleware(req: NextRequest) {
-  // Se usa tu función personalizada para crear el cliente
-  const { supabase, response } = await createSupabaseMiddlewareClient(req);
+// ⚠️ Importante: NO declares `export const runtime = 'nodejs'` en middleware.
+// Middleware siempre corre en Edge; esa línea sobra y puede causar warnings.
 
-  // Excepción para la vista previa del PDF
-  if (req.nextUrl.pathname.startsWith('/dashboard/reportes/health-summary/preview')) {
-    console.log("Middleware: Allowing PDF preview route to proceed.");
-    return response;
+export function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+
+  // 0) Permite la vista previa del PDF sin tocar auth
+  if (pathname.startsWith("/dashboard/reportes/health-summary/preview")) {
+    return NextResponse.next();
   }
 
-  const {
-    data: { session },
-    error: sessionError,
-  } = await supabase.auth.getSession();
+  // 1) Chequeo de "sesión" por cookies (sin red, instantáneo)
+  //    Cubre nombres usados por Supabase (auth-helpers y ssr)
+  const hasAuth =
+    !!req.cookies.get("sb-access-token") ||
+    !!req.cookies.get("sb-refresh-token") ||
+    !!req.cookies.get("supabase-auth-token");
 
-  if (sessionError) {
-    console.error("Middleware: Error fetching session:", sessionError);
+  const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p));
+  const isAuthRoute = AUTH_ROUTES.includes(pathname);
+
+  // 2) Acceso a rutas protegidas sin sesión -> redirige a login
+  if (isProtected && !hasAuth) {
+    const url = req.nextUrl.clone();
+    url.pathname = "/login";
+    url.searchParams.set("redirect", pathname);
+    return NextResponse.redirect(url);
   }
 
-  const protectedRoutes = ["/dashboard"];
-  const authRoutes = ["/login", "/registro", "/recuperar-password"];
-
-  const isProtectedRoute = protectedRoutes.some((route) =>
-    req.nextUrl.pathname.startsWith(route)
-  );
-  const isAuthRoute = authRoutes.some(
-    (route) => req.nextUrl.pathname === route
-  );
-
-  // 1. Redirigir a login si se intenta acceder a una ruta protegida sin sesión
-  if (isProtectedRoute && !session) {
-    const redirectUrl = req.nextUrl.clone();
-    redirectUrl.pathname = "/login";
-    redirectUrl.searchParams.set("redirect", req.nextUrl.pathname);
-    console.log("Middleware: Redirecting to login from protected route");
-    return NextResponse.redirect(redirectUrl);
+  // 3) Acceso a rutas de auth con sesión -> al dashboard
+  if (isAuthRoute && hasAuth) {
+    const url = req.nextUrl.clone();
+    url.pathname = "/dashboard";
+    url.search = "";
+    return NextResponse.redirect(url);
   }
 
-  // 2. Redirigir al dashboard si se intenta acceder a una ruta de autenticación con sesión activa
-  if (isAuthRoute && session) {
-    const redirectUrl = req.nextUrl.clone();
-    redirectUrl.pathname = "/dashboard";
-    redirectUrl.search = "";
-    console.log("Middleware: Redirecting to dashboard from auth route");
-    return NextResponse.redirect(redirectUrl);
-  }
-
-  // 3. Si no se cumple ninguna condición, continuar
-  console.log("Middleware: Allowing request to proceed");
-  return response;
+  // 4) Deja pasar todo lo demás
+  return NextResponse.next();
 }
 
-// Se mantiene tu configuración de rutas para el middleware
+// Limita el alcance del middleware para evitar tocar assets y APIs
 export const config = {
   matcher: [
-    "/((?!api|_next/static|_next/image|favicon.ico|images|assets).*)",
+    // Excluye api, estáticos e imágenes, y además archivos comunes por extensión
+    "/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|images|assets|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|css|js|map)).*)",
   ],
 };
