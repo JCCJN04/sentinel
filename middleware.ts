@@ -1,77 +1,66 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+// Se respeta tu importación original desde lib/supabase.ts
 import { createSupabaseMiddlewareClient } from "@/lib/supabase";
 
-// ⛔️ No declares `export const runtime = 'nodejs'` en middleware (siempre es Edge)
-
-const PROTECTED_PREFIXES = ["/dashboard"];
-const AUTH_ROUTES = ["/login", "/registro", "/recuperar-password"];
-
-// Detección robusta de cookies de Supabase (distintas versiones/helplers)
-function hasSupabaseAuthCookie(req: NextRequest) {
-  const cookies = req.cookies.getAll().map((c) => c.name);
-  // Casos comunes:
-  // - sb-access-token / sb-refresh-token
-  // - supabase-auth-token
-  // - cookies con prefijo "sb-" de helpers más nuevos
-  return cookies.some((name) =>
-    /^(sb[-_:].*access|sb[-_:].*refresh|sb[-_:]|supabase-auth-token)/i.test(
-      name
-    )
-  );
-}
+// --- SOLUCIÓN: Añade esta línea para eliminar las advertencias en Vercel ---
+export const runtime = 'nodejs';
 
 export async function middleware(req: NextRequest) {
-  const { pathname } = req.nextUrl;
+  // Se usa tu función personalizada para crear el cliente
+  const { supabase, response } = await createSupabaseMiddlewareClient(req);
 
-  // 0) Preflight/CORS y archivos especiales: dejar pasar
-  if (
-    req.method === "OPTIONS" ||
-    pathname === "/favicon.ico" ||
-    pathname === "/robots.txt" ||
-    pathname === "/sitemap.xml"
-  ) {
-    return NextResponse.next();
+  // Excepción para la vista previa del PDF
+  if (req.nextUrl.pathname.startsWith('/dashboard/reportes/health-summary/preview')) {
+    console.log("Middleware: Allowing PDF preview route to proceed.");
+    return response;
   }
 
-  // 1) Crear el cliente de Supabase VINCULADO A LA RESPUESTA (sin I/O)
-  //    Esto permite refresco/rotación de cookies como antes.
-  const { response } = await createSupabaseMiddlewareClient(req);
+  const {
+    data: { session },
+    error: sessionError,
+  } = await supabase.auth.getSession();
 
-  // 2) Excepción: vista previa PDF (sin auth)
-  if (pathname.startsWith("/dashboard/reportes/health-summary/preview")) {
-    return response; // mantener respuesta que porta las cookies
+  if (sessionError) {
+    console.error("Middleware: Error fetching session:", sessionError);
   }
 
-  // 3) Chequeo de "sesión" solo por cookies (instantáneo, sin red)
-  const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p));
-  const isAuthRoute = AUTH_ROUTES.includes(pathname);
-  const hasAuth = hasSupabaseAuthCookie(req);
+  const protectedRoutes = ["/dashboard"];
+  const authRoutes = ["/login", "/registro", "/recuperar-password"];
 
-  // 4) Rutas protegidas sin sesión → login
-  if (isProtected && !hasAuth) {
-    const url = req.nextUrl.clone();
-    url.pathname = "/login";
-    url.searchParams.set("redirect", pathname);
-    return NextResponse.redirect(url);
+  const isProtectedRoute = protectedRoutes.some((route) =>
+    req.nextUrl.pathname.startsWith(route)
+  );
+  const isAuthRoute = authRoutes.some(
+    (route) => req.nextUrl.pathname === route
+  );
+
+  // 1. Redirigir a login si se intenta acceder a una ruta protegida sin sesión
+  if (isProtectedRoute && !session) {
+    const redirectUrl = req.nextUrl.clone();
+    redirectUrl.pathname = "/login";
+    redirectUrl.searchParams.set("redirect", req.nextUrl.pathname);
+    console.log("Middleware: Redirecting to login from protected route");
+    return NextResponse.redirect(redirectUrl);
   }
 
-  // 5) Rutas de auth con sesión → dashboard
-  if (isAuthRoute && hasAuth) {
-    const url = req.nextUrl.clone();
-    url.pathname = "/dashboard";
-    url.search = "";
-    return NextResponse.redirect(url);
+  // 2. Redirigir al dashboard si se intenta acceder a una ruta de autenticación con sesión activa
+  if (isAuthRoute && session) {
+    const redirectUrl = req.nextUrl.clone();
+    redirectUrl.pathname = "/dashboard";
+    redirectUrl.search = "";
+    console.log("Middleware: Redirecting to dashboard from auth route");
+    return NextResponse.redirect(redirectUrl);
   }
 
-  // 6) Continuar flujo normal con la respuesta enlazada a Supabase
+  // 3. Si no se cumple ninguna condición, continuar
+  console.log("Middleware: Allowing request to proceed");
   return response;
 }
 
-// Limita el alcance del middleware para evitar tocar assets/APIs y reducir “failed to fetch”
+// Se mantiene tu configuración de rutas para el middleware
 export const config = {
   matcher: [
-    // Excluye API, estáticos e imágenes y extensiones comunes
-    "/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|images|assets|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|css|js|map)).*)",
+    "/((?!api|_next/static|_next/image|favicon.ico|images|assets).*)",
   ],
 };
