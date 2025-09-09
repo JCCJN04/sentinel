@@ -1,31 +1,54 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { createSupabaseMiddlewareClient } from "@/lib/supabase";
+
+// ⛔️ No declares `export const runtime = 'nodejs'` en middleware (siempre es Edge)
 
 const PROTECTED_PREFIXES = ["/dashboard"];
 const AUTH_ROUTES = ["/login", "/registro", "/recuperar-password"];
 
-// ⚠️ Importante: NO declares `export const runtime = 'nodejs'` en middleware.
-// Middleware siempre corre en Edge; esa línea sobra y puede causar warnings.
+// Detección robusta de cookies de Supabase (distintas versiones/helplers)
+function hasSupabaseAuthCookie(req: NextRequest) {
+  const cookies = req.cookies.getAll().map((c) => c.name);
+  // Casos comunes:
+  // - sb-access-token / sb-refresh-token
+  // - supabase-auth-token
+  // - cookies con prefijo "sb-" de helpers más nuevos
+  return cookies.some((name) =>
+    /^(sb[-_:].*access|sb[-_:].*refresh|sb[-_:]|supabase-auth-token)/i.test(
+      name
+    )
+  );
+}
 
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // 0) Permite la vista previa del PDF sin tocar auth
-  if (pathname.startsWith("/dashboard/reportes/health-summary/preview")) {
+  // 0) Preflight/CORS y archivos especiales: dejar pasar
+  if (
+    req.method === "OPTIONS" ||
+    pathname === "/favicon.ico" ||
+    pathname === "/robots.txt" ||
+    pathname === "/sitemap.xml"
+  ) {
     return NextResponse.next();
   }
 
-  // 1) Chequeo de "sesión" por cookies (sin red, instantáneo)
-  //    Cubre nombres usados por Supabase (auth-helpers y ssr)
-  const hasAuth =
-    !!req.cookies.get("sb-access-token") ||
-    !!req.cookies.get("sb-refresh-token") ||
-    !!req.cookies.get("supabase-auth-token");
+  // 1) Crear el cliente de Supabase VINCULADO A LA RESPUESTA (sin I/O)
+  //    Esto permite refresco/rotación de cookies como antes.
+  const { response } = await createSupabaseMiddlewareClient(req);
 
+  // 2) Excepción: vista previa PDF (sin auth)
+  if (pathname.startsWith("/dashboard/reportes/health-summary/preview")) {
+    return response; // mantener respuesta que porta las cookies
+  }
+
+  // 3) Chequeo de "sesión" solo por cookies (instantáneo, sin red)
   const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p));
   const isAuthRoute = AUTH_ROUTES.includes(pathname);
+  const hasAuth = hasSupabaseAuthCookie(req);
 
-  // 2) Acceso a rutas protegidas sin sesión -> redirige a login
+  // 4) Rutas protegidas sin sesión → login
   if (isProtected && !hasAuth) {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
@@ -33,7 +56,7 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // 3) Acceso a rutas de auth con sesión -> al dashboard
+  // 5) Rutas de auth con sesión → dashboard
   if (isAuthRoute && hasAuth) {
     const url = req.nextUrl.clone();
     url.pathname = "/dashboard";
@@ -41,14 +64,14 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // 4) Deja pasar todo lo demás
-  return NextResponse.next();
+  // 6) Continuar flujo normal con la respuesta enlazada a Supabase
+  return response;
 }
 
-// Limita el alcance del middleware para evitar tocar assets y APIs
+// Limita el alcance del middleware para evitar tocar assets/APIs y reducir “failed to fetch”
 export const config = {
   matcher: [
-    // Excluye api, estáticos e imágenes, y además archivos comunes por extensión
+    // Excluye API, estáticos e imágenes y extensiones comunes
     "/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|images|assets|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|css|js|map)).*)",
   ],
 };
