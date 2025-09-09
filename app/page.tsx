@@ -11,7 +11,7 @@ export default function LandingPage() {
         <div className="container flex h-16 items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
             <ShieldCheck className="h-6 w-6 text-primary" />
-            <span className="text-xl font-bold">Sentinel</span>
+            <span className="text-xl font-bold">ZYRA</span>
           </Link>
           <nav className="hidden md:flex items-center gap-6">
             <Link href="#beneficios" className="text-sm font-medium text-muted-foreground hover:text-primary">
@@ -44,7 +44,7 @@ export default function LandingPage() {
                 Tu expediente médico, <span className="text-primary">organizado y seguro</span>
               </h1>
               <p className="text-lg md:text-xl text-muted-foreground">
-                Sentinel es la plataforma definitiva para centralizar, gestionar y acceder a toda tu información de salud y la de tu familia, en cualquier momento y lugar.
+                ZYRA es la plataforma definitiva para centralizar, gestionar y acceder a toda tu información de salud y la de tu familia, en cualquier momento y lugar.
               </p>
               <div className="mt-6 flex flex-col sm:flex-row gap-4 justify-center">
                 <Button asChild size="lg">
@@ -67,7 +67,7 @@ export default function LandingPage() {
             <div className="text-center mb-12">
               <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl">La tranquilidad de tener el control</h2>
               <p className="mx-auto mt-4 max-w-[700px] text-muted-foreground md:text-xl/relaxed">
-                Sentinel te da las herramientas para que la gestión de tu salud sea simple, segura e inteligente.
+                ZYRA te da las herramientas para que la gestión de tu salud sea simple, segura e inteligente.
               </p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
@@ -121,7 +121,7 @@ export default function LandingPage() {
               <div className="flex flex-col items-center text-center">
                 <div className="rounded-full bg-primary text-primary-foreground w-12 h-12 flex items-center justify-center text-xl font-bold mb-4">2</div>
                 <h3 className="text-xl font-bold mb-2">Sube tus documentos</h3>
-                <p className="text-muted-foreground">Añade tus recetas, análisis y estudios. Sentinel los organizará por ti.</p>
+                <p className="text-muted-foreground">Añade tus recetas, análisis y estudios. ZYRA los organizará por ti.</p>
               </div>
               <div className="flex flex-col items-center text-center">
                 <div className="rounded-full bg-primary text-primary-foreground w-12 h-12 flex items-center justify-center text-xl font-bold mb-4">3</div>
@@ -146,7 +146,7 @@ export default function LandingPage() {
                 <AccordionItem value="item-1">
                   <AccordionTrigger>¿Quién puede ver mis documentos y mi información?</AccordionTrigger>
                   <AccordionContent>
-                    Solamente tú. En Sentinel, tú eres el único dueño de tus datos. La información está cifrada y nadie, ni siquiera nuestro equipo, tiene acceso a ella. Solo se puede compartir si tú explícitamente decides hacerlo con un familiar o un médico.
+                    Solamente tú. En ZYRA, tú eres el único dueño de tus datos. La información está cifrada y nadie, ni siquiera nuestro equipo, tiene acceso a ella. Solo se puede compartir si tú explícitamente decides hacerlo con un familiar o un médico.
                   </AccordionContent>
                 </AccordionItem>
                 <AccordionItem value="item-2">
@@ -179,7 +179,7 @@ export default function LandingPage() {
               <div className="space-y-4">
                 <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl">¿Listo para tomar el control de tu salud?</h2>
                 <p className="max-w-[600px] md:text-xl/relaxed opacity-90">
-                  No más papeles perdidos ni olvidos en tus citas médicas. Con Sentinel, tu tranquilidad está a un clic de distancia.
+                  No más papeles perdidos ni olvidos en tus citas médicas. Con ZYRA, tu tranquilidad está a un clic de distancia.
                 </p>
               </div>
               <div className="flex flex-col gap-2 min-[400px]:flex-row justify-center lg:justify-end">
@@ -197,7 +197,7 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="border-t py-12">
         <div className="container px-4 md:px-6 text-center text-sm text-muted-foreground">
-          <p>&copy; {new Date().getFullYear()} Sentinel. Todos los derechos reservados.</p>
+          <p>&copy; {new Date().getFullYear()} ZYRA. Todos los derechos reservados.</p>
           <div className="flex justify-center gap-4 mt-4">
               <Link href="#" className="hover:text-primary">Términos de Servicio</Link>
               <Link href="#" className="hover:text-primary">Política de Privacidad</Link>
