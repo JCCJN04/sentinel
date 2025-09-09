@@ -72,7 +72,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1 text-center">
           <CardTitle className="text-2xl font-bold">Iniciar sesión</CardTitle>
-          <CardDescription>Ingrese sus credenciales para acceder a su cuenta</CardDescription>
+          <CardDescription>Ingrese sus credenciales para acceder a la cuenta</CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
@@ -96,7 +96,7 @@ export default function LoginPage() {
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">Contraseña</Label>
                 <Link href="/recuperar-password" className="text-sm text-primary hover:underline">
-                  ¿Olvidó su contraseña?
+                  ¿Olvidaste su contraseña?
                 </Link>
               </div>
               <Input
