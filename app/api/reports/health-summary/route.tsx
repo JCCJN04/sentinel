@@ -2,18 +2,20 @@ import { createClient } from "@/lib/supabase/server";
 import { type NextRequest, NextResponse } from "next/server";
 import { cookies } from 'next/headers';
 
-// Importaciones dinámicas para desarrollo vs. producción
-import puppeteer from "puppeteer"; // Para desarrollo local
-import core from "puppeteer-core"; // Para producción
-import chromium from "@sparticuz/chromium"; // Para producción
+// Importaciones
+import puppeteer from "puppeteer";
+import core from "puppeteer-core";
+import chromium from "@sparticuz/chromium";
+import { Readable } from "stream";
 
-// Configuraciones importantes para la función serverless
+// Configuraciones para la función serverless
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 async function getHealthSummaryData(userId: string) {
   const supabase = createClient();
+  // Tu lógica para obtener datos permanece igual...
   const [ profileRes, allergiesRes, activePrescriptionsRes, personalHistoryRes, familyHistoryRes, vaccinationsRes ] = await Promise.all([
     supabase.from("profiles").select('*').eq("id", userId).single(),
     supabase.from("user_allergies").select('*').eq("user_id", userId),
@@ -41,19 +43,20 @@ export async function GET(req: NextRequest) {
     const baseUrl = `${protocol}//${host}`;
     const reportUrl = `${baseUrl}/dashboard/reportes/health-summary/preview?data=${encodedData}`;
 
-    console.log(`[PDF Generation] Iniciando la generación del PDF en modo: ${process.env.NODE_ENV}`);
+    console.log(`[PDF Generation] Iniciando en modo: ${process.env.NODE_ENV}`);
 
-    // Lógica condicional para el navegador
     if (process.env.NODE_ENV === 'development') {
-      console.log("[PDF Generation] Usando puppeteer estándar para desarrollo.");
+      console.log("[PDF Generation] Usando puppeteer local.");
       browser = await puppeteer.launch({ headless: true });
     } else {
-      console.log("[PDF Generation] Usando puppeteer-core con @sparticuz/chromium para producción.");
+      console.log("[PDF Generation] Usando puppeteer-core y @sparticuz/chromium.");
+      // --- SOLUCIÓN MINIMALISTA Y ROBUSTA ---
+      // Se eliminan las opciones `headless` e `ignoreHTTPSErrors`.
+      // Los `args` de chromium ya contienen la configuración `headless` necesaria.
+      // Pasar estas opciones explícitamente puede entrar en conflicto.
       browser = await core.launch({
         args: chromium.args,
         executablePath: await chromium.executablePath(),
-        // --- SOLUCIÓN: La siguiente línea se ha eliminado porque ya no es una opción válida ---
-        // ignoreHTTPSErrors: true,
       });
     }
 
@@ -66,10 +69,10 @@ export async function GET(req: NextRequest) {
     }));
     await page.setCookie(...sessionCookies);
     
-    console.log(`[PDF Generation] Cookies de sesión establecidas. Navegando a: ${reportUrl}`);
+    console.log(`[PDF Generation] Navegando a: ${reportUrl}`);
     await page.goto(reportUrl, { waitUntil: 'networkidle0' });
     
-    console.log(`[PDF Generation] Creando el buffer del PDF...`);
+    console.log(`[PDF Generation] Creando buffer del PDF...`);
     const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,
@@ -78,23 +81,20 @@ export async function GET(req: NextRequest) {
 
     console.log(`[PDF Generation] PDF generado exitosamente.`);
     
-    const stream = new ReadableStream({
-      start(controller) {
-        controller.enqueue(pdfBuffer);
-        controller.close();
-      },
-    });
+    const stream = new Readable();
+    stream.push(pdfBuffer);
+    stream.push(null);
 
-    return new NextResponse(stream, {
+    return new NextResponse(stream as any, {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="expediente-salud-sentinel-${new Date().toISOString().split('T')[0]}.pdf"`,
+        "Content-Disposition": `attachment; filename="expediente-salud-${new Date().toISOString().split('T')[0]}.pdf"`,
       },
       status: 200,
     });
 
   } catch (error) {
-    console.error("[PDF Generation] Ocurrió un error crítico:", error);
+    console.error("[PDF Generation] Error crítico:", error);
     return new NextResponse("Error al generar el PDF. Revisa los logs del servidor.", { status: 500 });
   } finally {
     if (browser !== null) {

@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar, Cloud, Database, FileText, Mail, Plus, RefreshCw } from "lucide-react"
+import { Calendar, Cloud, Mail, Plus, RefreshCw } from "lucide-react"
 
 export function IntegrationSettings() {
   // Mock integrations data
@@ -117,59 +117,57 @@ export function IntegrationSettings() {
         <CardContent className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {integrations.map((integration) => (
-              <div key={integration.id} className="flex items-start justify-between p-4 border rounded-md">
-                <div className="flex items-start gap-3">
-                  <div className="rounded-full p-2 bg-muted">{integration.icon}</div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-medium">{integration.name}</h3>
-                      <Badge
-                        variant="outline"
-                        className={
-                          integration.status === "connected"
-                            ? "bg-success/10 text-success border-success"
-                            : "bg-muted text-muted-foreground"
-                        }
-                      >
-                        {integration.status === "connected" ? "Conectado" : "Desconectado"}
-                      </Badge>
-                    </div>
-                    {integration.status === "connected" && (
-                      <>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Última sincronización: {integration.lastSync}
-                        </p>
-                        <div className="flex items-center gap-2 mt-2">
-                          <Label htmlFor={`sync-${integration.id}`} className="text-xs">
-                            Frecuencia:
-                          </Label>
-                          <Select
-                            value={integration.syncFrequency}
-                            onValueChange={(value) => handleChangeSyncFrequency(integration.id, value)}
-                          >
-                            <SelectTrigger id={`sync-${integration.id}`} className="h-7 text-xs w-24">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="hourly">Cada hora</SelectItem>
-                              <SelectItem value="daily">Diaria</SelectItem>
-                              <SelectItem value="weekly">Semanal</SelectItem>
-                              <SelectItem value="monthly">Mensual</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 text-xs"
-                            onClick={() => handleSyncNow(integration.id)}
-                          >
-                            <RefreshCw className="mr-1 h-3 w-3" />
-                            Sincronizar
-                          </Button>
-                        </div>
-                      </>
-                    )}
+              <div key={integration.id} className="flex items-start gap-4 p-4 border rounded-md">
+                <div className="rounded-full p-2 bg-muted flex-shrink-0">{integration.icon}</div>
+                <div className="flex-1">
+                  <div className="flex items-center flex-wrap gap-2">
+                    <h3 className="font-medium">{integration.name}</h3>
+                    <Badge
+                      variant="outline"
+                      className={
+                        integration.status === "connected"
+                          ? "bg-success/10 text-success border-success"
+                          : "bg-muted text-muted-foreground"
+                      }
+                    >
+                      {integration.status === "connected" ? "Conectado" : "Desconectado"}
+                    </Badge>
                   </div>
+                  {integration.status === "connected" && (
+                    <div className="mt-2 space-y-2">
+                      <p className="text-xs text-muted-foreground">
+                        Última sincronización: {integration.lastSync}
+                      </p>
+                      <div className="flex items-center flex-wrap gap-2">
+                        <Label htmlFor={`sync-${integration.id}`} className="text-xs">
+                          Frecuencia:
+                        </Label>
+                        <Select
+                          value={integration.syncFrequency}
+                          onValueChange={(value) => handleChangeSyncFrequency(integration.id, value)}
+                        >
+                          <SelectTrigger id={`sync-${integration.id}`} className="h-7 text-xs w-[110px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="hourly">Cada hora</SelectItem>
+                            <SelectItem value="daily">Diaria</SelectItem>
+                            <SelectItem value="weekly">Semanal</SelectItem>
+                            <SelectItem value="monthly">Mensual</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => handleSyncNow(integration.id)}
+                        >
+                          <RefreshCw className="mr-1 h-3 w-3" />
+                          Sincronizar
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <Switch
                   checked={integration.status === "connected"}

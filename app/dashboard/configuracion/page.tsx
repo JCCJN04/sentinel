@@ -3,16 +3,27 @@
 
 import { useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ProfileSettings } from "@/components/settings/profile-settings"
 import { SecuritySettings } from "@/components/settings/security-settings"
 import { NotificationSettings } from "@/components/settings/notification-settings"
 import { PlanSettings } from "@/components/settings/plan-settings"
 import { IntegrationSettings } from "@/components/settings/integration-settings"
-// Importa el nuevo componente que acabas de crear
 import { PersonalDataSettings } from "@/components/settings/personal-data-settings"
+import useMobile from "@/hooks/use-mobile" // Importa el hook que acabas de crear
 
 export default function ConfiguracionPage() {
   const [activeTab, setActiveTab] = useState("perfil")
+  const isMobile = useMobile()
+
+  const tabs = [
+    { value: "perfil", label: "Perfil" },
+    { value: "datos-personales", label: "Datos Personales" },
+    { value: "seguridad", label: "Seguridad" },
+    { value: "notificaciones", label: "Notificaciones" },
+    { value: "plan", label: "Plan y facturación" },
+    { value: "integraciones", label: "Integraciones" },
+  ]
 
   return (
     <div className="space-y-6">
@@ -22,22 +33,33 @@ export default function ConfiguracionPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        {/* Ajusta las columnas para el nuevo total de pestañas */}
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-6">
-          <TabsTrigger value="perfil">Perfil</TabsTrigger>
-          {/* Añade el nuevo disparador para la pestaña de Datos Personales */}
-          <TabsTrigger value="datos-personales">Datos Personales</TabsTrigger>
-          <TabsTrigger value="seguridad">Seguridad</TabsTrigger>
-          <TabsTrigger value="notificaciones">Notificaciones</TabsTrigger>
-          <TabsTrigger value="plan">Plan y facturación</TabsTrigger>
-          <TabsTrigger value="integraciones">Integraciones</TabsTrigger>
-        </TabsList>
+        {isMobile ? (
+          <Select value={activeTab} onValueChange={setActiveTab}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Selecciona una sección" />
+            </SelectTrigger>
+            <SelectContent>
+              {tabs.map((tab) => (
+                <SelectItem key={tab.value} value={tab.value}>
+                  {tab.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <TabsList className="grid w-full grid-cols-6">
+            {tabs.map((tab) => (
+              <TabsTrigger key={tab.value} value={tab.value}>
+                {tab.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        )}
 
         <TabsContent value="perfil">
           <ProfileSettings />
         </TabsContent>
 
-        {/* Añade el nuevo contenido para la pestaña */}
         <TabsContent value="datos-personales">
           <PersonalDataSettings />
         </TabsContent>
