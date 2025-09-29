@@ -19,8 +19,8 @@ const robotoSlab = Roboto_Slab({
 })
 
 export const metadata = {
-  title: "Sentinel",
-  description: "Sentinel",
+  title: "ZYRA", // Aquí está el cambio
+  description: "ZYRA", // También he actualizado la descripción para mantener la coherencia
   generator: 'JC',
   // Añade esta configuración para el viewport
   viewport: 'width=device-width, initial-scale=1, maximum-scale=1',
