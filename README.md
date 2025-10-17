@@ -1,4 +1,4 @@
-# Database - Sentinel
+# Zyra no tomar
 
 Sentinel es una aplicación web para almacenar, organizar y gestionar documentos medicos en un entorno seguro y accesible desde cualquier dispositivo.
 
