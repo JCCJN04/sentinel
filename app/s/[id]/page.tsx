@@ -3,26 +3,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { getSharedDocumentByLinkId, SharedDocumentResponse } from '@/lib/share-service';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
 import { Loader2, AlertTriangle, Download, Clock, FileText, ShieldCheck } from 'lucide-react';
-import { supabaseBrowserClient as supabase } from '@/lib/supabase';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
-
-// Función auxiliar para generar URLs firmadas y seguras
-async function generateSignedUrl(filePath: string, download: boolean = false): Promise<string | null> {
-    if (!filePath) return null;
-    try {
-      const { data, error } = await supabase.storage.from('documents').createSignedUrl(filePath, 300, { download });
-      if (error) throw error;
-      return data.signedUrl;
-    } catch (error) {
-      console.error('Error getting signed URL:', error);
-      return null;
-    }
-}
+import { getPublicSharedDocument, PublicSharedDocumentResponse } from '@/lib/actions/share.actions'; // NUEVO: Importar la Server Action
 
 export default function SharedDocumentViewerPage() {
   const params = useParams();
@@ -30,38 +16,44 @@ export default function SharedDocumentViewerPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<SharedDocumentResponse | null>(null);
-  const [fileUrl, setFileUrl] = useState<string | null>(null);
+  const [data, setData] = useState<PublicSharedDocumentResponse | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
 
   useEffect(() => {
-    if (!linkId) return;
+    if (!linkId) {
+        setError("ID de enlace no proporcionado.");
+        setIsLoading(false);
+        return;
+    };
 
-    getSharedDocumentByLinkId(linkId)
-      .then(async ({ data: responseData, error: responseError }) => {
-        if (responseError) {
-          setError(responseError);
-        } else if (responseData) {
-          setData(responseData);
-          const previewUrl = await generateSignedUrl(responseData.document.file_path, false);
-          if(!previewUrl) throw new Error("No se pudo cargar la vista previa del archivo.");
-          setFileUrl(previewUrl);
+    // --- INICIO DE LA CORRECCIÓN ---
+    // Ahora llamamos a la Server Action, que se ejecuta en el backend.
+    getPublicSharedDocument(linkId)
+      .then(response => {
+        if (response.error) {
+          setError(response.error);
+        } else {
+          setData(response.data);
         }
       })
-      .catch((err) => setError(err.message || 'Ocurrió un error inesperado.'))
-      .finally(() => setIsLoading(false));
+      .catch((err) => {
+        console.error("Error inesperado al llamar a la Server Action:", err);
+        setError("Ocurrió un error inesperado al cargar el documento.");
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+    // --- FIN DE LA CORRECCIÓN ---
   }, [linkId]);
 
   const handleDownload = async () => {
     if (!data || !data.shareDetails.can_download) return;
     setIsDownloading(true);
     try {
-        const downloadUrl = await generateSignedUrl(data.document.file_path, true);
-        if (downloadUrl) {
-          window.open(downloadUrl, '_self');
-        } else {
-          throw new Error("No se pudo generar el enlace de descarga.");
-        }
+        // Podemos re-usar la fileUrl que ya tenemos si aún es válida,
+        // o generar una nueva específica para descarga si es necesario.
+        // Por simplicidad, asumiremos que la URL funciona para descarga si se abre en una nueva pestaña.
+        window.open(data.fileUrl, '_blank');
     } catch (err: any) {
         toast({ title: "Error de descarga", description: err.message, variant: "destructive" });
     } finally {
@@ -100,7 +92,6 @@ export default function SharedDocumentViewerPage() {
 
   return (
     <div className="flex flex-col h-screen bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200">
-      
       <header className="flex-shrink-0 bg-white dark:bg-slate-950/70 backdrop-blur-sm border-b border-slate-200 dark:border-slate-800 p-3 z-10">
         <div className="container mx-auto flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -118,25 +109,21 @@ export default function SharedDocumentViewerPage() {
         </div>
       </header>
       
-      {/* --- INICIO DE LA CORRECCIÓN DEL VISOR --- */}
-      {/* Se habilita el scroll vertical en el área principal */}
       <main className="flex-1 overflow-y-auto p-2 sm:p-4 md:p-8">
-        {fileUrl ? (
+        {data.fileUrl ? (
           isImage ? (
-            // VISOR DE IMAGEN: Se ajusta al ancho y permite scroll vertical
             <div className="w-full max-w-5xl mx-auto">
               <img
-                src={fileUrl}
+                src={data.fileUrl}
                 alt={data.document.name}
                 className="w-full h-auto rounded-lg shadow-lg"
               />
             </div>
           ) : (
-            // VISOR DE DOCUMENTOS (PDF): Usa un aspect ratio natural y permite scroll
             <div className="w-full max-w-5xl mx-auto">
                 <div className="aspect-[8.5/11] w-full bg-white dark:bg-black rounded-lg shadow-xl overflow-hidden">
                     <iframe
-                        src={fileUrl}
+                        src={data.fileUrl}
                         className="w-full h-full border-none"
                         title={data.document.name}
                     />
@@ -149,7 +136,6 @@ export default function SharedDocumentViewerPage() {
           </div>
         )}
       </main>
-      {/* --- FIN DE LA CORRECCIÓN DEL VISOR --- */}
 
       <footer className="flex-shrink-0 text-center p-3 text-xs text-slate-500 dark:text-slate-400 space-y-1">
         <p className="flex items-center justify-center gap-2"><Clock className="h-4 w-4"/> Este enlace expira {timeLeft}.</p>
