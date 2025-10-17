@@ -1,163 +1,106 @@
 // lib/share-service.ts
-import { supabaseBrowserClient as supabase } from "./supabase"; // O tu cliente Supabase configurado
-import { documentService, type ShareOptions as DocumentServiceShareOptions } from "./document-service";
+import { supabaseBrowserClient as supabase } from "./supabase";
+import { type Document } from './document-service';
 
-// Esta es la interfaz que tu página (page.tsx) usará para pasar opciones al servicio
-export interface ShareServiceOptions {
-  documentId: string;
-  accessDuration?: "1day" | "7days" | "30days" | "unlimited";
-  permissions: {
-    view: boolean;
-    download: boolean;
-    print: boolean;
-    edit: boolean;
-  };
-  password?: string;
-  // Específico para el método de email
-  emails?: string[];
-  message?: string;
-  // Para el método de enlace/QR, si se quiere un ID personalizado o un placeholder
-  customShareIdentifier?: string; 
+export interface SharedLink {
+  id: string;
+  document_id: string;
+  user_id: string;
+  expires_at: string;
+  created_at: string;
+  can_download: boolean; // NUEVO: Permiso de descarga
 }
 
-export interface ShareResult {
-  success: boolean;
-  shareLink?: string;     // URL completa para compartir
-  qrCodeData?: string;    // Datos para el QR (usualmente es el shareLink)
-  shareRecordId?: string; // ID del registro creado en la tabla document_shares
-  error?: string;
+export interface SharedDocumentResponse {
+    document: Document;
+    shareDetails: SharedLink;
 }
 
-function mapAccessDurationToExpiryDate(duration?: "1day" | "7days" | "30days" | "unlimited"): string | undefined {
-  if (!duration || duration === "unlimited") {
-    return undefined;
+/**
+ * Crea un enlace para compartir para un documento con una duración y permisos específicos.
+ * @param documentId El ID del documento a compartir.
+ * @param duration La cantidad de tiempo.
+ * @param unit La unidad de tiempo.
+ * @param canDownload Si el destinatario puede descargar el archivo.
+ * @returns El objeto del enlace compartido o un error.
+ */
+export async function createShareLink(
+  documentId: string, 
+  duration: number, 
+  unit: 'hour' | 'hours' | 'days', 
+  canDownload: boolean // NUEVO: Parámetro de permiso
+): Promise<{ link: SharedLink | null; error: string | null }> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return { link: null, error: 'Usuario no autenticado.' };
   }
-  const now = new Date();
-  switch (duration) {
-    case "1day":
-      now.setDate(now.getDate() + 1);
-      break;
-    case "7days":
-      now.setDate(now.getDate() + 7);
-      break;
-    case "30days":
-      now.setDate(now.getDate() + 30);
-      break;
-    default:
-      return undefined;
-  }
-  return now.toISOString();
-}
 
-// Función interna para crear el registro de compartición y el enlace
-async function createShareAndGetLink(
-  documentId: string,
-  method: "link" | "email" | "qr",
-  options: ShareServiceOptions,
-  specificSharedWith?: string // Para email, este será el correo del destinatario
-): Promise<{ shareRecordId?: string; link?: string; error?: string }> {
+  const expiresAt = new Date();
+  switch (unit) {
+    case 'hour':
+    case 'hours':
+      expiresAt.setHours(expiresAt.getHours() + duration);
+      break;
+    case 'days':
+      expiresAt.setDate(expiresAt.getDate() + duration);
+      break;
+  }
   
-  const dsShareOptions: DocumentServiceShareOptions = {
-    sharedWith: specificSharedWith || options.customShareIdentifier || `link_share_${crypto.randomUUID().substring(0,8)}`,
-    expiryDate: mapAccessDurationToExpiryDate(options.accessDuration),
-    permissions: options.permissions,
-    method: method,
-    password: options.password,
-  };
+  const { data, error } = await supabase
+    .from('shared_links')
+    .insert({
+      document_id: documentId,
+      user_id: user.id,
+      expires_at: expiresAt.toISOString(),
+      can_download: canDownload, // NUEVO: Guardar el permiso
+    })
+    .select()
+    .single();
 
-  try {
-    const shareRecord = await documentService.shareDocument(documentId, dsShareOptions);
-    if (shareRecord && shareRecord.id) {
-      const shareableLink = `${window.location.origin}/public/shared-document/${shareRecord.id}`;
-      return { shareRecordId: shareRecord.id, link: shareableLink };
-    } else {
-      return { error: "No se pudo crear el registro de compartición en la base de datos." };
-    }
-  } catch (error: any) {
-    console.error(`Error creating share record for method ${method}:`, error);
-    return { error: error.message || `Error al crear compartición (${method}).` };
+  if (error) {
+    console.error('Error creating share link:', error);
+    return { link: null, error: 'No se pudo crear el enlace en la base de datos.' };
   }
+
+  return { link: data, error: null };
 }
 
-const generateShareLink = async (options: ShareServiceOptions): Promise<ShareResult> => {
-  const { documentId } = options;
-  const result = await createShareAndGetLink(documentId, "link", options);
+/**
+ * Obtiene un documento compartido por su ID de enlace (token).
+ * Valida que el enlace no haya expirado.
+ * @param linkId El ID del enlace (token) de la URL.
+ * @returns Los detalles del documento y del enlace, o un error.
+ */
+export async function getSharedDocumentByLinkId(linkId: string): Promise<{ data: SharedDocumentResponse | null; error: string | null }> {
+  const { data: linkData, error: linkError } = await supabase
+    .from('shared_links')
+    .select('*')
+    .eq('id', linkId)
+    .single();
 
-  if (result.link && result.shareRecordId) {
-    return { success: true, shareLink: result.link, shareRecordId: result.shareRecordId };
-  }
-  return { success: false, error: result.error || "No se pudo generar el enlace de compartición." };
-};
-
-const generateQRCode = async (options: ShareServiceOptions): Promise<ShareResult> => {
-  const { documentId } = options;
-  // El QR simplemente codificará el enlace compartible
-  const result = await createShareAndGetLink(documentId, "qr", options); // Usa "qr" como método para el registro
-
-  if (result.link && result.shareRecordId) {
-    return { success: true, qrCodeData: result.link, shareLink: result.link, shareRecordId: result.shareRecordId };
-  }
-  return { success: false, error: result.error || "No se pudieron generar los datos para el código QR." };
-};
-
-const shareViaEmail = async (options: ShareServiceOptions): Promise<ShareResult> => {
-  const { documentId, emails, message } = options;
-
-  if (!emails || emails.length === 0) {
-    return { success: false, error: "No se proporcionaron direcciones de correo electrónico." };
+  if (linkError || !linkData) {
+    return { data: null, error: 'Enlace no válido o no encontrado.' };
   }
 
-  let overallSuccess = true;
-  let errors: string[] = [];
-  let firstSuccessfulLink: string | undefined;
-  let firstSuccessfulRecordId: string | undefined;
-
-  for (const email of emails) {
-    const result = await createShareAndGetLink(documentId, "email", options, email);
-    if (result.link && result.shareRecordId) {
-      if (!firstSuccessfulLink) {
-        firstSuccessfulLink = result.link;
-        firstSuccessfulRecordId = result.shareRecordId;
-      }
-      // Aquí es donde llamarías a tu Supabase Edge Function para enviar el correo
-      console.log(`TODO: Enviar correo a ${email} con enlace: ${result.link} y mensaje: "${message || ''}"`);
-      try {
-        // Ejemplo de llamada a una Edge Function (necesitarías crear esta función)
-        // const { error: emailError } = await supabase.functions.invoke('send-share-email', {
-        //   body: {
-        //     to: email,
-        //     shareLink: result.link,
-        //     documentName: "Nombre del Documento (obtenerlo)", // Deberías pasar el nombre del documento
-        //     customMessage: message || ''
-        //   }
-        // });
-        // if (emailError) throw emailError;
-        console.log(`Simulando envío de email a ${email} con enlace ${result.link}`);
-      } catch (emailError: any) {
-        console.error(`Error al intentar enviar email a ${email}:`, emailError);
-        errors.push(`Fallo al enviar a ${email}: ${emailError.message}`);
-        overallSuccess = false;
-      }
-    } else {
-      errors.push(`Fallo al crear compartición para ${email}: ${result.error}`);
-      overallSuccess = false;
-    }
+  if (new Date(linkData.expires_at) < new Date()) {
+    return { data: null, error: 'Este enlace para compartir ha expirado.' };
   }
 
-  if (overallSuccess && errors.length === 0) {
-    return { success: true, shareLink: firstSuccessfulLink, shareRecordId: firstSuccessfulRecordId };
-  } else {
-    return { 
-      success: errors.length < emails.length, // Considera éxito parcial si algunos correos funcionaron
-      error: errors.join("; ") || "Errores desconocidos al compartir por email.",
-      shareLink: firstSuccessfulLink, // Devuelve el primer enlace exitoso, si alguno
-      shareRecordId: firstSuccessfulRecordId 
-    };
-  }
-};
+  const { data: documentData, error: documentError } = await supabase
+    .from('documents')
+    .select('*')
+    .eq('id', linkData.document_id)
+    .single();
 
-export const shareService = {
-  generateShareLink,
-  generateQRCode,
-  shareViaEmail,
-};
+  if (documentError || !documentData) {
+    return { data: null, error: 'El documento asociado a este enlace ya no existe.' };
+  }
+
+  return {
+    data: {
+      document: documentData as Document,
+      shareDetails: linkData as SharedLink,
+    },
+    error: null,
+  };
+}

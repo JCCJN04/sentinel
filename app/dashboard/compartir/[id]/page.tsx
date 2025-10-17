@@ -1,343 +1,145 @@
+// app/dashboard/compartir/[id]/page.tsx
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Separator } from "@/components/ui/separator";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ArrowLeft, Link2, Mail, QrCode, Shield, FileText, Check, Loader2, CalendarIcon, CopyIcon } from "lucide-react";
-import { shareService, type ShareServiceOptions, type ShareResult } from "@/lib/share-service";
-import { documentService, type Document } from "@/lib/document-service";
-import { useToast } from "@/components/ui/use-toast";
-import { QRCodeCanvas } from "qrcode.react";
-import { format } from 'date-fns';
-import { cn } from "@/lib/utils"; // Ensure cn is imported
+import React, { useState, useEffect, useMemo } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { documentService, type Document } from '@/lib/document-service';
+import { createShareLink } from '@/lib/share-service';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch'; // NUEVO: Importar Switch
+import { toast } from '@/components/ui/use-toast';
+import { Loader2, ArrowLeft, Share2, Copy, Check, QrCode, Download, Eye } from 'lucide-react';
+import QRCode from 'qrcode';
 
-type ShareMethod = "link"; // Only "link" is allowed
-
-export default function CompartirDocumentoPage() {
+export default function ShareDocumentPage() {
   const router = useRouter();
   const params = useParams();
-  const { toast } = useToast();
+  const documentId = params.id as string;
 
-  const documentId = Array.isArray(params.id) ? params.id[0] : params.id as string;
+  const [document, setDocument] = useState<Document | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const [documentInfo, setDocumentInfo] = useState<Document | null>(null);
-  const [isLoadingDocument, setIsLoadingDocument] = useState(true);
-  const [documentError, setDocumentError] = useState<string | null>(null);
-
-  const [shareMethod, setShareMethod] = useState<ShareMethod>("link"); // Default to link
-  const [accessDuration, setAccessDuration] = useState<"1day" | "7days" | "30days" | "unlimited">("7days");
-  const [permissions, setPermissions] = useState({
-    view: true,
-    download: false,
-    print: false,
-    edit: false,
-  });
-  const [password, setPassword] = useState("");
-  const [usePassword, setUsePassword] = useState(false);
-  // Removed emails and message states
-  // Removed qrCodeData state
-
-  const [shareLink, setShareLink] = useState("");
-
-  const [copied, setCopied] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-
-  const [expiryDate, setExpiryDate] = useState<Date | undefined>(undefined);
+  const [expiryDuration, setExpiryDuration] = useState<string>('1_hour');
+  const [canDownload, setCanDownload] = useState<boolean>(true); // NUEVO: Estado para el permiso
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [sharedLink, setSharedLink] = useState<string | null>(null);
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
+  const [isCopied, setIsCopied] = useState(false);
 
   useEffect(() => {
     if (documentId) {
-      setIsLoadingDocument(true);
       documentService.getDocumentById(documentId)
-        .then(doc => {
-          if (doc) {
-            setDocumentInfo(doc);
-          } else {
-            setDocumentError("Documento no encontrado.");
-            toast({ title: "Error", description: "Documento no encontrado.", variant: "destructive" });
-          }
-        })
-        .catch(err => {
-          console.error("Error fetching document:", err);
-          setDocumentError("No se pudo cargar la información del documento.");
-          toast({ title: "Error de Carga", description: "No se pudo cargar la información del documento.", variant: "destructive" });
-        })
-        .finally(() => setIsLoadingDocument(false));
-    } else {
-      setDocumentError("ID de documento no proporcionado en la URL.");
-      setIsLoadingDocument(false);
-      toast({ title: "Error", description: "ID de documento no válido.", variant: "destructive" });
+        .then(doc => { if (doc) setDocument(doc); else setError('Documento no encontrado.'); })
+        .catch(() => setError('Error al cargar el documento.'))
+        .finally(() => setIsLoading(false));
     }
-  }, [documentId, toast]);
+  }, [documentId]);
 
+  const expiryOptions = useMemo(() => [
+    { value: '1_hour', label: '1 Hora' }, { value: '24_hours', label: '24 Horas' },
+    { value: '7_days', label: '7 Días' }, { value: '30_days', label: '30 Días' },
+  ], []);
 
-  const activeShareOptions = (): ShareServiceOptions => {
-    return {
-        documentId: documentId!,
-        accessDuration,
-        permissions,
-        password: usePassword && password.trim() !== "" ? password.trim() : undefined,
-        // Removed emails and message
-        customShareIdentifier: documentInfo?.name.replace(/\s+/g, '-').toLowerCase() || `doc-${documentId}`
-    };
-  };
-
-  const handleMainShareAction = async () => {
-    if (!documentId) {
-        toast({ title: "Error", description: "ID de documento no válido.", variant: "destructive" });
-        return;
-    }
-    const currentOptions = activeShareOptions();
-
-    setIsProcessing(true);
-    setShareLink(""); // Reset previous link
-
-    let result: ShareResult | null = null;
-
+  const handleGenerateLink = async () => {
+    if (!document) return;
+    setIsGenerating(true);
+    setSharedLink(null);
+    setQrCodeDataUrl(null);
+    const [amount, unit] = expiryDuration.split('_');
+    
     try {
-        // Only generate share link
-        result = await shareService.generateShareLink(currentOptions);
-        if (result.success && result.shareLink) {
-            setShareLink(result.shareLink);
-            toast({ title: "Enlace Generado", description: "Enlace copiado al portapapeles." });
-            try {
-                await navigator.clipboard.writeText(result.shareLink);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 2000);
-            } catch (err) {
-                console.warn("Fallo al copiar al portapapeles:", err);
-            }
-        }
-
-        if (result && !result.success) {
-            toast({ title: "Error al Compartir", description: result.error || `No se pudo completar la acción de compartir.`, variant: "destructive" });
-        }
-    } catch (error: any) {
-        console.error(`Error en handleMainShareAction:`, error);
-        toast({ title: "Error Inesperado", description: error.message || "Ocurrió un error.", variant: "destructive" });
+      // NUEVO: Pasar el permiso `canDownload` al servicio
+      const result = await createShareLink(document.id, parseInt(amount), unit as 'hour' | 'days', canDownload);
+      if (result.link) {
+        const fullUrl = `${window.location.origin}/s/${result.link.id}`;
+        setSharedLink(fullUrl);
+        toast({ title: "Éxito", description: "Enlace para compartir generado." });
+        const qrUrl = await QRCode.toDataURL(fullUrl, { width: 256, margin: 2 });
+        setQrCodeDataUrl(qrUrl);
+      } else {
+        throw new Error(result.error || 'Error desconocido al crear el enlace.');
+      }
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
-        setIsProcessing(false);
+      setIsGenerating(false);
     }
   };
 
-  const handleCopyLink = () => {
-    if (!shareLink) return;
-    navigator.clipboard.writeText(shareLink)
-    .then(() => {
-        setCopied(true);
-        toast({
-          title: "Enlace copiado",
-          description: "El enlace se ha copiado al portapapeles.",
-        });
-        setTimeout(() => setCopied(false), 2000);
-    })
-    .catch(err => {
-        console.error("Error al copiar al portapapeles:", err);
-        toast({ title: "Error al copiar", description: "No se pudo copiar el enlace.", variant: "destructive"});
-    });
-  }
+  const handleCopyToClipboard = () => {
+    if (!sharedLink) return;
+    navigator.clipboard.writeText(sharedLink);
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
+  };
 
-  if (isLoadingDocument) {
-    return <div className="flex justify-center items-center h-screen"><Loader2 className="h-8 w-8 animate-spin" /> <p className="ml-2">Cargando datos del documento...</p></div>;
-  }
-  if (documentError) {
-    return <div className="flex flex-col items-center justify-center h-screen text-red-600">
-        <ArrowLeft className="h-12 w-12 mb-4"/>
-        <p className="text-xl">{documentError}</p>
-        <Button onClick={() => router.back()} className="mt-4">Volver</Button>
-    </div>;
-  }
-  if (!documentInfo) {
-    return <div className="flex justify-center items-center h-screen"><p>No se encontró el documento.</p></div>;
-  }
-
-  const permissionsArray = [
-    { key: "view", label: "Ver documento", disabled: true },
-    { key: "download", label: "Permitir descarga" },
-    { key: "print", label: "Permitir impresión" },
-    { key: "edit", label: "Permitir edición (si aplica)" }
-  ];
+  if (isLoading) return <div className="flex justify-center items-center h-full"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+  if (error) return <div className="text-center text-red-500">{error}</div>;
 
   return (
-    <div className="container mx-auto p-4 md:p-6 max-w-3xl">
-      <div className="flex items-center gap-2 mb-6">
-        <Button variant="outline" size="icon" onClick={() => router.back()} aria-label="Volver">
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Compartir Documento</h1>
-      </div>
+    <div className="container mx-auto p-4 md:p-8 max-w-2xl">
+      <Button variant="ghost" onClick={() => router.back()} className="mb-4"><ArrowLeft className="mr-2 h-4 w-4" /> Volver</Button>
+      <Card>
+        <CardHeader>
+          <CardTitle>Compartir Documento</CardTitle>
+          <CardDescription>Estás compartiendo: <strong>{document?.name}</strong></CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="expiry-duration">El enlace expirará en</Label>
+            <Select value={expiryDuration} onValueChange={setExpiryDuration}>
+              <SelectTrigger id="expiry-duration"><SelectValue /></SelectTrigger>
+              <SelectContent>{expiryOptions.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-6 lg:gap-8 items-start">
-        <Card className="flex-grow">
-          <CardHeader>
-            <CardTitle>Opciones para compartir</CardTitle>
-            <CardDescription>Configura cómo quieres compartir: <span className="font-semibold text-primary">{documentInfo.name}</span></CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <Tabs value={shareMethod} className="w-full"> {/* Removed onValueChange */}
-              <TabsList className="grid w-full grid-cols-1"> {/* Changed to grid-cols-1 */}
-                <TabsTrigger value="link" className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
-                  <Link2 className="h-4 w-4" /><span>Enlace</span>
-                </TabsTrigger>
-                {/* Removed TabsTrigger for email and qr */}
-              </TabsList>
-
-              <TabsContent value="link" className="space-y-4 pt-4">
-                {shareLink ? (
-                    <div className="space-y-2">
-                        <Label htmlFor="shareLinkInput">Enlace de compartir generado:</Label>
-                        <div className="flex gap-2">
-                        <Input id="shareLinkInput" value={shareLink} readOnly />
-                        <Button variant="outline" onClick={handleCopyLink} disabled={isProcessing}>
-                            {copied ? <Check className="mr-0 sm:mr-2 h-4 w-4" /> : <CopyIcon className="mr-0 sm:mr-2 h-4 w-4" />}
-                            <span className="hidden sm:inline">{copied ? "Copiado" : "Copiar"}</span>
-                        </Button>
-                        </div>
-                    </div>
-                ) : (
-                    <p className="text-sm text-muted-foreground">Haz clic en "Generar Enlace" abajo para generar el enlace.</p>
-                )}
-              </TabsContent>
-
-              {/* Removed TabsContent for email and qr */}
-            </Tabs>
-
-            <Separator />
-
-            <div className="space-y-4">
-              <div>
-                <Label className="text-base font-medium mb-2 block">Duración del acceso</Label>
-                <RadioGroup
-                  value={accessDuration}
-                  onValueChange={(v) => setAccessDuration(v as typeof accessDuration)}
-                  className="grid grid-cols-2 gap-x-4 gap-y-2"
-                  disabled={isProcessing}
-                >
-                  {[
-                    { value: "1day", label: "1 día" }, { value: "7days", label: "7 días" },
-                    { value: "30days", label: "30 días" }, { value: "unlimited", label: "Sin límite" }
-                  ].map(opt => (
-                    <div key={opt.value} className="flex items-center space-x-2">
-                      <RadioGroupItem value={opt.value} id={opt.value} />
-                      <Label htmlFor={opt.value} className="font-normal">{opt.label}</Label>
-                    </div>
-                  ))}
-                </RadioGroup>
-              </div>
-
-              <Separator />
-
-              <div>
-                <Label className="text-base font-medium mb-2 block">Permisos del destinatario</Label>
-                <div className="space-y-3">
-                  {permissionsArray.map(perm => {
-                    return (
-                        <div key={perm.key} className="flex items-center justify-between">
-                        <Label
-                            htmlFor={`perm-${perm.key}`}
-                            className={cn(
-                                "cursor-pointer",
-                                {"text-muted-foreground": perm.disabled}
-                            )}
-                        >
-                            {perm.label}
-                        </Label>
-                        <Switch
-                            id={`perm-${perm.key}`}
-                            checked={permissions[perm.key as keyof typeof permissions]}
-                            onCheckedChange={(checked) => {
-                                if (!perm.disabled) {
-                                    setPermissions(prev => ({ ...prev, [perm.key]: checked }));
-                                }
-                            }}
-                            disabled={isProcessing || perm.disabled}
-                        />
-                        </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <Separator />
-
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <Label htmlFor="use-password-switch" className="text-base font-medium">Protección con contraseña</Label>
-                  <Switch id="use-password-switch" checked={usePassword} onCheckedChange={setUsePassword} disabled={isProcessing} />
-                </div>
-                {usePassword && (
-                  <div className="space-y-1 mt-2">
-                    <Label htmlFor="password">Establecer Contraseña</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      placeholder="Ingresa una contraseña segura"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      disabled={isProcessing}
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-          </CardContent>
-          <CardFooter className="flex flex-col sm:flex-row justify-end gap-2 pt-6">
-            <Button variant="outline" onClick={() => router.back()} disabled={isProcessing}>
-              Cancelar
-            </Button>
-            <Button
-                onClick={handleMainShareAction}
-                disabled={isProcessing}
-                className="w-full sm:w-auto"
-            >
-              {isProcessing ? (
-                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Procesando...</>
-              ) : (
-                shareLink ? "Enlace Generado ✓" : "Generar Enlace"
-              )}
-            </Button>
-          </CardFooter>
-        </Card>
-
-        <Card className="hidden md:block sticky top-24">
-             <CardHeader>
-                <CardTitle className="text-lg">Documento a Compartir</CardTitle>
-             </CardHeader>
-             <CardContent className="space-y-3 text-sm">
-                <div className="flex items-center gap-3 p-3 border rounded-md bg-muted/30">
-                    <FileText className="h-8 w-8 text-primary flex-shrink-0" />
+          {/* --- INICIO DE LA MODIFICACIÓN: Switch de Permisos --- */}
+          <div className="space-y-2">
+            <Label>Permisos</Label>
+            <div className="flex items-center justify-between rounded-lg border p-3">
+                <div className="flex items-center space-x-2">
+                    {canDownload ? <Download className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     <div>
-                        <p className="font-semibold text-card-foreground break-all">{documentInfo.name}</p>
-                        <p className="text-xs text-muted-foreground">Categoría: {documentInfo.category}</p>
+                        <p className="text-sm font-medium">Permitir descarga</p>
+                        <p className="text-xs text-muted-foreground">
+                            {canDownload ? "El receptor podrá ver y descargar el archivo." : "El receptor solo podrá ver el archivo."}
+                        </p>
                     </div>
                 </div>
-                <div className="h-32 bg-muted rounded-md flex items-center justify-center">
-                    <p className="text-xs text-muted-foreground">Previsualización no disponible</p>
-                </div>
-                <Separator/>
-                <h4 className="font-medium text-muted-foreground">Configuración actual:</h4>
-                <div className="space-y-1">
-                    <div className="flex justify-between"><span className="text-muted-foreground">Método:</span> <span className="font-medium">Enlace</span></div> {/* Hardcoded to Enlace */}
-                    <div className="flex justify-between"><span className="text-muted-foreground">Duración:</span> <span className="font-medium">{accessDuration === "1day" ? "1 día" : accessDuration === "7days" ? "7 días" : accessDuration === "30days" ? "30 días" : "Sin límite"}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Contraseña:</span> <span className="font-medium">{usePassword && password ? "Sí" : "No"}</span></div>
-                    <div className="text-muted-foreground">Permisos:
-                        <ul className="list-disc list-inside pl-1">
-                            {permissionsArray.filter(p => permissions[p.key as keyof typeof permissions]).map(p => <li key={p.key}>{p.label.replace("Permitir ", "")}</li>)}
-                        </ul>
-                    </div>
-                </div>
-             </CardContent>
-        </Card>
-      </div>
+                <Switch checked={canDownload} onCheckedChange={setCanDownload} />
+            </div>
+          </div>
+          {/* --- FIN DE LA MODIFICACIÓN --- */}
+
+          <Button onClick={handleGenerateLink} disabled={isGenerating} className="w-full">
+            {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Share2 className="mr-2 h-4 w-4" />}
+            {sharedLink ? 'Generar Nuevo Enlace' : 'Generar Enlace Seguro'}
+          </Button>
+
+          {sharedLink && (
+            <div className="space-y-4 pt-4 border-t">
+              <Label>Enlace Generado</Label>
+              <div className="flex items-center gap-2">
+                <Input value={sharedLink} readOnly />
+                <Button variant="outline" size="icon" onClick={handleCopyToClipboard}>
+                  {isCopied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+              {qrCodeDataUrl && (
+                 <div className="text-center p-4 bg-muted rounded-md">
+                    <Label className="flex items-center justify-center mb-2"><QrCode className="mr-2 h-4 w-4"/> Código QR</Label>
+                    <img src={qrCodeDataUrl} alt="Código QR del enlace" className="mx-auto border rounded-lg" />
+                 </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
