@@ -1,4 +1,4 @@
-// startupv2/app/dashboard/subir/page.tsx
+// app/dashboard/subir/page.tsx
 'use client'
 
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -25,7 +25,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/use-toast'
 import { UploadCloud, X, FileText, Loader2, PlusCircle } from 'lucide-react'
-import React from 'react'
+import React, { useState, useCallback, useEffect } from 'react' // CORRECCIÓN AQUÍ
 import { useRouter, useSearchParams } from 'next/navigation'
 import { getUserProfile as getUser } from '@/lib/user-service'
 import { uploadDocument, type DocumentUpload } from '@/lib/document-service';
@@ -51,13 +51,13 @@ const formSchema = z.object({
   description: z.string().optional(),
   tags: z.string().optional(),
   file: z
-    .custom<File | null>((val) => val instanceof File, 'Debes seleccionar un archivo.')
+    .custom<File | null>((val) => val instanceof File || val === null, 'Debes seleccionar un archivo.')
     .refine(
-      (file) => file.size <= MAX_FILE_SIZE,
+      (file) => file === null || file.size <= MAX_FILE_SIZE,
       `El tamaño máximo del archivo es ${MAX_FILE_SIZE / (1024 * 1024)}MB.`
     )
     .refine(
-      (file) => ACCEPTED_FILE_TYPES.includes(file.type),
+      (file) => file === null || ACCEPTED_FILE_TYPES.includes(file.type),
       'Tipo de archivo no soportado. Sube PDF, DOC, DOCX, JPG, PNG, HEIC.'
     ),
   date: z.string().refine((val) => val === '' || !val || !isNaN(Date.parse(val)), { message: "Fecha inválida" }).optional(),
@@ -76,31 +76,33 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 export default function SubirDocumentoPage() {
-  const [isFileSelected, setIsFileSelected] = React.useState(false);
-  const [filePreview, setFilePreview] = React.useState<string | null>(null);
-  const [fileName, setFileName] = React.useState<string>('');
-  const [isUploading, setIsUploading] = React.useState(false);
+  const [isFileSelected, setIsFileSelected] = useState(false);
+  const [filePreview, setFilePreview] = useState<string | null>(null);
+  const [fileName, setFileName] = useState<string>('');
+  const [isUploading, setIsUploading] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [categories, setCategories] = React.useState<Category[]>([]);
-  const [isLoadingCategories, setIsLoadingCategories] = React.useState(true);
-  const [categoryError, setCategoryError] = React.useState<string | null>(null);
-  const [categoryFromUrl, setCategoryFromUrl] = React.useState<string | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true);
+  const [categoryError, setCategoryError] = useState<string | null>(null);
+  const [categoryFromUrl, setCategoryFromUrl] = useState<string | null>(null);
 
-  const [isCreateCategoryOpen, setIsCreateCategoryOpen] = React.useState(false);
-  const [newCategoryName, setNewCategoryName] = React.useState('');
-  const [isCreatingCategory, setIsCreatingCategory] = React.useState(false);
+  const [isCreateCategoryOpen, setIsCreateCategoryOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [isCreatingCategory, setIsCreatingCategory] = useState(false);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
+    defaultValues: {
+        file: null,
+    }
   });
 
-  const fetchUserCategories = React.useCallback(async () => {
+  const fetchUserCategories = useCallback(async () => {
     try {
       setIsLoadingCategories(true);
-      // CORRECCIÓN: Usamos una nueva función para traer todas las categorías a la vez
-      const fetchedCategories = await getCategoriesForUser(null, true); // Asumiendo que getCategoriesForUser puede traer todas
+      const fetchedCategories = await getCategoriesForUser(undefined, true);
       setCategories(fetchedCategories);
       setCategoryError(null);
     } catch (error) {
@@ -112,11 +114,11 @@ export default function SubirDocumentoPage() {
     }
   }, []);
 
-  React.useEffect(() => {
+  useEffect(() => {
     fetchUserCategories();
   }, [fetchUserCategories]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const categoryNameFromQuery = searchParams.get('categoria');
     if (categoryNameFromQuery && categories.length > 0) {
       const categoryExists = categories.some(cat => cat.name === categoryNameFromQuery);
@@ -180,6 +182,7 @@ export default function SubirDocumentoPage() {
   async function onSubmit(values: FormValues) {
     if (!values.file) {
       toast({ title: 'Archivo Requerido', description: 'Por favor, selecciona un archivo para subir.', variant: 'destructive' });
+      form.setError('file', { type: 'manual', message: 'Debes seleccionar un archivo.' });
       return;
     }
 
@@ -207,17 +210,10 @@ export default function SubirDocumentoPage() {
       const uploadedDoc = await uploadDocument(documentDataForUpload);
 
       if (uploadedDoc) {
-        // --- INICIO DE LA CORRECCIÓN ---
-        // Buscamos la categoría seleccionada en nuestro estado para obtener su ID.
         const selectedCategory = categories.find(c => c.name === uploadedDoc.category);
-        
-        // Creamos los parámetros para la URL.
         const successParams = `upload_success=true&doc_name=${encodeURIComponent(uploadedDoc.name)}`;
         const categoryParams = selectedCategory ? `&category_id=${selectedCategory.id}&category_name=${encodeURIComponent(selectedCategory.name)}` : '';
-
-        // Redirigimos con todos los parámetros necesarios.
         router.push(`/dashboard/documentos?${successParams}${categoryParams}`);
-        // --- FIN DE LA CORRECCIÓN ---
       }
     } catch (error: any) {
       console.error('Error en onSubmit al subir documento:', error);

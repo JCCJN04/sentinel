@@ -1,3 +1,4 @@
+// app/dashboard/documentos/page.tsx
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
@@ -72,7 +73,6 @@ interface BreadcrumbItem {
   name: string;
 }
 
-// ... (Funciones auxiliares: generateClientSignedUrl, generateClientDownloadUrl, sanitizeFilename)
 async function generateClientSignedUrl(filePath: string, expiresInSeconds: number = 300): Promise<string | null> {
     if (!filePath) return null;
     try {
@@ -118,7 +118,6 @@ export default function DocumentosPage() {
   const [isLoadingDocuments, setIsLoadingDocuments] = useState(true);
   const [documentsError, setDocumentsError] = useState<string | null>(null);
 
-  // ... (otros estados: deleteDocDialogOpen, newFolderName, etc.)
   const [deleteDocDialogOpen, setDeleteDocDialogOpen] = useState(false);
   const [documentToDelete, setDocumentToDelete] = useState<string | null>(null);
   const [isDeletingDoc, setIsDeletingDoc] = useState(false); 
@@ -154,7 +153,7 @@ export default function DocumentosPage() {
     setIsLoadingCategories(true);
     setCategoryError(null);
     try {
-        const fetchedCategories = await getCategoriesForUser(null, true);
+        const fetchedCategories = await getCategoriesForUser(undefined, true);
         setAllCategories(fetchedCategories);
         setSubFolders(fetchedCategories.filter(c => c.parent_id === currentParentId));
     } catch (err: any) {
@@ -183,7 +182,6 @@ export default function DocumentosPage() {
     setFilteredDocuments(tempFiltered);
   }, [searchQuery, documents]);
 
-  // --- INICIO DE LA CORRECCIÓN ---
   useEffect(() => {
     const uploadSuccess = searchParams.get('upload_success');
     if (uploadSuccess !== 'true' || allCategories.length === 0) {
@@ -213,7 +211,6 @@ export default function DocumentosPage() {
       setCurrentFolderName(categoryName);
       setSubFolders(allCategories.filter(c => c.parent_id === categoryId));
     } else {
-      // Si no hay categoryId, nos aseguramos de estar en la raíz
       setBreadcrumbs([{ id: null, name: "Mis Carpetas" }]);
       setCurrentParentId(null);
       setCurrentFolderName("Mis Carpetas");
@@ -222,7 +219,6 @@ export default function DocumentosPage() {
 
     router.replace('/dashboard/documentos', { scroll: false });
   }, [searchParams, allCategories, router]);
-  // --- FIN DE LA CORRECCIÓN ---
 
   const handleNavigateToCategory = (categoryTarget: Category | BreadcrumbItem) => {
     if (categoryTarget.id === currentParentId) return;
@@ -238,13 +234,12 @@ export default function DocumentosPage() {
       if (existingCrumbIndex !== -1) {
         setBreadcrumbs(breadcrumbs.slice(0, existingCrumbIndex + 1));
       } else {
-        setBreadcrumbs([...breadcrumbs, { id: categoryTarget.id, name: categoryTarget.name }]);
+        setBreadcrumbs([...breadcrumbs, { id: categoryTarget.id!, name: categoryTarget.name }]);
       }
     }
     setSearchQuery("");
   };
 
-  // ... (El resto de las funciones: DocumentImageThumbnail, getDocumentThumbnail, handleCreateFolder, etc., se mantienen igual que en la versión anterior)
   const DocumentImageThumbnail = ({ doc }: { doc: Document }) => {
     const [imageUrl, setImageUrl] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -476,7 +471,6 @@ export default function DocumentosPage() {
             </div>
         </main>
         
-        {/* Dialogs */}
         <AlertDialog open={deleteDocDialogOpen} onOpenChange={setDeleteDocDialogOpen}>
             <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Eliminar Documento</AlertDialogTitle><AlertDialogDescription>Esta acción es permanente. ¿Estás seguro?</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel disabled={isDeletingDoc}>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDeleteDocument} disabled={isDeletingDoc} className="bg-destructive hover:bg-destructive/90">{isDeletingDoc && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Eliminar</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
         </AlertDialog>
