@@ -8,28 +8,32 @@ export interface SharedLink {
   user_id: string;
   expires_at: string;
   created_at: string;
-  can_download: boolean; // NUEVO: Permiso de descarga
+  can_download: boolean;
+  access_token: string; // NUEVO: Token de acceso
 }
 
-export interface SharedDocumentResponse {
-    document: Document;
-    shareDetails: SharedLink;
+export interface CreateShareLinkResponse {
+    link: SharedLink | null;
+    error: string | null;
 }
 
 /**
- * Crea un enlace para compartir para un documento con una duración y permisos específicos.
- * @param documentId El ID del documento a compartir.
- * @param duration La cantidad de tiempo.
- * @param unit La unidad de tiempo.
- * @param canDownload Si el destinatario puede descargar el archivo.
- * @returns El objeto del enlace compartido o un error.
+ * Genera un token numérico aleatorio de 6 dígitos.
+ */
+function generateSixDigitToken(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+/**
+ * Crea un enlace para compartir para un documento con duración, permisos y un token de acceso.
+ * @returns El objeto del enlace compartido (incluyendo el token) o un error.
  */
 export async function createShareLink(
   documentId: string, 
   duration: number, 
   unit: 'hour' | 'hours' | 'days', 
-  canDownload: boolean // NUEVO: Parámetro de permiso
-): Promise<{ link: SharedLink | null; error: string | null }> {
+  canDownload: boolean
+): Promise<CreateShareLinkResponse> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return { link: null, error: 'Usuario no autenticado.' };
@@ -46,13 +50,16 @@ export async function createShareLink(
       break;
   }
   
+  const accessToken = generateSixDigitToken();
+
   const { data, error } = await supabase
     .from('shared_links')
     .insert({
       document_id: documentId,
       user_id: user.id,
       expires_at: expiresAt.toISOString(),
-      can_download: canDownload, // NUEVO: Guardar el permiso
+      can_download: canDownload,
+      access_token: accessToken, // NUEVO: Guardar el token
     })
     .select()
     .single();
@@ -63,44 +70,4 @@ export async function createShareLink(
   }
 
   return { link: data, error: null };
-}
-
-/**
- * Obtiene un documento compartido por su ID de enlace (token).
- * Valida que el enlace no haya expirado.
- * @param linkId El ID del enlace (token) de la URL.
- * @returns Los detalles del documento y del enlace, o un error.
- */
-export async function getSharedDocumentByLinkId(linkId: string): Promise<{ data: SharedDocumentResponse | null; error: string | null }> {
-  const { data: linkData, error: linkError } = await supabase
-    .from('shared_links')
-    .select('*')
-    .eq('id', linkId)
-    .single();
-
-  if (linkError || !linkData) {
-    return { data: null, error: 'Enlace no válido o no encontrado.' };
-  }
-
-  if (new Date(linkData.expires_at) < new Date()) {
-    return { data: null, error: 'Este enlace para compartir ha expirado.' };
-  }
-
-  const { data: documentData, error: documentError } = await supabase
-    .from('documents')
-    .select('*')
-    .eq('id', linkData.document_id)
-    .single();
-
-  if (documentError || !documentData) {
-    return { data: null, error: 'El documento asociado a este enlace ya no existe.' };
-  }
-
-  return {
-    data: {
-      document: documentData as Document,
-      shareDetails: linkData as SharedLink,
-    },
-    error: null,
-  };
 }

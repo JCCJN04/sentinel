@@ -5,90 +5,100 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
-import { Loader2, AlertTriangle, Download, Clock, FileText, ShieldCheck } from 'lucide-react';
+import { Loader2, AlertTriangle, Download, Clock, FileText, ShieldCheck, KeyRound } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { getPublicSharedDocument, PublicSharedDocumentResponse } from '@/lib/actions/share.actions'; // NUEVO: Importar la Server Action
+import { verifyTokenAndGetDocument, PublicSharedDocumentResponse } from '@/lib/actions/share.actions';
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function SharedDocumentViewerPage() {
   const params = useParams();
   const linkId = params.id as string;
 
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<PublicSharedDocumentResponse | null>(null);
+  
+  // NUEVO: Estados para manejar el flujo
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [tokenValue, setTokenValue] = useState("");
+  const [documentData, setDocumentData] = useState<PublicSharedDocumentResponse | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
 
-  useEffect(() => {
-    if (!linkId) {
-        setError("ID de enlace no proporcionado.");
-        setIsLoading(false);
-        return;
-    };
-
-    // --- INICIO DE LA CORRECCIÓN ---
-    // Ahora llamamos a la Server Action, que se ejecuta en el backend.
-    getPublicSharedDocument(linkId)
-      .then(response => {
-        if (response.error) {
-          setError(response.error);
-        } else {
-          setData(response.data);
-        }
-      })
-      .catch((err) => {
-        console.error("Error inesperado al llamar a la Server Action:", err);
-        setError("Ocurrió un error inesperado al cargar el documento.");
-      })
-      .finally(() => {
-        setIsLoading(false);
-      });
-    // --- FIN DE LA CORRECCIÓN ---
-  }, [linkId]);
+  const handleTokenVerification = async () => {
+    if (tokenValue.length !== 6) {
+      setError("El token debe tener 6 dígitos.");
+      return;
+    }
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await verifyTokenAndGetDocument(linkId, tokenValue);
+      if (response.error) {
+        setError(response.error);
+        setTokenValue(""); // Limpiar el input en caso de error
+      } else {
+        setDocumentData(response.data);
+        setIsAuthenticated(true); // Éxito, cambiar a la vista del documento
+      }
+    } catch (err) {
+      setError("Ocurrió un error inesperado al verificar el token.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleDownload = async () => {
-    if (!data || !data.shareDetails.can_download) return;
+    if (!documentData || !documentData.shareDetails.can_download) return;
     setIsDownloading(true);
     try {
-        // Podemos re-usar la fileUrl que ya tenemos si aún es válida,
-        // o generar una nueva específica para descarga si es necesario.
-        // Por simplicidad, asumiremos que la URL funciona para descarga si se abre en una nueva pestaña.
-        window.open(data.fileUrl, '_blank');
+        window.open(documentData.fileUrl, '_blank');
     } catch (err: any) {
         toast({ title: "Error de descarga", description: err.message, variant: "destructive" });
     } finally {
         setIsDownloading(false);
     }
   };
-  
-  if (isLoading) {
+
+  // --- VISTA 1: FORMULARIO DE TOKEN ---
+  if (!isAuthenticated) {
     return (
       <main className="flex flex-col justify-center items-center min-h-screen bg-slate-50 dark:bg-slate-900 p-4">
-        <div className="flex items-center space-x-3 text-slate-500 dark:text-slate-400">
-          <Loader2 className="h-8 w-8 animate-spin" />
-          <p className="text-lg">Cargando documento seguro...</p>
-        </div>
+        <Card className="w-full max-w-sm">
+          <CardHeader className="text-center">
+            <KeyRound className="mx-auto h-8 w-8 text-primary mb-2" />
+            <CardTitle>Verificación Requerida</CardTitle>
+            <CardDescription>Introduce el token de 6 dígitos para ver el documento.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex justify-center">
+              <InputOTP maxLength={6} value={tokenValue} onChange={(value) => setTokenValue(value)}>
+                <InputOTPGroup>
+                  <InputOTPSlot index={0} />
+                  <InputOTPSlot index={1} />
+                  <InputOTPSlot index={2} />
+                  <InputOTPSlot index={3} />
+                  <InputOTPSlot index={4} />
+                  <InputOTPSlot index={5} />
+                </InputOTPGroup>
+              </InputOTP>
+            </div>
+            {error && <p className="text-sm text-center text-destructive">{error}</p>}
+            <Button onClick={handleTokenVerification} disabled={isLoading || tokenValue.length !== 6} className="w-full">
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Verificar y Abrir
+            </Button>
+          </CardContent>
+        </Card>
       </main>
     );
   }
 
-  if (error) {
-    return (
-       <main className="flex flex-col justify-center items-center min-h-screen bg-slate-50 dark:bg-slate-900 text-center p-4">
-        <div className="bg-white dark:bg-slate-800 p-8 rounded-xl shadow-lg max-w-md w-full">
-            <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-4" />
-            <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Acceso Denegado</h1>
-            <p className="text-slate-600 dark:text-slate-300 mt-2">{error}</p>
-            <Button variant="link" className="mt-4" onClick={() => window.location.href = '/'}>Ir a la página principal</Button>
-        </div>
-      </main>
-    );
-  }
+  // --- VISTA 2: VISUALIZADOR DE DOCUMENTO (SI LA AUTENTICACIÓN ES CORRECTA) ---
+  if (!documentData) return null; // No debería ocurrir si isAuthenticated es true
 
-  if (!data) return null;
-
-  const timeLeft = formatDistanceToNow(new Date(data.shareDetails.expires_at), { addSuffix: true, locale: es });
-  const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'].includes(data.document.file_type?.toLowerCase() || '');
+  const timeLeft = formatDistanceToNow(new Date(documentData.shareDetails.expires_at), { addSuffix: true, locale: es });
+  const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif'].includes(documentData.document.file_type?.toLowerCase() || '');
 
   return (
     <div className="flex flex-col h-screen bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200">
@@ -96,11 +106,11 @@ export default function SharedDocumentViewerPage() {
         <div className="container mx-auto flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0 flex-1">
                 <FileText className="h-6 w-6 text-primary flex-shrink-0" />
-                <span className="font-semibold text-base md:text-lg truncate" title={data.document.name}>
-                    {data.document.name}
+                <span className="font-semibold text-base md:text-lg truncate" title={documentData.document.name}>
+                    {documentData.document.name}
                 </span>
             </div>
-            {data.shareDetails.can_download && (
+            {documentData.shareDetails.can_download && (
                 <Button onClick={handleDownload} disabled={isDownloading} size="sm" className="flex-shrink-0">
                     <Download className="mr-0 sm:mr-2 h-4 w-4"/>
                     <span className="hidden sm:inline">Descargar</span>
@@ -110,12 +120,12 @@ export default function SharedDocumentViewerPage() {
       </header>
       
       <main className="flex-1 overflow-y-auto p-2 sm:p-4 md:p-8">
-        {data.fileUrl ? (
+        {documentData.fileUrl ? (
           isImage ? (
             <div className="w-full max-w-5xl mx-auto">
               <img
-                src={data.fileUrl}
-                alt={data.document.name}
+                src={documentData.fileUrl}
+                alt={documentData.document.name}
                 className="w-full h-auto rounded-lg shadow-lg"
               />
             </div>
@@ -123,9 +133,9 @@ export default function SharedDocumentViewerPage() {
             <div className="w-full max-w-5xl mx-auto">
                 <div className="aspect-[8.5/11] w-full bg-white dark:bg-black rounded-lg shadow-xl overflow-hidden">
                     <iframe
-                        src={data.fileUrl}
+                        src={documentData.fileUrl}
                         className="w-full h-full border-none"
-                        title={data.document.name}
+                        title={documentData.document.name}
                     />
                 </div>
             </div>
