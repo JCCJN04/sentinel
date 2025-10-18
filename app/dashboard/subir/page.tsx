@@ -14,25 +14,28 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/components/ui/use-toast'
-import { UploadCloud, X, FileText, Loader2, PlusCircle } from 'lucide-react'
-import React, { useState, useCallback, useEffect } from 'react' // CORRECCIÓN AQUÍ
+import { Loader2 } from 'lucide-react'
+import React, { useState, useCallback, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { getUserProfile as getUser } from '@/lib/user-service'
-import { uploadDocument, type DocumentUpload } from '@/lib/document-service';
+import { uploadDocument, type DocumentUpload, type Document } from '@/lib/document-service';
 import { getCategoriesForUser, addCategoryForUser, Category } from '@/lib/category-service';
+import { cn } from '@/lib/utils'
+import { useSmartToast } from '@/hooks/useSmartToast'
+import { ToastContainer } from '@/components/documentos/toast-container'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import { DocumentUploadZone } from '@/components/documentos/document-upload-zone'
+import { UploadSuccessModal } from '@/components/documentos/upload-success-modal'
+import { CategoryCombobox } from '@/components/documentos/category-combobox'
+import { DynamicDocumentFields } from '@/components/documentos/dynamic-document-fields'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { FileText, Stethoscope, Bell } from 'lucide-react'
+import { useDocumentTypeDetection } from '@/hooks/useDocumentTypeDetection'
 
 const ACCEPTED_FILE_TYPES = [
   'application/pdf',
@@ -76,120 +79,137 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 export default function SubirDocumentoPage() {
-  const [isFileSelected, setIsFileSelected] = useState(false);
-  const [filePreview, setFilePreview] = useState<string | null>(null);
-  const [fileName, setFileName] = useState<string>('');
-  const [isUploading, setIsUploading] = useState(false);
-  const router = useRouter();
-  const searchParams = useSearchParams();
+  const [isFileSelected, setIsFileSelected] = useState(false)
+  const [filePreview, setFilePreview] = useState<string | null>(null)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [fileName, setFileName] = useState<string>('')
+  const [isUploading, setIsUploading] = useState(false)
+  const [showSuccessModal, setShowSuccessModal] = useState(false)
+  const [uploadedDocument, setUploadedDocument] = useState<Document | null>(null)
+  const router = useRouter()
+  const searchParams = useSearchParams()
 
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [isLoadingCategories, setIsLoadingCategories] = useState(true);
-  const [categoryError, setCategoryError] = useState<string | null>(null);
-  const [categoryFromUrl, setCategoryFromUrl] = useState<string | null>(null);
+  const [categories, setCategories] = useState<Category[]>([])
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true)
+  const [categoryError, setCategoryError] = useState<string | null>(null)
 
-  const [isCreateCategoryOpen, setIsCreateCategoryOpen] = useState(false);
-  const [newCategoryName, setNewCategoryName] = useState('');
-  const [isCreatingCategory, setIsCreatingCategory] = useState(false);
+  const [isCreateCategoryOpen, setIsCreateCategoryOpen] = useState(false)
+  const [newCategoryName, setNewCategoryName] = useState('')
+  const [isCreatingCategory, setIsCreatingCategory] = useState(false)
+
+  // Detección automática de tipo de documento
+  const documentDetection = useDocumentTypeDetection(fileName)
+  const smartToast = useSmartToast()
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-        file: null,
-    }
-  });
+      file: null,
+      date: new Date().toISOString().split('T')[0],
+    },
+    mode: 'onBlur',
+  })
 
   const fetchUserCategories = useCallback(async () => {
     try {
-      setIsLoadingCategories(true);
-      const fetchedCategories = await getCategoriesForUser(undefined, true);
-      setCategories(fetchedCategories);
-      setCategoryError(null);
+      setIsLoadingCategories(true)
+      const fetchedCategories = await getCategoriesForUser(undefined, true)
+      setCategories(fetchedCategories)
+      setCategoryError(null)
     } catch (error) {
-      console.error('Failed to fetch categories:', error);
-      const errorMessage = error instanceof Error ? error.message : 'No se pudieron cargar las categorías.';
-      setCategoryError(errorMessage);
+      console.error('Failed to fetch categories:', error)
+      const errorMessage = error instanceof Error ? error.message : 'No se pudieron cargar las categorías.'
+      setCategoryError(errorMessage)
     } finally {
-      setIsLoadingCategories(false);
+      setIsLoadingCategories(false)
     }
-  }, []);
+  }, [])
 
   useEffect(() => {
-    fetchUserCategories();
-  }, [fetchUserCategories]);
+    fetchUserCategories()
+  }, [fetchUserCategories])
 
   useEffect(() => {
-    const categoryNameFromQuery = searchParams.get('categoria');
+    const categoryNameFromQuery = searchParams.get('categoria')
     if (categoryNameFromQuery && categories.length > 0) {
-      const categoryExists = categories.some(cat => cat.name === categoryNameFromQuery);
+      const categoryExists = categories.some(cat => cat.name === categoryNameFromQuery)
       if (categoryExists) {
-        form.setValue('category', categoryNameFromQuery, { shouldValidate: true });
-        setCategoryFromUrl(categoryNameFromQuery);
+        form.setValue('category', categoryNameFromQuery, { shouldValidate: true })
       }
     }
-  }, [searchParams, categories, form]);
+  }, [searchParams, categories, form])
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const cleanFileName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
-      form.setValue('documentName', cleanFileName.replace(/_/g, ' ').replace(/-/g, ' '));
-      
-      form.setValue('file', file, { shouldValidate: true });
-      form.setValue('date', new Date().toISOString().split('T')[0]);
-      setFileName(file.name);
-      setIsFileSelected(true);
+  const handleFileSelect = (file: File) => {
+    const cleanFileName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name
+    form.setValue('documentName', cleanFileName.replace(/_/g, ' ').replace(/-/g, ' '), { shouldValidate: true })
+    form.setValue('file', file, { shouldValidate: true })
+    form.setValue('date', new Date().toISOString().split('T')[0])
+    setFileName(file.name)
+    setSelectedFile(file)
+    setIsFileSelected(true)
 
-      if (file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onloadend = () => setFilePreview(reader.result as string);
-        reader.readAsDataURL(file);
-      } else {
-        setFilePreview(null);
-      }
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader()
+      reader.onloadend = () => setFilePreview(reader.result as string)
+      reader.readAsDataURL(file)
+    } else {
+      setFilePreview(null)
     }
-  };
-  
+  }
+
   const removeFile = () => {
-    form.reset();
-    setIsFileSelected(false);
-    setFileName('');
-    setFilePreview(null);
-    const fileInput = document.getElementById('file-upload') as HTMLInputElement;
-    if (fileInput) fileInput.value = '';
-  };
-  
+    form.setValue('file', null)
+    form.clearErrors('file')
+    setIsFileSelected(false)
+    setFileName('')
+    setFilePreview(null)
+    setSelectedFile(null)
+  }
+
   const handleCreateCategory = async () => {
     if (!newCategoryName.trim()) {
-      toast({ title: "Nombre inválido", description: "El nombre de la categoría no puede estar vacío.", variant: "destructive" });
-      return;
+      toast({
+        title: 'Nombre inválido',
+        description: 'El nombre de la categoría no puede estar vacío.',
+        variant: 'destructive',
+      })
+      return
     }
-    setIsCreatingCategory(true);
+    setIsCreatingCategory(true)
     try {
-      const newCategory = await addCategoryForUser(newCategoryName.trim());
-      await fetchUserCategories();
-      form.setValue('category', newCategory.name, { shouldValidate: true });
-      toast({ title: "Éxito", description: `Categoría "${newCategory.name}" creada y seleccionada.` });
-      setIsCreateCategoryOpen(false);
-      setNewCategoryName('');
+      const newCategory = await addCategoryForUser(newCategoryName.trim())
+      await fetchUserCategories()
+      form.setValue('category', newCategory.name, { shouldValidate: true })
+      toast({
+        title: 'Éxito',
+        description: `Categoría "${newCategory.name}" creada y seleccionada.`,
+      })
+      setIsCreateCategoryOpen(false)
+      setNewCategoryName('')
     } catch (error: any) {
-      toast({ title: "Error al crear", description: error.message, variant: "destructive" });
+      toast({
+        title: 'Error al crear',
+        description: error.message,
+        variant: 'destructive',
+      })
     } finally {
-      setIsCreatingCategory(false);
+      setIsCreatingCategory(false)
     }
-  };
+  }
 
   async function onSubmit(values: FormValues) {
     if (!values.file) {
-      toast({ title: 'Archivo Requerido', description: 'Por favor, selecciona un archivo para subir.', variant: 'destructive' });
-      form.setError('file', { type: 'manual', message: 'Debes seleccionar un archivo.' });
-      return;
+      smartToast.error('Archivo Requerido', {
+        description: 'Por favor, selecciona un archivo para subir.',
+      })
+      form.setError('file', { type: 'manual', message: 'Debes seleccionar un archivo.' })
+      return
     }
 
-    setIsUploading(true);
+    setIsUploading(true)
     try {
-      const user = await getUser();
-      if (!user) throw new Error('Usuario no autenticado.');
+      const user = await getUser()
+      if (!user) throw new Error('Usuario no autenticado.')
 
       const documentDataForUpload: DocumentUpload = {
         name: values.documentName,
@@ -205,152 +225,495 @@ export default function SubirDocumentoPage() {
         patient_name: values.patient_name || null,
         doctor_name: values.doctor_name || null,
         specialty: values.specialty || null,
-      };
-      
-      const uploadedDoc = await uploadDocument(documentDataForUpload);
-
-      if (uploadedDoc) {
-        const selectedCategory = categories.find(c => c.name === uploadedDoc.category);
-        const successParams = `upload_success=true&doc_name=${encodeURIComponent(uploadedDoc.name)}`;
-        const categoryParams = selectedCategory ? `&category_id=${selectedCategory.id}&category_name=${encodeURIComponent(selectedCategory.name)}` : '';
-        router.push(`/dashboard/documentos?${successParams}${categoryParams}`);
       }
+
+      const uploadedDoc = await uploadDocument(documentDataForUpload)
+      setUploadedDocument(uploadedDoc)
+      setShowSuccessModal(true)
+      smartToast.success('¡Documento subido!', {
+        description: `"${values.documentName}" se subió correctamente.`,
+        duration: 2000,
+      })
     } catch (error: any) {
-      console.error('Error en onSubmit al subir documento:', error);
-      toast({
-        title: 'Error al subir',
+      console.error('Error en onSubmit al subir documento:', error)
+      smartToast.error('Error al subir', {
         description: error.message || 'Ocurrió un problema al intentar subir el documento.',
-        variant: 'destructive',
-      });
+      })
     } finally {
-      setIsUploading(false);
+      setIsUploading(false)
+    }
+  }
+
+  const handleUploadAnother = () => {
+    setShowSuccessModal(false)
+    setUploadedDocument(null)
+    form.reset()
+    removeFile()
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleGoToDocuments = () => {
+    if (uploadedDocument) {
+      const selectedCategory = categories.find(c => c.name === uploadedDocument.category)
+      const categoryParams = selectedCategory ? `?category_id=${selectedCategory.id}` : ''
+      router.push(`/dashboard/documentos${categoryParams}`)
+    } else {
+      router.push('/dashboard/documentos')
     }
   }
 
   return (
-    <div className="container mx-auto p-4 md:p-8 max-w-3xl">
-      <h1 className="text-3xl font-bold mb-6 text-center">Subir Nuevo Documento</h1>
+    <div className="container mx-auto p-4 md:p-8 max-w-4xl">
+      <ToastContainer toasts={smartToast.toasts} onDismiss={smartToast.removeToast} />
+      
+      <div className="mb-8">
+        <h1 className="text-3xl md:text-4xl font-bold text-center mb-2">Subir Nuevo Documento</h1>
+        <p className="text-center text-gray-600 dark:text-gray-400">
+          Organiza y almacena de forma segura tus documentos médicos
+        </p>
+      </div>
+
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-
-          <Card className={isFileSelected ? 'border-green-500' : ''}>
-            <CardContent className="p-6">
+          {/* PASO 1: SELECCIONAR ARCHIVO */}
+          <Card className="border-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 text-sm font-semibold">
+                  1
+                </span>
+                Seleccionar archivo
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
               <FormField
                 control={form.control}
                 name="file"
                 render={({ fieldState }) => (
                   <FormItem>
-                    {!isFileSelected && <FormLabel className="text-base">Empieza por aquí</FormLabel>}
                     <FormControl>
-                      <div className="flex flex-col items-center justify-center w-full">
-                        {isFileSelected && fileName ? (
-                          <div className="w-full text-center p-4 border rounded-md bg-muted">
-                            {filePreview ? (
-                              <div className="relative w-48 h-48 mx-auto mb-4"><img src={filePreview} alt="Vista previa" className="object-contain w-full h-full rounded-lg" /></div>
-                            ) : (
-                              <FileText size={48} className="mx-auto text-gray-500 dark:text-gray-400 mb-2" />
-                            )}
-                            <p className="font-semibold">{fileName}</p>
-                            <Button type="button" variant="link" className="text-red-500 hover:text-red-700 h-auto p-0 mt-2" onClick={removeFile}>
-                              <X size={14} className="mr-1"/> Cambiar archivo
-                            </Button>
-                          </div>
-                        ) : (
-                          <label htmlFor="file-upload" className={`flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-lg cursor-pointer bg-gray-50 dark:hover:bg-bray-800 dark:bg-gray-700 hover:bg-gray-100 ${fieldState.error ? 'border-destructive' : ''}`}>
-                            <UploadCloud size={32} className="mb-4 text-gray-500" />
-                            <p className="mb-2 text-sm text-gray-500"><span className="font-semibold">Haz clic para subir</span> o arrastra y suelta</p>
-                            <p className="text-xs text-gray-500">PDF, DOC, DOCX, JPG, PNG, HEIC (MAX. 10MB)</p>
-                            <input id="file-upload" type="file" className="hidden" onChange={handleFileChange} accept={ACCEPTED_FILE_TYPES.join(',')} />
-                          </label>
-                        )}
-                      </div>
+                      <DocumentUploadZone
+                        onFileSelect={handleFileSelect}
+                        acceptedTypes={ACCEPTED_FILE_TYPES}
+                        maxSize={MAX_FILE_SIZE}
+                        onFileRemove={removeFile}
+                        selectedFile={selectedFile}
+                        filePreview={filePreview}
+                        fileName={fileName}
+                        error={fieldState.error?.message}
+                      />
                     </FormControl>
-                    <FormMessage />
                   </FormItem>
                 )}
               />
             </CardContent>
           </Card>
-          
+
+          {/* PASOS 2-4: SOLO SI HAY ARCHIVO SELECCIONADO */}
           {isFileSelected && (
             <>
-              <Card>
-                <CardHeader><CardTitle>Detalles Básicos</CardTitle></CardHeader>
-                <CardContent className="space-y-4">
-                  <FormField control={form.control} name="documentName" render={({ field }) => (<FormItem><FormLabel>Nombre del Documento</FormLabel><FormControl><Input placeholder="Ej: Radiografía de Tórax" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                  <FormField control={form.control} name="category" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Categoría</FormLabel>
-                      <div className="flex gap-2">
-                        <Select onValueChange={field.onChange} value={field.value || ''} disabled={isLoadingCategories || !!categoryError}>
-                          <FormControl>
-                            <SelectTrigger><SelectValue placeholder={isLoadingCategories ? "Cargando..." : "Selecciona una categoría"} /></SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {categories.length > 0 ? categories.map((cat) => (
-                              <SelectItem key={cat.id} value={cat.name}>{cat.name}</SelectItem>
-                            )) : <SelectItem value="no-cat" disabled>No hay categorías</SelectItem>}
-                          </SelectContent>
-                        </Select>
-                        <Button type="button" variant="outline" size="icon" onClick={() => setIsCreateCategoryOpen(true)}><PlusCircle className="h-4 w-4" /></Button>
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}/>
-                  <FormField control={form.control} name="date" render={({ field }) => (<FormItem><FormLabel>Fecha del Documento</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                  <FormField control={form.control} name="description" render={({ field }) => (<FormItem><FormLabel>Descripción / Notas</FormLabel><FormControl><Textarea placeholder="Añade una breve descripción o notas..." {...field} /></FormControl><FormMessage /></FormItem>)}/>
-                  <FormField control={form.control} name="tags" render={({ field }) => (<FormItem><FormLabel>Etiquetas</FormLabel><FormControl><Input placeholder="Ej: importante, personal" {...field} /></FormControl><FormDescription>Separa las etiquetas con comas.</FormDescription><FormMessage /></FormItem>)}/>
-                </CardContent>
-              </Card>
+              <Tabs defaultValue="basic" className="w-full">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="basic" className="flex items-center gap-2">
+                    <FileText className="w-4 h-4" />
+                    <span className="hidden sm:inline">Básica</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="medical" className="flex items-center gap-2">
+                    <Stethoscope className="w-4 h-4" />
+                    <span className="hidden sm:inline">Médica</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="reminders" className="flex items-center gap-2">
+                    <Bell className="w-4 h-4" />
+                    <span className="hidden sm:inline">Recordatorios</span>
+                  </TabsTrigger>
+                </TabsList>
 
-              <Card>
-                  <CardHeader><CardTitle>Información Adicional (Opcional)</CardTitle></CardHeader>
-                  <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormField control={form.control} name="patient_name" render={({ field }) => (<FormItem><FormLabel>Nombre del Paciente</FormLabel><FormControl><Input placeholder="Nombre completo" {...field} /></FormControl></FormItem>)} />
-                      <FormField control={form.control} name="doctor_name" render={({ field }) => (<FormItem><FormLabel>Nombre del Médico</FormLabel><FormControl><Input placeholder="Nombre del tratante" {...field} /></FormControl></FormItem>)} />
-                      <FormField control={form.control} name="specialty" render={({ field }) => (<FormItem><FormLabel>Especialidad Médica</FormLabel><FormControl><Input placeholder="Ej: Cardiología" {...field} /></FormControl></FormItem>)} />
-                      <FormField control={form.control} name="provider" render={({ field }) => (<FormItem><FormLabel>Proveedor/Clínica</FormLabel><FormControl><Input placeholder="Nombre del hospital" {...field} /></FormControl></FormItem>)} />
-                      <FormField control={form.control} name="amount" render={({ field }) => (<FormItem><FormLabel>Monto</FormLabel><FormControl><Input type="number" step="0.01" placeholder="0.00" {...field} /></FormControl></FormItem>)} />
-                      <FormField control={form.control} name="currency" render={({ field }) => (<FormItem><FormLabel>Moneda</FormLabel><FormControl><Input placeholder="Ej: MXN, USD" {...field} /></FormControl></FormItem>)} />
-                  </CardContent>
-              </Card>
+                {/* TAB 1: INFORMACIÓN BÁSICA */}
+                <TabsContent value="basic" className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Información Básica</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <FormField
+                        control={form.control}
+                        name="documentName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Nombre del Documento *</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="Ej: Radiografía de Tórax"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              Pon un nombre descriptivo para identificarlo fácilmente
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-              <Card>
-                  <CardHeader><CardTitle>Fechas y Recordatorios (Opcional)</CardTitle></CardHeader>
-                  <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormField control={form.control} name="expiry_date" render={({ field }) => (<FormItem><FormLabel>Fecha de Expiración</FormLabel><FormControl><Input type="date" {...field} /></FormControl></FormItem>)} />
-                      <FormField control={form.control} name="reminderDate" render={({ field }) => (<FormItem><FormLabel>Fecha de Recordatorio</FormLabel><FormControl><Input type="date" {...field} /></FormControl></FormItem>)} />
-                      <FormField control={form.control} name="reminderNote" render={({ field }) => (<FormItem className="md:col-span-2"><FormLabel>Nota del Recordatorio</FormLabel><FormControl><Textarea placeholder="Ej: Programar cita de seguimiento" {...field} /></FormControl></FormItem>)} />
-                  </CardContent>
-              </Card>
+                      <FormField
+                        control={form.control}
+                        name="category"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Categoría *</FormLabel>
+                            <FormControl>
+                              <CategoryCombobox
+                                value={field.value}
+                                onValueChange={field.onChange}
+                                categories={categories}
+                                onCreateCategory={async (name: string) => {
+                                  const newCategory = await addCategoryForUser(name)
+                                  await fetchUserCategories()
+                                  return newCategory.id
+                                }}
+                                placeholder="Seleccionar categoría..."
+                                disabled={isLoadingCategories || !!categoryError}
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              {documentDetection.confidence > 0.5 && (
+                                <span className="text-blue-600 dark:text-blue-400">
+                                  💡 Sugerida: {documentDetection.suggestedCategory}
+                                </span>
+                              )}
+                              {!documentDetection.confidence && (
+                                <span>Organiza tus documentos por tipo o especialidad</span>
+                              )}
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-              <Button type="submit" className="w-full" disabled={isUploading || isLoadingCategories}>
-                {isUploading ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Subiendo...</>) : ('Subir Documento')}
-              </Button>
+                      <FormField
+                        control={form.control}
+                        name="date"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Fecha del Documento</FormLabel>
+                            <FormControl>
+                              <Input type="date" {...field} />
+                            </FormControl>
+                            <FormDescription>
+                              Fecha en la que se generó el documento
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="description"
+                        render={({ field }) => {
+                          const charCount = field.value?.length || 0
+                          const maxChars = 500
+                          const percentage = Math.round((charCount / maxChars) * 100)
+                          return (
+                            <FormItem>
+                              <FormLabel>Descripción / Notas</FormLabel>
+                              <FormControl>
+                                <Textarea
+                                  placeholder="Añade detalles importantes sobre este documento..."
+                                  className="resize-none"
+                                  rows={3}
+                                  maxLength={maxChars}
+                                  {...field}
+                                />
+                              </FormControl>
+                              <div className="flex justify-between items-center">
+                                <FormDescription>
+                                  Máximo 500 caracteres
+                                </FormDescription>
+                                <span className={cn(
+                                  'text-xs font-medium',
+                                  charCount === 0 && 'text-gray-400',
+                                  charCount < 250 && charCount > 0 && 'text-blue-600 dark:text-blue-400',
+                                  charCount >= 250 && charCount < 500 && 'text-amber-600 dark:text-amber-400',
+                                  charCount === 500 && 'text-red-600 dark:text-red-400'
+                                )}>
+                                  {charCount} / {maxChars}
+                                </span>
+                              </div>
+                              <FormMessage />
+                            </FormItem>
+                          )
+                        }}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="tags"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Etiquetas</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="Ej: urgente, cardiology, 2025"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              Separa con comas. Útil para búsquedas rápidas
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                {/* TAB 2: INFORMACIÓN MÉDICA */}
+                <TabsContent value="medical" className="space-y-4">
+                  <DynamicDocumentFields
+                    form={form}
+                    detectedType={documentDetection.type}
+                    show={documentDetection.confidence > 0.3}
+                  />
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Información Médica (Opcional)</CardTitle>
+                    </CardHeader>
+                    <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="patient_name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Nombre del Paciente</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Nombre completo del paciente" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="doctor_name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Nombre del Médico</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Nombre del médico tratante" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="specialty"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Especialidad Médica</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Ej: Cardiología, Pediatría" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="provider"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Proveedor / Clínica</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Nombre del hospital o clínica" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="amount"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Monto</FormLabel>
+                            <FormControl>
+                              <Input type="number" step="0.01" placeholder="0.00" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="currency"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Moneda</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Ej: MXN, USD, EUR" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                {/* TAB 3: RECORDATORIOS */}
+                <TabsContent value="reminders" className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Fechas y Recordatorios (Opcional)</CardTitle>
+                    </CardHeader>
+                    <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="expiry_date"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Fecha de Expiración</FormLabel>
+                            <FormControl>
+                              <Input type="date" {...field} />
+                            </FormControl>
+                            <FormDescription>
+                              Te avisaremos antes de que expire
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="reminderDate"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Fecha de Recordatorio</FormLabel>
+                            <FormControl>
+                              <Input type="date" {...field} />
+                            </FormControl>
+                            <FormDescription>
+                              Recibirás una notificación en esta fecha
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="reminderNote"
+                        render={({ field }) => (
+                          <FormItem className="md:col-span-2">
+                            <FormLabel>Nota del Recordatorio</FormLabel>
+                            <FormControl>
+                              <Textarea
+                                placeholder="Ej: Programar cita de seguimiento, Llamar al doctor..."
+                                className="resize-none"
+                                rows={3}
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              ¿Qué necesitas recordar sobre este documento?
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </Tabs>
+
+              {/* BOTONES DE ACCIÓN */}
+              <div className="flex gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={removeFile}
+                  disabled={isUploading}
+                  className="flex-1"
+                >
+                  Cambiar archivo
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={isUploading || isLoadingCategories}
+                  className="flex-1 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-800"
+                >
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Subiendo...
+                    </>
+                  ) : (
+                    'Subir Documento'
+                  )}
+                </Button>
+              </div>
             </>
           )}
         </form>
       </Form>
 
+      {/* MODAL DE NUEVA CATEGORÍA */}
       <Dialog open={isCreateCategoryOpen} onOpenChange={setIsCreateCategoryOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Crear Nueva Categoría</DialogTitle>
-            <DialogDescription>Añade una nueva categoría para organizar tus documentos.</DialogDescription>
+            <DialogDescription>
+              Añade una nueva categoría para organizar tus documentos.
+            </DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <Label htmlFor="new-category-name">Nombre de la Categoría</Label>
-            <Input id="new-category-name" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} placeholder="Ej: Laboratorios" disabled={isCreatingCategory} />
+            <Input
+              id="new-category-name"
+              value={newCategoryName}
+              onChange={e => setNewCategoryName(e.target.value)}
+              placeholder="Ej: Laboratorios, Radiografías"
+              disabled={isCreatingCategory}
+              autoFocus
+            />
           </div>
           <DialogFooter>
-            <DialogClose asChild><Button type="button" variant="outline" disabled={isCreatingCategory}>Cancelar</Button></DialogClose>
-            <Button onClick={handleCreateCategory} disabled={isCreatingCategory || !newCategoryName.trim()}>
+            <DialogClose asChild>
+              <Button type="button" variant="outline" disabled={isCreatingCategory}>
+                Cancelar
+              </Button>
+            </DialogClose>
+            <Button
+              onClick={handleCreateCategory}
+              disabled={isCreatingCategory || !newCategoryName.trim()}
+            >
               {isCreatingCategory && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Crear
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* MODAL DE ÉXITO */}
+      <UploadSuccessModal
+        isOpen={showSuccessModal}
+        document={uploadedDocument}
+        onUploadAnother={handleUploadAnother}
+        onGoToDocuments={handleGoToDocuments}
+        onViewDocument={() => {
+          handleGoToDocuments()
+        }}
+        onClose={() => setShowSuccessModal(false)}
+      />
     </div>
   )
 }
