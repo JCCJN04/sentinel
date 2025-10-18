@@ -263,29 +263,35 @@ export default function SubirDocumentoPage() {
   }
 
   return (
-    <div className="container mx-auto p-4 md:p-8 max-w-4xl">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-800">
       <ToastContainer toasts={smartToast.toasts} onDismiss={smartToast.removeToast} />
       
-      <div className="mb-8">
-        <h1 className="text-3xl md:text-4xl font-bold text-center mb-2">Subir Nuevo Documento</h1>
-        <p className="text-center text-gray-600 dark:text-gray-400">
-          Organiza y almacena de forma segura tus documentos médicos
-        </p>
-      </div>
+      <div className="container mx-auto p-4 md:p-8 max-w-4xl">
+        {/* Header Section */}
+        <div className="mb-12 animate-in fade-in slide-in-from-top-4 duration-500">
+          <div className="space-y-2 text-center">
+            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
+              Subir Nuevo Documento
+            </h1>
+            <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+              Organiza y almacena de forma segura tus documentos médicos. Carga, categoriza y accede a ellos en cualquier momento.
+            </p>
+          </div>
+        </div>
 
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           {/* PASO 1: SELECCIONAR ARCHIVO */}
-          <Card className="border-2">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 text-sm font-semibold">
+          <Card className="border-slate-200/50 dark:border-slate-700/50 hover:shadow-lg transition-all duration-300 animate-in fade-in slide-in-from-bottom-2">
+            <CardHeader className="bg-gradient-to-r from-blue-50 to-transparent dark:from-slate-800 dark:to-transparent border-b border-slate-200 dark:border-slate-700">
+              <CardTitle className="flex items-center gap-3">
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white font-bold text-sm">
                   1
                 </span>
-                Seleccionar archivo
+                <span>Seleccionar archivo</span>
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-6">
               <FormField
                 control={form.control}
                 name="file"
@@ -312,29 +318,32 @@ export default function SubirDocumentoPage() {
           {/* PASOS 2-4: SOLO SI HAY ARCHIVO SELECCIONADO */}
           {isFileSelected && (
             <>
-              <Tabs defaultValue="basic" className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="basic" className="flex items-center gap-2">
+              <Tabs defaultValue="basic" className="w-full animate-in fade-in slide-in-from-bottom-4 duration-300">
+                <TabsList className="grid w-full grid-cols-3 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-slate-800 dark:to-slate-800 p-1 rounded-lg border border-slate-200/50 dark:border-slate-700/50">
+                  <TabsTrigger value="basic" className="flex items-center gap-2 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700 data-[state=active]:shadow-sm">
                     <FileText className="w-4 h-4" />
                     <span className="hidden sm:inline">Básica</span>
                   </TabsTrigger>
-                  <TabsTrigger value="medical" className="flex items-center gap-2">
+                  <TabsTrigger value="medical" className="flex items-center gap-2 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700 data-[state=active]:shadow-sm">
                     <Stethoscope className="w-4 h-4" />
                     <span className="hidden sm:inline">Médica</span>
                   </TabsTrigger>
-                  <TabsTrigger value="reminders" className="flex items-center gap-2">
+                  <TabsTrigger value="reminders" className="flex items-center gap-2 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700 data-[state=active]:shadow-sm">
                     <Bell className="w-4 h-4" />
                     <span className="hidden sm:inline">Recordatorios</span>
                   </TabsTrigger>
                 </TabsList>
 
-                {/* TAB 1: INFORMACIÓN BÁSICA */}
-                <TabsContent value="basic" className="space-y-4">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Información Básica</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
+              {/* TAB 1: INFORMACIÓN BÁSICA */}
+              <TabsContent value="basic" className="space-y-4 animate-in fade-in slide-in-from-right-2 duration-300">
+                <Card className="border-slate-200/50 dark:border-slate-700/50 hover:shadow-lg transition-all duration-300">
+                  <CardHeader className="bg-gradient-to-r from-emerald-50 to-transparent dark:from-slate-800 dark:to-transparent border-b border-slate-200 dark:border-slate-700">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <span className="flex h-7 w-7 items-center justify-center rounded bg-emerald-600 text-white text-xs font-bold">2</span>
+                      Información Básica
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-6 space-y-4">
                       <FormField
                         control={form.control}
                         name="documentName"
@@ -470,17 +479,20 @@ export default function SubirDocumentoPage() {
                 </TabsContent>
 
                 {/* TAB 2: INFORMACIÓN MÉDICA */}
-                <TabsContent value="medical" className="space-y-4">
+                <TabsContent value="medical" className="space-y-4 animate-in fade-in slide-in-from-right-2 duration-300">
                   <DynamicDocumentFields
                     form={form}
                     detectedType={documentDetection.type}
                     show={documentDetection.confidence > 0.3}
                   />
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Información Médica (Opcional)</CardTitle>
+                  <Card className="border-slate-200/50 dark:border-slate-700/50 hover:shadow-lg transition-all duration-300">
+                    <CardHeader className="bg-gradient-to-r from-red-50 to-transparent dark:from-slate-800 dark:to-transparent border-b border-slate-200 dark:border-slate-700">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <span className="flex h-7 w-7 items-center justify-center rounded bg-red-600 text-white text-xs font-bold">3</span>
+                        Información Médica (Opcional)
+                      </CardTitle>
                     </CardHeader>
-                    <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
                         name="patient_name"
@@ -569,12 +581,15 @@ export default function SubirDocumentoPage() {
                 </TabsContent>
 
                 {/* TAB 3: RECORDATORIOS */}
-                <TabsContent value="reminders" className="space-y-4">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Fechas y Recordatorios (Opcional)</CardTitle>
+                <TabsContent value="reminders" className="space-y-4 animate-in fade-in slide-in-from-right-2 duration-300">
+                  <Card className="border-slate-200/50 dark:border-slate-700/50 hover:shadow-lg transition-all duration-300">
+                    <CardHeader className="bg-gradient-to-r from-amber-50 to-transparent dark:from-slate-800 dark:to-transparent border-b border-slate-200 dark:border-slate-700">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <span className="flex h-7 w-7 items-center justify-center rounded bg-amber-600 text-white text-xs font-bold">4</span>
+                        Fechas y Recordatorios (Opcional)
+                      </CardTitle>
                     </CardHeader>
-                    <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
                         name="expiry_date"
@@ -714,6 +729,7 @@ export default function SubirDocumentoPage() {
         }}
         onClose={() => setShowSuccessModal(false)}
       />
+      </div>
     </div>
   )
 }

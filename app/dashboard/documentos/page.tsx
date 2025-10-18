@@ -359,130 +359,378 @@ export default function DocumentosPage() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-muted/20 dark:bg-background">
-        <header className="p-4 md:px-6 md:py-3 border-b bg-background sticky top-0 z-20">
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-start sm:items-center justify-between">
-                <div className="flex items-center gap-1 text-sm text-muted-foreground overflow-hidden w-full sm:w-auto flex-wrap pb-1 sm:pb-0">
-                    {breadcrumbs.map((crumb, index) => (
-                    <React.Fragment key={crumb.id || 'root'}>
-                        {index > 0 && <span className="mx-0.5 text-muted-foreground/70">/</span>}
-                        <Button variant="link" className={cn("p-0 h-auto text-sm truncate hover:no-underline", index === breadcrumbs.length - 1 ? "font-medium text-foreground" : "text-muted-foreground hover:text-foreground")} onClick={() => handleNavigateToCategory(crumb)} disabled={index === breadcrumbs.length - 1}>
-                        {index === 0 && breadcrumbs.length > 1 && <HomeIcon className="h-3.5 w-3.5 mr-1 shrink-0" />}
-                        <span className="truncate max-w-[100px] sm:max-w-[150px]">{crumb.name}</span>
-                        </Button>
-                    </React.Fragment>
-                    ))}
-                </div>
-                <div className="flex items-center gap-2 self-stretch sm:self-center w-full sm:w-auto justify-end sm:justify-between" suppressHydrationWarning>
-                    <div className="relative flex-grow sm:flex-grow-0 sm:w-52 md:w-60">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                    <Input type="search" placeholder="Buscar aquí..." className="w-full pl-8 pr-3 h-9 text-xs rounded-md" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-                    </div>
-                    <div className="border rounded-md flex bg-background overflow-hidden">
-                    <Button variant={viewMode === "list" ? "secondary" : "ghost"} size="icon" className="h-9 w-9 rounded-none border-r" onClick={() => setViewMode("list")}><ListChecks className="h-4 w-4" /></Button>
-                    <Button variant={viewMode === "grid" ? "secondary" : "ghost"} size="icon" className="h-9 w-9 rounded-none" onClick={() => setViewMode("grid")}><LayoutGrid className="h-4 w-4" /></Button>
-                    </div>
-                </div>
-            </div>
-        </header>
+    <>
+      {/* Page Header Section */}
+      <div className="animate-in fade-in slide-in-from-top-4 duration-500">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-emerald-600 to-cyan-600 dark:from-emerald-400 dark:to-cyan-400 bg-clip-text text-transparent">
+            {currentFolderName}
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            Organiza y gestiona tus documentos médicos
+          </p>
+        </div>
+      </div>
 
-        <main className="flex-1 p-4 md:p-6 space-y-6 overflow-y-auto">
-            {(documentsError || categoryError) && (<Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertDescription>{documentsError || categoryError}</AlertDescription></Alert>)}
-
-            <div className="mb-6">
-                <div className="flex justify-between items-center mb-3">
-                    <h2 className="text-lg font-semibold tracking-tight">{`Carpetas en "${currentFolderName}"`}</h2>
-                    <Button variant="outline" size="sm" onClick={() => setCreateFolderDialogOpen(true)}><FolderPlus className="mr-1.5 h-3.5 w-3.5" /> Nueva Carpeta</Button>
-                </div>
-                {isLoadingCategories ? ( <div className="text-center"><Loader2 className="h-6 w-6 animate-spin"/></div> ) 
-                : subFolders.length > 0 ? (
-                    viewMode === 'grid' ? (<div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 md:gap-4">{subFolders.map((cat) => (<FolderCard key={cat.id} category={cat} />))}</div>)
-                    : (<div className="border rounded-lg bg-card shadow-sm divide-y divide-border">{subFolders.map((cat) => (<FolderListItem key={cat.id} category={cat} />))}</div>)
-                ) : ( <p className="text-sm text-muted-foreground py-4 text-center italic">No hay subcarpetas.</p> )}
-            </div>
-
-            <hr className="my-6 border-dashed" />
-
-            <div>
-                <div className="flex justify-between items-center mb-3">
-                    <h2 className="text-lg font-semibold tracking-tight flex items-center">{`Documentos en "${currentFolderName}"`}</h2>
-                    <Button size="sm" onClick={handleUploadDocumentClick}><PlusCircle className="mr-1.5 h-3.5 w-3.5" /> Subir Documento</Button>
-                </div>
-                {isLoadingDocuments ? (<div className="flex justify-center py-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>) 
-                : filteredDocuments.length === 0 ? (
-                    <div className="text-center py-10 border rounded-lg bg-card">
-                        <FileText className="h-12 w-12 mx-auto text-muted-foreground/60 mb-3" />
-                        <h3 className="text-lg font-semibold">No hay documentos</h3>
-                        <p className="text-muted-foreground text-sm">{searchQuery ? "No hay coincidencias." : "Esta carpeta está vacía."}</p>
-                    </div>
-                ) : (
-                    viewMode === "list" ? (
-                        <div className="rounded-lg border bg-card shadow-sm overflow-hidden">
-                            {filteredDocuments.map((doc) => (
-                            <div key={doc.id} className="grid grid-cols-[auto_minmax(0,_1fr)_auto_auto_auto] items-center gap-x-3 px-3 py-2.5 hover:bg-muted/80 border-b last:border-b-0 text-sm">
-                                <div className="flex justify-center items-center w-8 h-8" onClick={() => handleOpenDocumentLink(doc)}>{getFileIcon(doc.file_type)}</div>
-                                <div className="truncate" onClick={() => handleOpenDocumentLink(doc)}>
-                                    <div className="font-medium truncate" title={doc.name}>{doc.name}</div>
-                                </div>
-                                <div className="text-muted-foreground text-xs" onClick={() => handleOpenDocumentLink(doc)}>{doc.date ? new Date(doc.date).toLocaleDateString() : '-'}</div>
-                                <div onClick={() => handleOpenDocumentLink(doc)}>{getStatusBadge(doc.status)}</div>
-                                <div onClick={(e) => e.stopPropagation()} className="flex justify-end">
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                    <DropdownMenuItem onClick={() => handleDownloadDocument(doc)}><Download className="mr-2 h-3.5 w-3.5" />Descargar</DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handleShareDocument(doc.id)}><Share2 className="mr-2 h-3.5 w-3.5" />Compartir</DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem onClick={() => handleViewDocumentDetails(doc.id)}><Edit3 className="mr-2 h-3.5 w-3.5" />Ver/Editar</DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem className="text-destructive" onClick={() => confirmDeleteDoc(doc.id)}><Trash2 className="mr-2 h-3.5 w-3.5" />Eliminar</DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                                </div>
-                            </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                            {filteredDocuments.map((doc) => (
-                            <div key={doc.id} className="rounded-lg border bg-card shadow-sm hover:shadow-lg transition-shadow group">
-                                <div onClick={() => handleOpenDocumentLink(doc)} className="cursor-pointer">{getDocumentThumbnail(doc)}</div>
-                                <div className="p-2.5">
-                                <div className="flex items-start justify-between">
-                                    <h3 className="font-semibold text-sm leading-tight truncate flex-grow mr-1.5" title={doc.name}>{doc.name}</h3>
-                                    <DropdownMenu>
-                                    <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-5 w-5 flex-shrink-0 opacity-60 group-hover:opacity-100"><MoreHorizontal className="h-3 w-3" /></Button></DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                        <DropdownMenuItem onClick={() => handleDownloadDocument(doc)}><Download className="mr-2 h-3.5 w-3.5" />Descargar</DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => handleShareDocument(doc.id)}><Share2 className="mr-2 h-3.5 w-3.5" />Compartir</DropdownMenuItem>
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem onClick={() => handleViewDocumentDetails(doc.id)}><Edit3 className="mr-2 h-3.5 w-3.5" />Ver/Editar</DropdownMenuItem>
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem className="text-destructive" onClick={() => confirmDeleteDoc(doc.id)}><Trash2 className="mr-2 h-3.5 w-3.5" />Eliminar</DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                    </DropdownMenu>
-                                </div>
-                                </div>
-                            </div>
-                            ))}
-                        </div>
-                    )
+      {/* Breadcrumbs and Controls */}
+      <div className="animate-in fade-in slide-in-from-top-4 duration-500 delay-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 py-2">
+        <div className="flex items-center gap-1 text-sm flex-wrap">
+          {breadcrumbs.map((crumb, index) => (
+            <React.Fragment key={crumb.id || 'root'}>
+              {index > 0 && <span className="mx-1 text-gray-400">/</span>}
+              <button
+                onClick={() => handleNavigateToCategory(crumb)}
+                disabled={index === breadcrumbs.length - 1}
+                className={cn(
+                  "px-2 py-1 rounded transition-colors",
+                  index === breadcrumbs.length - 1
+                    ? "font-semibold text-foreground cursor-default"
+                    : "text-gray-600 dark:text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
                 )}
+              >
+                {index === 0 && breadcrumbs.length > 1 && <HomeIcon className="h-4 w-4 inline mr-1" />}
+                {crumb.name}
+              </button>
+            </React.Fragment>
+          ))}
+        </div>
+
+        {/* View Mode Toggle */}
+        <div className="flex items-center gap-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-900/50 p-1">
+          <button
+            onClick={() => setViewMode("list")}
+            className={cn(
+              "p-2 rounded transition-colors",
+              viewMode === "list"
+                ? "bg-white dark:bg-slate-800 shadow-sm"
+                : "hover:bg-slate-200 dark:hover:bg-slate-700"
+            )}
+            title="Vista de lista"
+          >
+            <ListChecks className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => setViewMode("grid")}
+            className={cn(
+              "p-2 rounded transition-colors",
+              viewMode === "grid"
+                ? "bg-white dark:bg-slate-800 shadow-sm"
+                : "hover:bg-slate-200 dark:hover:bg-slate-700"
+            )}
+            title="Vista de cuadrícula"
+          >
+            <LayoutGrid className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Search Bar */}
+      <div className="animate-in fade-in slide-in-from-left-4 duration-500 delay-150">
+        <div className="relative flex-grow">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Input
+            type="search"
+            placeholder="Buscar documentos por nombre o etiquetas..."
+            className="w-full pl-10 pr-3 h-10 rounded-lg bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* Error Alert */}
+      {(documentsError || categoryError) && (
+        <Alert variant="destructive" className="animate-in fade-in slide-in-from-top-2 duration-300">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{documentsError || categoryError}</AlertDescription>
+        </Alert>
+      )}
+
+      {/* Folders Section */}
+      <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 delay-200">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <FolderIcon className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+            Carpetas
+          </h2>
+          <Button size="sm" onClick={() => setCreateFolderDialogOpen(true)} className="gap-1.5">
+            <FolderPlus className="h-4 w-4" />
+            Nueva Carpeta
+          </Button>
+        </div>
+
+        {isLoadingCategories ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
+          </div>
+        ) : subFolders.length > 0 ? (
+          viewMode === "grid" ? (
+            <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 md:gap-4">
+              {subFolders.map((cat, idx) => (
+                <div
+                  key={cat.id}
+                  className="animate-in fade-in slide-in-from-bottom-2"
+                  style={{ animationDelay: `${idx * 50}ms` }}
+                >
+                  <FolderCard category={cat} />
+                </div>
+              ))}
             </div>
-        </main>
-        
-        <AlertDialog open={deleteDocDialogOpen} onOpenChange={setDeleteDocDialogOpen}>
-            <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Eliminar Documento</AlertDialogTitle><AlertDialogDescription>Esta acción es permanente. ¿Estás seguro?</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel disabled={isDeletingDoc}>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDeleteDocument} disabled={isDeletingDoc} className="bg-destructive hover:bg-destructive/90">{isDeletingDoc && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Eliminar</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
-        </AlertDialog>
-        <AlertDialog open={deleteFolderDialogOpen} onOpenChange={setDeleteFolderDialogOpen}>
-            <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Eliminar Carpeta "{folderToDelete?.name}"</AlertDialogTitle><AlertDialogDescription><span className="font-semibold text-destructive">Se eliminarán todas las subcarpetas y documentos que contenga de forma permanente.</span></AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel disabled={isProcessingFolder}>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDeleteFolderConfirmed} className="bg-destructive hover:bg-destructive/90" disabled={isProcessingFolder}>{isProcessingFolder && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Sí, Eliminar</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
-        </AlertDialog>
-        <Dialog open={createFolderDialogOpen} onOpenChange={setCreateFolderDialogOpen}>
-            <DialogContent className="sm:max-w-[425px]"><DialogHeader><DialogTitle>Crear Carpeta</DialogTitle><DialogDescription>En "{currentFolderName}".</DialogDescription></DialogHeader><div className="grid gap-4 py-4"><Label htmlFor="new-folder-name">Nombre</Label><Input id="new-folder-name" value={newFolderName} onChange={(e) => setNewFolderName(e.target.value)} disabled={isProcessingFolder} /></div><DialogFooter><Button type="button" variant="outline" onClick={() => setCreateFolderDialogOpen(false)}>Cancelar</Button><Button onClick={handleCreateFolder} disabled={isProcessingFolder || !newFolderName.trim()}>{isProcessingFolder && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Crear</Button></DialogFooter></DialogContent>
-        </Dialog>
-        <Dialog open={renameFolderDialogOpen} onOpenChange={setRenameFolderDialogOpen}>
-            <DialogContent className="sm:max-w-[425px]"><DialogHeader><DialogTitle>Renombrar Carpeta</DialogTitle><DialogDescription>Nuevo nombre para "{folderToRename?.name}".</DialogDescription></DialogHeader><div className="grid gap-4 py-4"><Label htmlFor="renaming-folder-name">Nuevo Nombre</Label><Input id="renaming-folder-name" value={renamingFolderName} onChange={(e) => setRenamingFolderName(e.target.value)} disabled={isProcessingFolder} /></div><DialogFooter><Button type="button" variant="outline" onClick={() => setRenameFolderDialogOpen(false)}>Cancelar</Button><Button onClick={handleRenameFolder} disabled={isProcessingFolder || !renamingFolderName.trim()}>{isProcessingFolder && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Renombrar</Button></DialogFooter></DialogContent>
-        </Dialog>
-    </div>
+          ) : (
+            <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+              {subFolders.map((cat, idx) => (
+                <div
+                  key={cat.id}
+                  className="animate-in fade-in slide-in-from-left-2 border-b last:border-b-0 dark:border-slate-700"
+                  style={{ animationDelay: `${idx * 50}ms` }}
+                >
+                  <FolderListItem category={cat} />
+                </div>
+              ))}
+            </div>
+          )
+        ) : (
+          <div className="text-center py-8 text-gray-500 dark:text-gray-400 italic">
+            📁 No hay carpetas en esta ubicación
+          </div>
+        )}
+      </div>
+
+      {/* Divider */}
+      <div className="flex items-center gap-4 my-6">
+        <div className="flex-1 h-px bg-gradient-to-r from-slate-200 to-transparent dark:from-slate-700" />
+        <span className="text-xs font-medium text-gray-500 dark:text-gray-400">DOCUMENTOS</span>
+        <div className="flex-1 h-px bg-gradient-to-l from-slate-200 to-transparent dark:from-slate-700" />
+      </div>
+
+      {/* Documents Section */}
+      <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 delay-300">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <FileText className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
+            Documentos
+          </h2>
+          <Button size="sm" onClick={handleUploadDocumentClick} className="gap-1.5 bg-cyan-600 hover:bg-cyan-700 dark:bg-cyan-600">
+            <PlusCircle className="h-4 w-4" />
+            Subir Documento
+          </Button>
+        </div>
+
+        {isLoadingDocuments ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-cyan-600" />
+          </div>
+        ) : filteredDocuments.length === 0 ? (
+          <div className="text-center py-12 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg bg-slate-50/50 dark:bg-slate-900/20">
+            <FileText className="h-12 w-12 mx-auto text-gray-400 mb-3" />
+            <h3 className="text-lg font-semibold">No hay documentos</h3>
+            <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
+              {searchQuery ? "No hay coincidencias con tu búsqueda" : "Esta carpeta está vacía"}
+            </p>
+            {!searchQuery && (
+              <Button size="sm" onClick={handleUploadDocumentClick} className="mt-4" variant="outline">
+                Subir tu primer documento
+              </Button>
+            )}
+          </div>
+        ) : viewMode === "list" ? (
+          <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+            {filteredDocuments.map((doc, idx) => (
+              <div
+                key={doc.id}
+                className="grid grid-cols-[auto_minmax(0,_1fr)_auto_auto_auto] items-center gap-x-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-900/50 border-b last:border-b-0 dark:border-slate-700 text-sm transition-colors animate-in fade-in"
+                style={{ animationDelay: `${idx * 30}ms` }}
+              >
+                <div className="flex justify-center items-center w-8 h-8 text-lg" onClick={() => handleOpenDocumentLink(doc)}>
+                  {getFileIcon(doc.file_type)}
+                </div>
+                <div className="truncate cursor-pointer" onClick={() => handleOpenDocumentLink(doc)}>
+                  <div className="font-medium truncate hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors" title={doc.name}>
+                    {doc.name}
+                  </div>
+                </div>
+                <div className="text-gray-500 dark:text-gray-400 text-xs" onClick={() => handleOpenDocumentLink(doc)}>
+                  {doc.date ? new Date(doc.date).toLocaleDateString("es-MX") : "-"}
+                </div>
+                <div onClick={() => handleOpenDocumentLink(doc)}>{getStatusBadge(doc.status)}</div>
+                <div onClick={(e) => e.stopPropagation()} className="flex justify-end">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-7 w-7">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => handleDownloadDocument(doc)}>
+                        <Download className="mr-2 h-3.5 w-3.5" />
+                        Descargar
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleShareDocument(doc.id)}>
+                        <Share2 className="mr-2 h-3.5 w-3.5" />
+                        Compartir
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => handleViewDocumentDetails(doc.id)}>
+                        <Edit3 className="mr-2 h-3.5 w-3.5" />
+                        Ver/Editar
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem className="text-destructive" onClick={() => confirmDeleteDoc(doc.id)}>
+                        <Trash2 className="mr-2 h-3.5 w-3.5" />
+                        Eliminar
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            {filteredDocuments.map((doc, idx) => (
+              <div
+                key={doc.id}
+                className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/50 shadow-sm hover:shadow-md hover:border-emerald-300 dark:hover:border-emerald-700 transition-all duration-300 group animate-in fade-in slide-in-from-bottom-2"
+                style={{ animationDelay: `${idx * 50}ms` }}
+              >
+                <div onClick={() => handleOpenDocumentLink(doc)} className="cursor-pointer overflow-hidden bg-gray-100 dark:bg-slate-800 group-hover:bg-gray-200 dark:group-hover:bg-slate-700 transition-colors">
+                  {getDocumentThumbnail(doc)}
+                </div>
+                <div className="p-3 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="font-semibold text-sm leading-tight truncate flex-grow text-foreground hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors cursor-pointer" title={doc.name} onClick={() => handleOpenDocumentLink(doc)}>
+                      {doc.name}
+                    </h3>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-5 w-5 flex-shrink-0 opacity-60 group-hover:opacity-100">
+                          <MoreHorizontal className="h-3 w-3" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleDownloadDocument(doc)}>
+                          <Download className="mr-2 h-3.5 w-3.5" />
+                          Descargar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleShareDocument(doc.id)}>
+                          <Share2 className="mr-2 h-3.5 w-3.5" />
+                          Compartir
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => handleViewDocumentDetails(doc.id)}>
+                          <Edit3 className="mr-2 h-3.5 w-3.5" />
+                          Ver/Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem className="text-destructive" onClick={() => confirmDeleteDoc(doc.id)}>
+                          <Trash2 className="mr-2 h-3.5 w-3.5" />
+                          Eliminar
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 flex justify-between items-center">
+                    <span>{doc.date ? new Date(doc.date).toLocaleDateString("es-MX") : "-"}</span>
+                    {getStatusBadge(doc.status)}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Dialogs */}
+      <AlertDialog open={deleteDocDialogOpen} onOpenChange={setDeleteDocDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar Documento</AlertDialogTitle>
+            <AlertDialogDescription>Esta acción es permanente. ¿Estás seguro?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeletingDoc}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteDocument} disabled={isDeletingDoc} className="bg-destructive hover:bg-destructive/90">
+              {isDeletingDoc && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={deleteFolderDialogOpen} onOpenChange={setDeleteFolderDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar Carpeta "{folderToDelete?.name}"</AlertDialogTitle>
+            <AlertDialogDescription>
+              <span className="font-semibold text-destructive">Se eliminarán todas las subcarpetas y documentos que contenga de forma permanente.</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isProcessingFolder}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteFolderConfirmed} className="bg-destructive hover:bg-destructive/90" disabled={isProcessingFolder}>
+              {isProcessingFolder && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Sí, Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog open={createFolderDialogOpen} onOpenChange={setCreateFolderDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Crear Carpeta</DialogTitle>
+            <DialogDescription>En "{currentFolderName}".</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <Label htmlFor="new-folder-name">Nombre</Label>
+            <Input
+              id="new-folder-name"
+              value={newFolderName}
+              onChange={(e) => setNewFolderName(e.target.value)}
+              disabled={isProcessingFolder}
+              placeholder="Mi Nueva Carpeta"
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setCreateFolderDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleCreateFolder} disabled={isProcessingFolder || !newFolderName.trim()}>
+              {isProcessingFolder && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Crear
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={renameFolderDialogOpen} onOpenChange={setRenameFolderDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Renombrar Carpeta</DialogTitle>
+            <DialogDescription>Nuevo nombre para "{folderToRename?.name}".</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <Label htmlFor="renaming-folder-name">Nuevo Nombre</Label>
+            <Input
+              id="renaming-folder-name"
+              value={renamingFolderName}
+              onChange={(e) => setRenamingFolderName(e.target.value)}
+              disabled={isProcessingFolder}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setRenameFolderDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleRenameFolder} disabled={isProcessingFolder || !renamingFolderName.trim()}>
+              {isProcessingFolder && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Renombrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
