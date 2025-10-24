@@ -255,7 +255,7 @@ export default function SubirDocumentoPage() {
   const handleGoToDocuments = () => {
     if (uploadedDocument) {
       const selectedCategory = categories.find(c => c.name === uploadedDocument.category)
-      const categoryParams = selectedCategory ? `?category_id=${selectedCategory.id}` : ''
+      const categoryParams = selectedCategory ? `?category_id=${selectedCategory.id}&category_name=${encodeURIComponent(selectedCategory.name)}` : ''
       router.push(`/dashboard/documentos${categoryParams}`)
     } else {
       router.push('/dashboard/documentos')
@@ -378,7 +378,7 @@ export default function SubirDocumentoPage() {
                                 onCreateCategory={async (name: string) => {
                                   const newCategory = await addCategoryForUser(name)
                                   await fetchUserCategories()
-                                  return newCategory.id
+                                  return newCategory.name
                                 }}
                                 placeholder="Seleccionar categoría..."
                                 disabled={isLoadingCategories || !!categoryError}

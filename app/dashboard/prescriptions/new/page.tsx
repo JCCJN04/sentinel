@@ -1,7 +1,7 @@
 // app/dashboard/prescriptions/new/page.tsx
 "use client";
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useFormState } from 'react-dom';
 import { createPrescription, type PrescriptionFormState } from '@/lib/actions/prescriptions.actions';
 import { Button } from '@/components/ui/button';
@@ -10,14 +10,15 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { MedicationAutocomplete } from '@/components/prescriptions/MedicationAutocomplete';
 import { RecipePhotoCapper } from '@/components/prescriptions/RecipePhotoCapper';
-import { Loader2, Trash2, Plus, Image as ImageIcon, CheckCircle2 } from 'lucide-react';
+import { Loader2, Trash2, Plus, Image as ImageIcon, CheckCircle2, ZoomIn, ZoomOut } from 'lucide-react';
 
 type Medicine = {
   medicine_name: string;
   dosage: string;
-  frequency_hours: string; 
-  duration: string;
+  frequency_hours: string | number | null; 
+  duration_days: string | number | null;
   instructions: string;
+  _extractedFromAI?: boolean; // Marcar si fue extraído por Gemini
 };
 
 function SubmitButton() {
@@ -37,11 +38,13 @@ function SubmitButton() {
 
 export default function NewPrescriptionPage() {
   const [medicines, setMedicines] = useState<Medicine[]>([
-    { medicine_name: '', dosage: '', frequency_hours: '', duration: '', instructions: '' },
+    { medicine_name: '', dosage: '', frequency_hours: null, duration_days: null, instructions: '', _extractedFromAI: false },
   ]);
 
   const [photoData, setPhotoData] = useState<string | null>(null);
   const [extractedData, setExtractedData] = useState<any>(null);
+  const [imageScale, setImageScale] = useState(1);
+  const imageContainerRef = useRef<HTMLDivElement>(null);
   const [formData, setFormData] = useState({
     diagnosis: '',
     doctor_name: '',
@@ -59,17 +62,29 @@ export default function NewPrescriptionPage() {
     // Pre-fill form with extracted data
     if (data.diagnosis) setFormData(prev => ({ ...prev, diagnosis: data.diagnosis }));
     if (data.doctor_name) setFormData(prev => ({ ...prev, doctor_name: data.doctor_name }));
-    if (data.medicines) setMedicines(data.medicines);
+    if (data.prescription_date) setFormData(prev => ({ ...prev, start_date: data.prescription_date }));
+    if (data.medicines && Array.isArray(data.medicines)) {
+      // Convertir estructura de Gemini al formato del formulario
+      const formattedMedicines = data.medicines.map((med: any) => ({
+        medicine_name: med.name || med.medicine_name || '',
+        dosage: med.dosage || '',
+        frequency_hours: med.frequency_hours || null,
+        duration_days: med.duration_days || null,
+        instructions: med.instructions || '',
+        _extractedFromAI: true // Marcar como extraído de IA
+      }));
+      setMedicines(formattedMedicines);
+    }
   };
 
-  const handleMedicineChange = (index: number, field: keyof Medicine, value: string) => {
+  const handleMedicineChange = (index: number, field: keyof Omit<Medicine, '_extractedFromAI'>, value: string) => {
     const newMedicines = [...medicines];
-    newMedicines[index][field] = value;
+    (newMedicines[index] as any)[field] = value;
     setMedicines(newMedicines);
   };
 
   const addMedicine = () => {
-    setMedicines([...medicines, { medicine_name: '', dosage: '', frequency_hours: '', duration: '', instructions: '' }]);
+    setMedicines([...medicines, { medicine_name: '', dosage: '', frequency_hours: null, duration_days: null, instructions: '', _extractedFromAI: false }]);
   };
 
   const removeMedicine = (index: number) => {
@@ -82,27 +97,27 @@ export default function NewPrescriptionPage() {
   };
 
   return (
-    <div className="space-y-8 pb-8">
+    <div className="space-y-6 sm:space-y-8 pb-8 px-4 sm:px-0">
       {/* Header */}
       <div className="space-y-2">
-        <h1 className="text-4xl font-bold text-gray-900 dark:text-white 
+        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 dark:text-white 
                       bg-gradient-to-r from-emerald-600 to-cyan-600 
                       dark:from-emerald-400 dark:to-cyan-400
                       bg-clip-text text-transparent">
           Agregar Nueva Receta
         </h1>
-        <p className="text-gray-600 dark:text-gray-400">
+        <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
           Registra los detalles de tu receta médica de forma rápida y fácil
         </p>
       </div>
 
       {/* Photo Capture Alert */}
       {!photoData && (
-        <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 flex items-start gap-3">
+        <div className="p-3 sm:p-4 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 flex items-start gap-3">
           <ImageIcon className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <p className="font-semibold text-blue-900 dark:text-blue-200">💡 Tip</p>
-            <p className="text-sm text-blue-800 dark:text-blue-300 mt-1">
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-sm sm:text-base text-blue-900 dark:text-blue-200">💡 Tip</p>
+            <p className="text-xs sm:text-sm text-blue-800 dark:text-blue-300 mt-1">
               Puedes capturar una foto de tu receta para extraer automáticamente los datos.
               Utiliza el botón "Capturar Receta" para comenzar.
             </p>
@@ -112,21 +127,92 @@ export default function NewPrescriptionPage() {
 
       {/* Photo and Extracted Data Display */}
       {photoData && (
-        <div className="p-4 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800">
+        <div className="p-3 sm:p-4 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800">
           <div className="flex items-center gap-3 mb-4">
-            <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-            <p className="font-semibold text-emerald-900 dark:text-emerald-200">
+            <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
+            <p className="font-semibold text-sm sm:text-base text-emerald-900 dark:text-emerald-200">
               Receta capturada correctamente
             </p>
           </div>
           
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
+            {/* Scrollable/Draggable Image Container */}
             <div className="lg:col-span-1">
-              <img 
-                src={photoData} 
-                alt="Receta capturada" 
-                className="w-full rounded-lg border border-emerald-300 dark:border-emerald-700"
-              />
+              <div className="relative group bg-gray-100 dark:bg-gray-800 rounded-lg border border-emerald-300 dark:border-emerald-700 overflow-hidden flex flex-col">
+                {/* Zoom Controls */}
+                <div className="absolute top-2 right-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setImageScale(Math.min(imageScale * 1.2, 3))}
+                    className="h-8 w-8 p-0"
+                  >
+                    <ZoomIn className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setImageScale(Math.max(imageScale * 0.8, 0.5))}
+                    className="h-8 w-8 p-0"
+                  >
+                    <ZoomOut className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setImageScale(1)}
+                    className="h-8 w-8 p-0 text-xs"
+                  >
+                    Reset
+                  </Button>
+                </div>
+
+                {/* Image Container - Scrollable */}
+                <div 
+                  ref={imageContainerRef}
+                  className="flex-1 w-full h-72 sm:h-96 overflow-auto touch-pan-x touch-pan-y select-none cursor-grab active:cursor-grabbing"
+                  style={{
+                    WebkitOverflowScrolling: 'touch' as any,
+                    userSelect: 'none',
+                  }}
+                  onWheel={(e) => {
+                    if (e.ctrlKey || e.metaKey) {
+                      e.preventDefault();
+                      const delta = e.deltaY > 0 ? 0.9 : 1.1;
+                      setImageScale(prev => Math.min(Math.max(prev * delta, 0.5), 3));
+                    }
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      transform: `scale(${imageScale})`,
+                      transformOrigin: 'top left',
+                      transition: 'transform 0.2s ease-out',
+                    }}
+                  >
+                    {photoData && (
+                      <img 
+                        src={photoData} 
+                        alt="Receta capturada" 
+                        className="max-w-2xl max-h-96 w-auto h-auto object-contain"
+                        style={{ userSelect: 'none', WebkitUserDrag: 'none' } as any}
+                        draggable={false}
+                      />
+                    )}
+                  </div>
+                </div>
+                
+                {/* Helper Text */}
+                <div className="absolute bottom-2 left-2 right-2 bg-black/60 text-white text-xs p-2 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none text-center">
+                  <div>🖱️ Ctrl+Rueda: Zoom • ↔️ Arrastra: Mover • {Math.round(imageScale * 100)}%</div>
+                </div>
+              </div>
             </div>
             
             {extractedData && (
@@ -173,12 +259,12 @@ export default function NewPrescriptionPage() {
       {/* Form */}
       <form action={dispatch} className="space-y-6">
         <input type="hidden" name="medicines" value={JSON.stringify(medicines)} />
-        {photoData && <input type="hidden" name="photo_data" value={photoData} />}
+        {photoData && <input type="hidden" name="recipeImage" value={photoData} />}
 
         {/* Receta Details Section */}
-        <div className="p-6 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-slate-900 space-y-5">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+        <div className="p-4 sm:p-6 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-slate-900 space-y-5">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+            <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
               Detalles de la Receta
             </h2>
             <RecipePhotoCapper 
@@ -187,10 +273,10 @@ export default function NewPrescriptionPage() {
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
             {/* Diagnosis */}
             <div className="space-y-2">
-              <Label htmlFor="diagnosis" className="font-semibold">
+              <Label htmlFor="diagnosis" className="font-semibold text-xs sm:text-sm">
                 Diagnóstico *
               </Label>
               <Input 
@@ -199,11 +285,11 @@ export default function NewPrescriptionPage() {
                 placeholder="Ej: Faringitis aguda"
                 value={formData.diagnosis}
                 onChange={(e) => handleFormChange('diagnosis', e.target.value)}
-                className="focus:ring-2 focus:ring-emerald-500"
+                className="focus:ring-2 focus:ring-emerald-500 text-sm"
               />
               {state.errors?.diagnosis &&
                 state.errors.diagnosis.map((error: string) => (
-                  <p className="text-sm font-medium text-red-500 mt-1" key={error}>
+                  <p className="text-xs font-medium text-red-500 mt-1" key={error}>
                     {error}
                   </p>
               ))}
@@ -211,7 +297,7 @@ export default function NewPrescriptionPage() {
 
             {/* Doctor Name */}
             <div className="space-y-2">
-              <Label htmlFor="doctor_name" className="font-semibold">
+              <Label htmlFor="doctor_name" className="font-semibold text-xs sm:text-sm">
                 Nombre del Médico
               </Label>
               <Input 
@@ -220,13 +306,13 @@ export default function NewPrescriptionPage() {
                 placeholder="Ej: Dr. García López"
                 value={formData.doctor_name}
                 onChange={(e) => handleFormChange('doctor_name', e.target.value)}
-                className="focus:ring-2 focus:ring-emerald-500"
+                className="focus:ring-2 focus:ring-emerald-500 text-sm"
               />
             </div>
 
             {/* Start Date */}
             <div className="space-y-2">
-              <Label htmlFor="start_date" className="font-semibold">
+              <Label htmlFor="start_date" className="font-semibold text-xs sm:text-sm">
                 Fecha de Inicio *
               </Label>
               <Input 
@@ -235,11 +321,11 @@ export default function NewPrescriptionPage() {
                 type="date"
                 value={formData.start_date}
                 onChange={(e) => handleFormChange('start_date', e.target.value)}
-                className="focus:ring-2 focus:ring-emerald-500"
+                className="focus:ring-2 focus:ring-emerald-500 text-sm"
               />
               {state.errors?.start_date &&
                 state.errors.start_date.map((error: string) => (
-                  <p className="text-sm font-medium text-red-500 mt-1" key={error}>
+                  <p className="text-xs font-medium text-red-500 mt-1" key={error}>
                     {error}
                   </p>
               ))}
@@ -247,8 +333,8 @@ export default function NewPrescriptionPage() {
 
             {/* Start Time */}
             <div className="space-y-2">
-              <Label htmlFor="start_time" className="font-semibold">
-                Hora de la Primera Dosis
+              <Label htmlFor="start_time" className="font-semibold text-xs sm:text-sm">
+                Hora de Primera Dosis
               </Label>
               <Input 
                 id="start_time" 
@@ -256,13 +342,13 @@ export default function NewPrescriptionPage() {
                 type="time"
                 value={formData.start_time}
                 onChange={(e) => handleFormChange('start_time', e.target.value)}
-                className="focus:ring-2 focus:ring-emerald-500"
+                className="focus:ring-2 focus:ring-emerald-500 text-sm"
               />
             </div>
 
             {/* End Date */}
             <div className="space-y-2">
-              <Label htmlFor="end_date" className="font-semibold">
+              <Label htmlFor="end_date" className="font-semibold text-xs sm:text-sm">
                 Fecha de Fin (Opcional)
               </Label>
               <Input 
@@ -271,14 +357,14 @@ export default function NewPrescriptionPage() {
                 type="date"
                 value={formData.end_date}
                 onChange={(e) => handleFormChange('end_date', e.target.value)}
-                className="focus:ring-2 focus:ring-emerald-500"
+                className="focus:ring-2 focus:ring-emerald-500 text-sm"
               />
             </div>
           </div>
 
           {/* Notes */}
           <div className="space-y-2">
-            <Label htmlFor="notes" className="font-semibold">
+            <Label htmlFor="notes" className="font-semibold text-xs sm:text-sm">
               Notas Generales
             </Label>
             <Textarea 
@@ -288,27 +374,27 @@ export default function NewPrescriptionPage() {
               rows={3}
               value={formData.notes}
               onChange={(e) => handleFormChange('notes', e.target.value)}
-              className="focus:ring-2 focus:ring-emerald-500"
+              className="focus:ring-2 focus:ring-emerald-500 text-sm"
             />
           </div>
         </div>
 
         {/* Medicines Section */}
-        <div className="p-6 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-slate-900 space-y-5">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+        <div className="p-4 sm:p-6 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-slate-900 space-y-5">
+          <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
             Medicamentos ({medicines.length})
           </h2>
 
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             {medicines.map((med, index) => (
               <div 
                 key={index} 
-                className="p-5 rounded-lg border border-gray-200 dark:border-gray-700 
+                className="p-3 sm:p-5 rounded-lg border border-gray-200 dark:border-gray-700 
                           bg-gray-50 dark:bg-slate-800/50 space-y-4 relative
                           animate-in fade-in slide-in-from-bottom-2"
               >
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-bold text-gray-900 dark:text-white">
+                <div className="flex items-center justify-between gap-2 mb-4">
+                  <h3 className="font-bold text-sm sm:text-base text-gray-900 dark:text-white">
                     Medicamento #{index + 1}
                   </h3>
                   {medicines.length > 1 && (
@@ -317,17 +403,17 @@ export default function NewPrescriptionPage() {
                       variant="ghost" 
                       size="sm" 
                       onClick={() => removeMedicine(index)}
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 h-8 w-8 p-0"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                   {/* Medicine Name */}
-                  <div className="space-y-2">
-                    <Label className="font-semibold text-sm">Nombre del Medicamento</Label>
+                  <div className="sm:col-span-2 lg:col-span-2 space-y-2">
+                    <Label className="font-semibold text-xs sm:text-sm">Nombre del Medicamento</Label>
                     <MedicationAutocomplete 
                       value={med.medicine_name}
                       onValueChange={(newValue) => handleMedicineChange(index, 'medicine_name', newValue)}
@@ -336,50 +422,60 @@ export default function NewPrescriptionPage() {
 
                   {/* Dosage */}
                   <div className="space-y-2">
-                    <Label className="font-semibold text-sm">Dosis</Label>
+                    <Label className="font-semibold text-xs sm:text-sm">Dosis</Label>
                     <Input 
                       value={med.dosage} 
                       onChange={e => handleMedicineChange(index, 'dosage', e.target.value)} 
                       placeholder="Ej: 500mg"
-                      className="focus:ring-2 focus:ring-emerald-500"
+                      className="focus:ring-2 focus:ring-emerald-500 text-sm"
                     />
                   </div>
 
                   {/* Frequency */}
                   <div className="space-y-2">
-                    <Label className="font-semibold text-sm">Frecuencia (horas)</Label>
+                    <Label className="font-semibold text-xs sm:text-sm">Frecuencia (h)</Label>
                     <Input 
                       type="number" 
-                      value={med.frequency_hours} 
+                      value={med.frequency_hours ?? ''} 
                       onChange={e => handleMedicineChange(index, 'frequency_hours', e.target.value)} 
-                      placeholder="Ej: 8"
+                      placeholder="8"
                       min="1"
-                      className="focus:ring-2 focus:ring-emerald-500"
+                      className={`focus:ring-2 focus:ring-emerald-500 text-sm ${
+                        med._extractedFromAI && !med.frequency_hours ? 'bg-yellow-50 dark:bg-yellow-950/20 border-yellow-300 dark:border-yellow-700' : ''
+                      }`}
                     />
+                    {med._extractedFromAI && !med.frequency_hours && (
+                      <p className="text-xs text-yellow-700 dark:text-yellow-300">⚠️ No se encontró en la receta</p>
+                    )}
                   </div>
 
                   {/* Duration */}
                   <div className="space-y-2">
-                    <Label className="font-semibold text-sm">Duración (días)</Label>
+                    <Label className="font-semibold text-xs sm:text-sm">Duración (d)</Label>
                     <Input 
                       type="number" 
-                      value={med.duration} 
-                      onChange={e => handleMedicineChange(index, 'duration', e.target.value)} 
-                      placeholder="Ej: 7"
+                      value={med.duration_days ?? ''} 
+                      onChange={e => handleMedicineChange(index, 'duration_days', e.target.value)} 
+                      placeholder="7"
                       min="1"
-                      className="focus:ring-2 focus:ring-emerald-500"
+                      className={`focus:ring-2 focus:ring-emerald-500 text-sm ${
+                        med._extractedFromAI && !med.duration_days ? 'bg-yellow-50 dark:bg-yellow-950/20 border-yellow-300 dark:border-yellow-700' : ''
+                      }`}
                     />
+                    {med._extractedFromAI && !med.duration_days && (
+                      <p className="text-xs text-yellow-700 dark:text-yellow-300">⚠️ No encontrada</p>
+                    )}
                   </div>
                 </div>
 
                 {/* Instructions */}
                 <div className="space-y-2">
-                  <Label className="font-semibold text-sm">Instrucciones Adicionales</Label>
+                  <Label className="font-semibold text-xs sm:text-sm">Instrucciones</Label>
                   <Input 
                     value={med.instructions} 
                     onChange={e => handleMedicineChange(index, 'instructions', e.target.value)} 
-                    placeholder="Ej: Tomar con alimentos, no tomar con lácteos..."
-                    className="focus:ring-2 focus:ring-emerald-500"
+                    placeholder="Ej: Con alimentos, no con lácteos..."
+                    className="focus:ring-2 focus:ring-emerald-500 text-sm"
                   />
                 </div>
               </div>
@@ -391,7 +487,7 @@ export default function NewPrescriptionPage() {
             type="button" 
             onClick={addMedicine}
             variant="outline"
-            className="w-full gap-2 border-dashed"
+            className="w-full gap-2 border-dashed text-sm"
           >
             <Plus className="h-4 w-4" />
             Agregar otro medicamento
@@ -399,15 +495,15 @@ export default function NewPrescriptionPage() {
         </div>
 
         {/* Submit Button */}
-        <div className="flex gap-3 justify-end sticky bottom-4">
-          <Button type="button" variant="outline">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-end sticky bottom-4 bg-white dark:bg-slate-950 p-3 sm:p-4 rounded-lg border border-gray-200 dark:border-gray-800 -m-4 sm:-m-6">
+          <Button type="button" variant="outline" className="text-sm">
             Cancelar
           </Button>
           <SubmitButton />
         </div>
 
         {state.message && (
-          <p className="text-sm font-medium text-red-500 mt-2">{state.message}</p>
+          <p className="text-xs sm:text-sm font-medium text-red-500 mt-2">{state.message}</p>
         )}
       </form>
     </div>

@@ -23,7 +23,8 @@ export function MedicationAutocomplete({ value, onValueChange }: MedicationAutoc
     // Efecto para buscar en la API
     useEffect(() => {
         // Solo busca si el término es válido Y si el menú debe mostrarse
-        if (debouncedSearchTerm.length > 2 && showSuggestions) {
+        // Validar que debouncedSearchTerm existe y tiene longitud
+        if (debouncedSearchTerm && typeof debouncedSearchTerm === 'string' && debouncedSearchTerm.length > 2 && showSuggestions) {
             setIsLoading(true);
             fetch(`/api/medications/search?term=${debouncedSearchTerm}`)
                 .then(res => res.json())
@@ -69,7 +70,7 @@ export function MedicationAutocomplete({ value, onValueChange }: MedicationAutoc
                 onChange={handleInputChange} // Usamos el nuevo manejador de cambios
                 onFocus={() => {
                     // Si hay texto, permite que se muestren sugerencias al enfocar de nuevo
-                    if (value.length > 2) setShowSuggestions(true);
+                    if (value && typeof value === 'string' && value.length > 2) setShowSuggestions(true);
                 }}
                 placeholder="Ej: Aspirin"
                 required

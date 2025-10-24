@@ -41,7 +41,7 @@ export function CategoryCombobox({
     cat.name.toLowerCase().includes(searchValue.toLowerCase())
   )
 
-  const selectedCategory = categories.find(cat => cat.id === value)
+  const selectedCategory = categories.find(cat => cat.name === value)
   
   const showCreateOption = 
     searchValue.trim() && 
@@ -53,8 +53,8 @@ export function CategoryCombobox({
     
     setIsCreating(true)
     try {
-      const newCategoryId = await onCreateCategory(searchValue.trim())
-      onValueChange(newCategoryId)
+      const newCategoryName = await onCreateCategory(searchValue.trim())
+      onValueChange(newCategoryName)
       setSearchValue('')
       setOpen(false)
     } finally {
@@ -62,8 +62,8 @@ export function CategoryCombobox({
     }
   }, [searchValue, onCreateCategory, onValueChange])
 
-  const handleSelect = useCallback((categoryId: string) => {
-    onValueChange(categoryId)
+  const handleSelect = useCallback((category: Category) => {
+    onValueChange(category.name)
     setSearchValue('')
     setOpen(false)
   }, [onValueChange])
@@ -103,14 +103,14 @@ export function CategoryCombobox({
                 {filteredCategories.map((category) => (
                   <button
                     key={category.id}
-                    onClick={() => handleSelect(category.id)}
+                    onClick={() => handleSelect(category)}
                     className={cn(
                       'w-full px-2 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground transition-colors flex items-center justify-between',
-                      value === category.id && 'bg-accent'
+                      value === category.name && 'bg-accent'
                     )}
                   >
                     <span>{category.name}</span>
-                    {value === category.id && (
+                    {value === category.name && (
                       <Check className="h-4 w-4" />
                     )}
                   </button>

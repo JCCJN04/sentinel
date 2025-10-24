@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Camera, Upload, X, Check, Loader2, AlertCircle } from "lucide-react";
+import { Camera, Upload, X, Check, Loader2, AlertCircle, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { extractPrescriptionDataFromImage } from "@/lib/actions/ocr.actions";
+import { extractRecipeDataFromImage, validatePrescriptionImage } from "@/lib/gemini-recipe-service";
+import { toast } from "sonner";
 
 interface RecipePhotoCapperProps {
   onPhotoCapture?: (base64: string) => void;
@@ -79,24 +80,42 @@ export function RecipePhotoCapper({ onPhotoCapture, onDataExtracted }: RecipePho
     }
   };
 
-  // Procesar imagen con OCR usando API de Mistral
+  // Procesar imagen con IA Gemini 2.5 Flash
   const processRecipeImage = async () => {
     if (!capturedPhoto) return;
 
     setIsProcessing(true);
     try {
-      const data = await extractPrescriptionDataFromImage(capturedPhoto);
+      // Primero validar que sea una receta
+      const validation = await validatePrescriptionImage(capturedPhoto);
+      
+      if (!validation.isPrescription) {
+        toast.error("La imagen no parece ser una receta médica válida");
+        setIsProcessing(false);
+        return;
+      }
+
+      if (!validation.isLegible) {
+        toast.warning("La receta no es muy legible. El resultado podría ser incompleto.");
+      }
+
+      // Extraer datos con Gemini
+      const data = await extractRecipeDataFromImage(capturedPhoto);
       
       setExtractedData(data);
       if (onDataExtracted) onDataExtracted(data);
+      
+      toast.success(`Receta analizada con ${(data.confidence * 100).toFixed(0)}% de confianza`);
     } catch (error) {
       console.error("Error al procesar imagen:", error);
+      toast.error("Error al analizar la receta. Intenta con otra imagen.");
       setExtractedData({
         diagnosis: "",
         doctor_name: "",
         medicines: [],
         prescription_date: new Date().toISOString().split("T")[0],
         additional_notes: "Error al procesar la imagen. Por favor, verifica la calidad o intenta de nuevo.",
+        confidence: 0,
       });
     } finally {
       setIsProcessing(false);
@@ -177,19 +196,35 @@ export function RecipePhotoCapper({ onPhotoCapture, onDataExtracted }: RecipePho
               <img src={capturedPhoto} alt="Receta capturada" className="w-full rounded-lg" />
 
               {!extractedData && (
-                <div className="flex gap-2 justify-center">
+                <div className="space-y-3">
                   <Button
                     onClick={processRecipeImage}
                     disabled={isProcessing}
-                    className="gap-2"
+                    className="w-full gap-2"
                   >
-                    {isProcessing && <Loader2 className="h-4 w-4 animate-spin" />}
-                    {isProcessing ? "Procesando..." : "Extraer Datos"}
+                    {isProcessing ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Analizando con IA...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4 text-amber-500" />
+                        Extraer Datos con IA
+                      </>
+                    )}
                   </Button>
-                  <Button onClick={resetCapture} variant="outline">
-                    <X className="h-4 w-4" />
-                    Nueva foto
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button onClick={resetCapture} variant="outline" className="flex-1">
+                      <X className="h-4 w-4" />
+                      Nueva foto
+                    </Button>
+                  </div>
+                  {isProcessing && (
+                    <div className="text-center text-xs text-muted-foreground">
+                      Gemini 2.5 Flash está analizando tu receta...
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -254,11 +289,19 @@ export function RecipePhotoCapper({ onPhotoCapture, onDataExtracted }: RecipePho
                             Medicamentos detectados ({extractedData.medicines.length})
                           </p>
                           {extractedData.medicines.length > 0 ? (
-                            <ul className="space-y-1 mt-2">
+                            <ul className="space-y-2 mt-2">
                               {extractedData.medicines.map((med: any, idx: number) => (
-                                <li key={idx} className="text-emerald-900 dark:text-emerald-100 text-xs">
-                                  • <strong>{med.medicine_name}</strong> - {med.dosage}
-                                  {med.frequency_hours && ` c/${med.frequency_hours}h`}
+                                <li key={idx} className="text-xs p-2 rounded bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-800">
+                                  <div className="font-semibold text-emerald-900 dark:text-emerald-100">{med.name || '(sin nombre)'}</div>
+                                  <div className="text-emerald-700 dark:text-emerald-300 mt-1">
+                                    {med.dosage && <div>• Dosis: {med.dosage}</div>}
+                                    <div className={med.frequency_hours ? 'text-emerald-700 dark:text-emerald-300' : 'text-yellow-700 dark:text-yellow-300 font-medium'}>
+                                      • Frecuencia: {med.frequency_hours ? `c/${med.frequency_hours}h` : '⚠️ No encontrada'}
+                                    </div>
+                                    <div className={med.duration_days ? 'text-emerald-700 dark:text-emerald-300' : 'text-yellow-700 dark:text-yellow-300 font-medium'}>
+                                      • Duración: {med.duration_days ? `${med.duration_days} días` : '⚠️ No encontrada'}
+                                    </div>
+                                  </div>
                                 </li>
                               ))}
                             </ul>

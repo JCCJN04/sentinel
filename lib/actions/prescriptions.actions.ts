@@ -6,6 +6,7 @@ import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
+import { uploadRecipeImage } from './recipe-storage.actions';
 
 // Función helper (sin cambios)
 const createSupabaseClient = () => {
@@ -32,8 +33,8 @@ const PrescriptionFormSchema = z.object({
     diagnosis: z.string().min(3, 'El diagnóstico debe tener al menos 3 caracteres.'),
     doctor_name: z.string().optional(),
     start_date: z.string().min(1, 'La fecha de inicio es requerida.'),
-    start_time: z.string().min(1, 'La hora de inicio es requerida.'),
-    end_date: z.string().optional().nullable(),
+    start_time: z.string().optional(),
+    end_date: z.string().optional().nullable().transform(val => val && val.trim() ? val : null),
     notes: z.string().optional(),
     medicines: z.string().min(2, 'Debe haber al menos un medicamento.'),
 });
@@ -73,7 +74,18 @@ export async function createPrescription(
         medicines: formData.get('medicines'),
     });
 
+    console.log('DEBUG - FormData recibida:', {
+        diagnosis: formData.get('diagnosis'),
+        doctor_name: formData.get('doctor_name'),
+        start_date: formData.get('start_date'),
+        start_time: formData.get('start_time'),
+        end_date: formData.get('end_date'),
+        notes: formData.get('notes'),
+        medicines: formData.get('medicines')?.toString().substring(0, 200),
+    });
+
     if (!validatedFields.success) {
+        console.error('DEBUG - Validación falló:', validatedFields.error.flatten().fieldErrors);
         return {
             errors: validatedFields.error.flatten().fieldErrors,
             message: 'Faltan campos o son inválidos. Por favor, revisa el formulario.',
@@ -81,9 +93,65 @@ export async function createPrescription(
     }
     
     const { diagnosis, doctor_name, start_date, start_time, end_date, notes, medicines } = validatedFields.data;
+    
+    // Debug: log de lo que se va a enviar
+    console.log('DEBUG - Datos validados:', {
+        diagnosis,
+        doctor_name,
+        start_date,
+        start_time,
+        end_date,
+        notes,
+        medicines: medicines ? medicines.substring(0, 100) : 'sin medicamentos'
+    });
+    
+    // Validación defensiva de start_date
+    if (!start_date || start_date.trim() === '') {
+        return { message: 'La fecha de inicio no puede estar vacía.' };
+    }
+    
+    // Obtener imagen si fue proporcionada
+    const recipeImage = formData.get('recipeImage') as string | null;
+    let attachmentUrl: string | null = null;
+    let attachmentPath: string | null = null;
+    let imageWarning: string | null = null;
+
+    // Si hay imagen, subirla
+    if (recipeImage && recipeImage.trim()) {
+        console.log('📸 Subiendo imagen de receta...');
+        const uploadResult = await uploadRecipeImage(recipeImage, 'receta.jpg');
+        
+        if (uploadResult.success && uploadResult.url) {
+            attachmentUrl = uploadResult.url;
+            attachmentPath = uploadResult.path || null;
+            console.log('✅ Imagen subida:', {
+                url: attachmentUrl,
+                path: attachmentPath,
+                fileName: uploadResult.fileName,
+            });
+        } else {
+            console.error('❌ Error al subir imagen:', uploadResult.error);
+            imageWarning = `Advertencia: No se pudo subir la imagen. ${uploadResult.error}. La receta se guardará sin imagen.`;
+        }
+    }
+    
+    // Construir objeto con solo los campos que tienen valor
+    const prescriptionData_insert: any = {
+        user_id: user.id,
+        diagnosis,
+        start_date: start_date.trim(),
+    };
+    
+    if (doctor_name && doctor_name.trim()) prescriptionData_insert.doctor_name = doctor_name.trim();
+    if (end_date && end_date.trim()) prescriptionData_insert.end_date = end_date.trim();
+    if (notes && notes.trim()) prescriptionData_insert.notes = notes.trim();
+    if (attachmentUrl) prescriptionData_insert.attachment_url = attachmentUrl;
+    
+    console.log('DEBUG - Objeto final a insertar:', prescriptionData_insert);
+    
     const { data: prescriptionData, error: prescriptionError } = await supabase
         .from('prescriptions')
-        .insert([{ user_id: user.id, diagnosis, doctor_name, start_date, end_date, notes }])
+        .insert([prescriptionData_insert])
         .select('id').single();
 
     if (prescriptionError) {
@@ -102,7 +170,7 @@ export async function createPrescription(
                 medicine_name: med.medicine_name,
                 dosage: med.dosage,
                 frequency_hours: med.frequency_hours ? parseInt(med.frequency_hours, 10) : null,
-                duration: med.duration ? parseInt(med.duration, 10) : null,
+                duration: med.duration_days ? parseInt(med.duration_days, 10) : null,
                 instructions: med.instructions,
             }));
 
@@ -117,7 +185,7 @@ export async function createPrescription(
     }
 
     const allDosesToInsert = [];
-    const prescriptionStartDate = new Date(`${start_date}T${start_time}`);
+    const prescriptionStartDate = new Date(`${start_date}T${start_time || '00:00'}`);
     
     for (const med of createdMedicines) {
         const frequencyHours = med.frequency_hours || 0;
@@ -145,6 +213,12 @@ export async function createPrescription(
              console.error('Error al generar las dosis:', dosesError);
              return { message: 'Receta creada, pero falló la generación del calendario de dosis.' };
         }
+    }
+
+    // Si hay warning de imagen, agregarlo al mensaje
+    if (imageWarning) {
+        console.warn('⚠️', imageWarning);
+        // No bloqueamos el guardado, solo advertimos
     }
 
     revalidatePath('/dashboard');
