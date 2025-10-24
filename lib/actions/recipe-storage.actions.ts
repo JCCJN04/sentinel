@@ -23,6 +23,32 @@ const createSupabaseClient = () => {
   );
 };
 
+const MONTH_NAMES: Record<string, string> = {
+  '01': 'Enero',
+  '02': 'Febrero',
+  '03': 'Marzo',
+  '04': 'Abril',
+  '05': 'Mayo',
+  '06': 'Junio',
+  '07': 'Julio',
+  '08': 'Agosto',
+  '09': 'Septiembre',
+  '10': 'Octubre',
+  '11': 'Noviembre',
+  '12': 'Diciembre',
+};
+
+type SupabaseServerClient = ReturnType<typeof createSupabaseClient>;
+
+interface RecipeFolderInfo {
+  rootCategoryId: string;
+  rootCategoryName: string;
+  yearCategoryId: string;
+  yearName: string;
+  monthCategoryId: string;
+  monthName: string;
+}
+
 /**
  * Genera la ruta inteligente: {user_id}/recetas/YYYY/MM/
  * Ejemplo: 123e4567-e89b-12d3-a456-426614174000/recetas/2025/10/ para octubre 2025
@@ -38,7 +64,7 @@ function generateRecipeStoragePath(userId: string, date: Date): string {
  * Genera un nombre de archivo único
  * Ejemplo: receta_2025_10_23_150230_abc123.jpg
  */
-function generateFileName(originalFileName: string, timestamp: Date): string {
+function generateFileName(originalFileName: string, timestamp: Date, defaultExtension: string): string {
   const year = timestamp.getFullYear();
   const month = String(timestamp.getMonth() + 1).padStart(2, '0');
   const day = String(timestamp.getDate()).padStart(2, '0');
@@ -47,8 +73,129 @@ function generateFileName(originalFileName: string, timestamp: Date): string {
   const seconds = String(timestamp.getSeconds()).padStart(2, '0');
   const randomSuffix = Math.random().toString(36).substring(2, 8);
 
-  const ext = originalFileName.split('.').pop() || 'jpg';
+  const ext = (originalFileName.split('.').pop() || defaultExtension || 'jpg').toLowerCase();
   return `receta_${year}${month}${day}_${hours}${minutes}${seconds}_${randomSuffix}.${ext}`;
+}
+
+/**
+ * Crea las carpetas necesarias en la tabla categories para que se vean en la UI
+ */
+async function ensureRecipeFolderStructure(
+  supabase: SupabaseServerClient,
+  userId: string,
+  date: Date
+): Promise<RecipeFolderInfo | null> {
+  try {
+    const year = date.getFullYear().toString();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const monthName = MONTH_NAMES[month];
+
+    if (!monthName) {
+      console.warn('⚠️ Nombre de mes no encontrado para', month);
+      return null;
+    }
+
+    const { data: recipesCategory, error: recipesError } = await supabase
+      .from('categories')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('name', 'Recetas')
+      .is('parent_id', null)
+      .maybeSingle();
+
+    if (recipesError && recipesError.code !== 'PGRST116') {
+      console.error('⚠️ Error consultando carpeta Recetas:', recipesError);
+      return null;
+    }
+
+    let rootCategoryId = recipesCategory?.id;
+    if (!rootCategoryId) {
+      const { data: newRoot, error: rootInsertError } = await supabase
+        .from('categories')
+        .insert({ name: 'Recetas', user_id: userId, parent_id: null })
+        .select('id')
+        .single();
+
+      if (rootInsertError) {
+        console.error('⚠️ No se pudo crear carpeta Recetas:', rootInsertError);
+        return null;
+      }
+
+      rootCategoryId = newRoot.id;
+    }
+
+    const { data: yearCategory, error: yearError } = await supabase
+      .from('categories')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('name', year)
+      .eq('parent_id', rootCategoryId)
+      .maybeSingle();
+
+    if (yearError && yearError.code !== 'PGRST116') {
+      console.error('⚠️ Error consultando carpeta de año:', yearError);
+      return null;
+    }
+
+    let yearCategoryId = yearCategory?.id;
+    if (!yearCategoryId) {
+      const { data: newYear, error: yearInsertError } = await supabase
+        .from('categories')
+        .insert({ name: year, user_id: userId, parent_id: rootCategoryId })
+        .select('id')
+        .single();
+
+      if (yearInsertError) {
+        console.error('⚠️ No se pudo crear carpeta de año:', yearInsertError);
+        return null;
+      }
+
+      yearCategoryId = newYear.id;
+    }
+
+    const { data: monthCategory, error: monthError } = await supabase
+      .from('categories')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('name', monthName)
+      .eq('parent_id', yearCategoryId)
+      .maybeSingle();
+
+    if (monthError && monthError.code !== 'PGRST116') {
+      console.error('⚠️ Error consultando carpeta de mes:', monthError);
+      return null;
+    }
+
+    let monthCategoryId = monthCategory?.id;
+    if (!monthCategoryId) {
+      const { data: newMonth, error: monthInsertError } = await supabase
+        .from('categories')
+        .insert({ name: monthName, user_id: userId, parent_id: yearCategoryId })
+        .select('id')
+        .single();
+
+      if (monthInsertError) {
+        console.error('⚠️ No se pudo crear carpeta de mes:', monthInsertError);
+        return null;
+      }
+
+      monthCategoryId = newMonth.id;
+    }
+
+    console.log('✅ Estructura de carpetas de Recetas sincronizada con BD');
+
+    return {
+      rootCategoryId,
+      rootCategoryName: 'Recetas',
+      yearCategoryId,
+      yearName: year,
+      monthCategoryId,
+      monthName,
+    };
+  } catch (error) {
+    console.error('⚠️ Error al crear estructura de carpetas:', error);
+    return null;
+  }
 }
 
 /**
@@ -65,36 +212,65 @@ export async function uploadRecipeImage(
   path?: string;
   fileName?: string;
   uploadedAt?: string;
+  size?: number;
+  contentType?: string;
+  extension?: string;
+  storagePath?: string;
+  folders?: RecipeFolderInfo | null;
   error?: string;
 }> {
   try {
     const supabase = createSupabaseClient();
-    
+
     // Verificar autenticación
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return { success: false, error: 'No autorizado' };
     }
 
-    // Convertir base64 a Uint8Array (para Supabase)
-    let imageData: Uint8Array;
-    if (base64Image.startsWith('data:')) {
-      const base64Data = base64Image.split(',')[1];
-      imageData = new Uint8Array(Buffer.from(base64Data, 'base64'));
-    } else {
-      imageData = new Uint8Array(Buffer.from(base64Image, 'base64'));
+    const isDataUrl = base64Image.startsWith('data:');
+    let base64Payload = base64Image;
+    let contentType = 'image/jpeg';
+
+    if (isDataUrl) {
+      const dataUrlMatch = base64Image.match(/^data:(.+?);base64,/);
+      if (dataUrlMatch && dataUrlMatch[0]) {
+        contentType = dataUrlMatch[1] || contentType;
+        base64Payload = base64Image.substring(dataUrlMatch[0].length);
+      }
     }
 
+    const imageBuffer = Buffer.from(base64Payload, 'base64');
+    const fileSize = imageBuffer.byteLength;
+
+    if (!fileSize) {
+      return { success: false, error: 'Imagen vacía o corrupta' };
+    }
+
+    const extensionFromMime: Record<string, string> = {
+      'image/jpeg': 'jpg',
+      'image/jpg': 'jpg',
+      'image/png': 'png',
+      'image/gif': 'gif',
+      'image/webp': 'webp',
+      'image/heic': 'heic',
+      'image/heif': 'heif',
+    };
+
+    const fallbackExtension = extensionFromMime[contentType.toLowerCase()] || 'jpg';
+
     console.log('✅ Imagen convertida:', {
-      size: imageData.length,
-      type: imageData.constructor.name
+      size: fileSize,
+      detectedType: contentType,
+      payloadType: imageBuffer.constructor.name,
     });
 
     // Generar rutas inteligentes
     const now = new Date();
     const storagePath = generateRecipeStoragePath(user.id, now);
-    const fileName = generateFileName(originalFileName, now);
+    const fileName = generateFileName(originalFileName, now, fallbackExtension);
     const fullPath = `${storagePath}/${fileName}`;
+    const fileExtension = fileName.split('.').pop()?.toLowerCase();
 
     console.log('📁 Generando estructura:', {
       userId: user.id,
@@ -110,16 +286,19 @@ export async function uploadRecipeImage(
     }
 
     // Validar que imageData no esté vacío
-    if (!imageData || imageData.length === 0) {
+    if (!imageBuffer || imageBuffer.length === 0) {
       return { success: false, error: 'Imagen vacía o corrupta' };
     }
+
+    // ✨ IMPORTANTE: Crear/sincronizar estructura de carpetas en BD ANTES de subir
+    const folderInfo = await ensureRecipeFolderStructure(supabase, user.id, now);
 
     // Subir a Storage (usando el bucket 'documents' que ya existe)
     console.log('🚀 Iniciando upload a Supabase...');
     const { data, error: uploadError } = await supabase.storage
       .from('documents')
-      .upload(fullPath, imageData, {
-        contentType: 'image/jpeg',
+      .upload(fullPath, imageBuffer, {
+        contentType,
         cacheControl: '3600',
         upsert: false,
       });
@@ -129,7 +308,7 @@ export async function uploadRecipeImage(
         error: uploadError,
         message: uploadError.message,
         fullPath,
-        imageSize: imageData.length
+        imageSize: fileSize
       });
       
       // Mensaje de error más descriptivo
@@ -168,6 +347,11 @@ export async function uploadRecipeImage(
       path: fullPath,
       fileName,
       uploadedAt: now.toISOString(),
+      size: fileSize,
+      contentType,
+      extension: fileExtension,
+      storagePath,
+      folders: folderInfo,
     };
   } catch (error) {
     console.error('💥 Error en uploadRecipeImage:', error);

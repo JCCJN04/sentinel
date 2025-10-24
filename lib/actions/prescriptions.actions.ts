@@ -112,8 +112,7 @@ export async function createPrescription(
     
     // Obtener imagen si fue proporcionada
     const recipeImage = formData.get('recipeImage') as string | null;
-    let attachmentUrl: string | null = null;
-    let attachmentPath: string | null = null;
+    let recipeUpload: Awaited<ReturnType<typeof uploadRecipeImage>> | null = null;
     let imageWarning: string | null = null;
 
     // Si hay imagen, subirla
@@ -121,13 +120,14 @@ export async function createPrescription(
         console.log('📸 Subiendo imagen de receta...');
         const uploadResult = await uploadRecipeImage(recipeImage, 'receta.jpg');
         
-        if (uploadResult.success && uploadResult.url) {
-            attachmentUrl = uploadResult.url;
-            attachmentPath = uploadResult.path || null;
+        if (uploadResult.success && uploadResult.path) {
+            recipeUpload = uploadResult;
             console.log('✅ Imagen subida:', {
-                url: attachmentUrl,
-                path: attachmentPath,
+                path: uploadResult.path,
                 fileName: uploadResult.fileName,
+                storagePath: uploadResult.storagePath,
+                contentType: uploadResult.contentType,
+                size: uploadResult.size,
             });
         } else {
             console.error('❌ Error al subir imagen:', uploadResult.error);
@@ -145,7 +145,7 @@ export async function createPrescription(
     if (doctor_name && doctor_name.trim()) prescriptionData_insert.doctor_name = doctor_name.trim();
     if (end_date && end_date.trim()) prescriptionData_insert.end_date = end_date.trim();
     if (notes && notes.trim()) prescriptionData_insert.notes = notes.trim();
-    if (attachmentUrl) prescriptionData_insert.attachment_url = attachmentUrl;
+    if (recipeUpload?.path) prescriptionData_insert.attachment_url = recipeUpload.path;
     
     console.log('DEBUG - Objeto final a insertar:', prescriptionData_insert);
     
@@ -160,6 +160,69 @@ export async function createPrescription(
     }
 
     const prescriptionId = prescriptionData.id;
+
+    if (recipeUpload?.path) {
+        const storagePath = recipeUpload.storagePath || recipeUpload.path.split('/').slice(0, -1).join('/');
+        const recipeUploadPayload = {
+            user_id: user.id,
+            prescription_id: prescriptionId,
+            file_path: recipeUpload.path,
+            file_name: recipeUpload.fileName || 'receta.jpg',
+            file_size: recipeUpload.size ?? null,
+            file_type: recipeUpload.extension ?? recipeUpload.contentType ?? null,
+            storage_path: storagePath,
+        };
+
+        const { error: recipeUploadError } = await supabase
+            .from('recipe_uploads')
+            .insert(recipeUploadPayload);
+
+        if (recipeUploadError) {
+            console.error('⚠️ Error guardando metadata de receta:', recipeUploadError, recipeUploadPayload);
+        }
+
+        const { data: existingDocument, error: documentLookupError } = await supabase
+            .from('documents')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('file_path', recipeUpload.path)
+            .maybeSingle();
+
+        if (documentLookupError && documentLookupError.code !== 'PGRST116') {
+            console.error('⚠️ Error consultando documento existente para la receta:', documentLookupError);
+        }
+
+        if (!existingDocument) {
+            const documentTags = ['Recetas'];
+            if (recipeUpload.folders?.yearName) documentTags.push(recipeUpload.folders.yearName);
+            if (recipeUpload.folders?.monthName) documentTags.push(recipeUpload.folders.monthName);
+
+            const documentRecord = {
+                name: `Receta - ${diagnosis}`,
+                category: recipeUpload.folders?.monthName || 'Recetas',
+                tags: documentTags,
+                date: start_date.trim(),
+                expiry_date: end_date?.trim() || null,
+                status: 'vigente',
+                notes: notes?.trim() || null,
+                file_path: recipeUpload.path,
+                file_type: recipeUpload.extension ?? recipeUpload.contentType ?? 'jpg',
+                file_url: recipeUpload.url || null,
+                user_id: user.id,
+                doctor_name: doctor_name?.trim() || null,
+                patient_name: null,
+                specialty: null,
+            };
+
+            const { error: documentInsertError } = await supabase
+                .from('documents')
+                .insert(documentRecord);
+
+            if (documentInsertError) {
+                console.error('⚠️ Error registrando la receta en documentos:', documentInsertError, documentRecord);
+            }
+        }
+    }
 
     let createdMedicines = [];
     try {
@@ -223,6 +286,7 @@ export async function createPrescription(
 
     revalidatePath('/dashboard');
     revalidatePath('/dashboard/prescriptions');
+    revalidatePath('/dashboard/documentos');
     redirect('/dashboard/prescriptions');
 }
 

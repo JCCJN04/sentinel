@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Tabs,
   TabsContent,
@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { MedicationDetailItem } from './MedicationDetailItem';
-import Image from 'next/image';
+import { supabaseBrowserClient as supabase } from '@/lib/supabase';
 
 interface PrescriptionMedicine {
   id: string;
@@ -36,6 +36,56 @@ interface RecipeDetailViewerProps {
 export function RecipeDetailViewer({ prescription }: RecipeDetailViewerProps) {
   const [zoomLevel, setZoomLevel] = useState(100);
   const [imageError, setImageError] = useState(false);
+  const [resolvedImageUrl, setResolvedImageUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const resolveImageUrl = async () => {
+      setImageError(false);
+
+      if (!prescription.attachment_url) {
+        if (isMounted) setResolvedImageUrl(null);
+        return;
+      }
+
+      if (prescription.attachment_url.startsWith('http')) {
+        if (isMounted) setResolvedImageUrl(prescription.attachment_url);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase.storage
+          .from('documents')
+          .createSignedUrl(prescription.attachment_url, 3600);
+
+        if (error || !data?.signedUrl) {
+          console.error('⚠️ No se pudo generar URL firmada para la receta:', error);
+          if (isMounted) {
+            setImageError(true);
+            setResolvedImageUrl(null);
+          }
+          return;
+        }
+
+        if (isMounted) {
+          setResolvedImageUrl(data.signedUrl);
+        }
+      } catch (error) {
+        console.error('⚠️ Error generando URL firmada para la receta:', error);
+        if (isMounted) {
+          setImageError(true);
+          setResolvedImageUrl(null);
+        }
+      }
+    };
+
+    resolveImageUrl();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [prescription.attachment_url]);
 
   const handleZoomIn = () => {
     setZoomLevel(prev => Math.min(prev + 10, 200));
@@ -72,7 +122,7 @@ export function RecipeDetailViewer({ prescription }: RecipeDetailViewerProps) {
 
           <TabsContent value="image" className="space-y-4">
             <ImageView
-              imageUrl={prescription.attachment_url}
+              imageUrl={resolvedImageUrl}
               zoomLevel={zoomLevel}
               onZoomIn={handleZoomIn}
               onZoomOut={handleZoomOut}
@@ -137,7 +187,7 @@ function DataView({ prescription }: { prescription: RecipeDetailViewerProps['pre
 }
 
 interface ImageViewProps {
-  imageUrl: string;
+  imageUrl: string | null;
   zoomLevel: number;
   onZoomIn: () => void;
   onZoomOut: () => void;
@@ -206,6 +256,11 @@ function ImageView({
               URL: <code className="bg-background p-1 rounded text-xs">{imageUrl}</code>
             </p>
           </div>
+        ) : !imageUrl ? (
+          <div className="flex flex-col items-center justify-center h-96 gap-4 text-muted-foreground">
+            <div className="h-10 w-10 rounded-full border-2 border-dashed border-muted-foreground animate-pulse" />
+            <p>Cargando imagen...</p>
+          </div>
         ) : (
           <div
             className="relative transition-transform duration-200"
@@ -237,7 +292,11 @@ function ImageView({
 
       {/* Info de la imagen */}
       <div className="text-xs text-muted-foreground p-2 bg-muted rounded">
-        <p>📌 Imagen original cargada desde: {new URL(imageUrl).pathname.split('/').slice(-3).join('/')}</p>
+        {imageUrl ? (
+          <p>📌 Imagen original cargada desde: {new URL(imageUrl).pathname.split('/').slice(-3).join('/')}</p>
+        ) : (
+          <p>📌 URL de la imagen no disponible.</p>
+        )}
       </div>
     </div>
   );
