@@ -57,22 +57,69 @@ export default function NewPrescriptionPage() {
   const initialState: PrescriptionFormState = { message: null, errors: {} };
   const [state, dispatch] = useFormState(createPrescription, initialState);
 
+  const normalizeText = (value: any): string => {
+    const collect = (input: any): string[] => {
+      if (input === null || input === undefined) return [];
+      if (typeof input === 'string') {
+        const trimmed = input.trim();
+        return trimmed ? [trimmed] : [];
+      }
+      if (typeof input === 'number' || typeof input === 'boolean') {
+        return [String(input)];
+      }
+      if (Array.isArray(input)) {
+        return input.flatMap(item => collect(item));
+      }
+      if (typeof input === 'object') {
+        return Object.values(input).flatMap(item => collect(item));
+      }
+      return [];
+    };
+
+    return collect(value).join('. ');
+  };
+
+  const tryParseNumber = (value: any): number | null => {
+    if (value === null || value === undefined || value === '') return null;
+    if (typeof value === 'number' && !Number.isNaN(value)) return value;
+    if (typeof value === 'string') {
+      const match = value.match(/\d+(?:[\.,]\d+)?/);
+      return match ? Number(match[0].replace(',', '.')) : null;
+    }
+    return null;
+  };
+
+  const aiGeneralNotes = normalizeText(extractedData?.additional_notes);
+
   const handlePhotoExtraction = (data: any) => {
     setExtractedData(data);
-    // Pre-fill form with extracted data
-    if (data.diagnosis) setFormData(prev => ({ ...prev, diagnosis: data.diagnosis }));
-    if (data.doctor_name) setFormData(prev => ({ ...prev, doctor_name: data.doctor_name }));
-    if (data.prescription_date) setFormData(prev => ({ ...prev, start_date: data.prescription_date }));
+    // Pre-fill form con datos extraídos
+    const normalizedDiagnosis = normalizeText(data?.diagnosis);
+    const normalizedDoctor = normalizeText(data?.doctor_name);
+    const normalizedDate = normalizeText(data?.prescription_date);
+    const normalizedNotes = normalizeText(data?.additional_notes);
+
+    if (normalizedDiagnosis) setFormData(prev => ({ ...prev, diagnosis: normalizedDiagnosis }));
+    if (normalizedDoctor) setFormData(prev => ({ ...prev, doctor_name: normalizedDoctor }));
+    if (normalizedDate) setFormData(prev => ({ ...prev, start_date: normalizedDate }));
+    if (normalizedNotes) setFormData(prev => ({ ...prev, notes: normalizedNotes }));
+
     if (data.medicines && Array.isArray(data.medicines)) {
       // Convertir estructura de Gemini al formato del formulario
-      const formattedMedicines = data.medicines.map((med: any) => ({
-        medicine_name: med.name || med.medicine_name || '',
-        dosage: med.dosage || '',
-        frequency_hours: med.frequency_hours || null,
-        duration_days: med.duration_days || null,
-        instructions: med.instructions || '',
-        _extractedFromAI: true // Marcar como extraído de IA
-      }));
+      const formattedMedicines = data.medicines.map((med: any) => {
+        const normalizedInstructions = normalizeText(med.instructions) || 'No especificado';
+        const normalizedName = normalizeText(med.name || med.medicine_name);
+        const normalizedDosage = normalizeText(med.dosage);
+
+        return {
+          medicine_name: normalizedName,
+          dosage: normalizedDosage,
+          frequency_hours: tryParseNumber(med.frequency_hours ?? med.frequencyHours ?? med.frequency),
+          duration_days: tryParseNumber(med.duration_days ?? med.durationDays ?? med.duration),
+          instructions: normalizedInstructions,
+          _extractedFromAI: true // Marcar como extraído de IA
+        };
+      });
       setMedicines(formattedMedicines);
     }
   };
@@ -238,11 +285,21 @@ export default function NewPrescriptionPage() {
                     MEDICAMENTOS DETECTADOS
                   </p>
                   <ul className="space-y-1">
-                    {extractedData.medicines?.slice(0, 3).map((med: any, idx: number) => (
-                      <li key={idx} className="text-emerald-900 dark:text-emerald-100">
-                        • {med.medicine_name} ({med.dosage})
-                      </li>
-                    ))}
+                    {extractedData.medicines?.slice(0, 3).map((med: any, idx: number) => {
+                      const name = normalizeText(med.name || med.medicine_name) || '(sin nombre)';
+                      const dosageValue = normalizeText(med.dosage);
+                      const dosage = dosageValue ? ` (${dosageValue})` : '';
+                      const instructionText = normalizeText(med.instructions) || 'No especificado';
+                      const hasSpecificInstruction = instructionText.toLowerCase() !== 'no especificado';
+                      return (
+                        <li key={idx} className="text-emerald-900 dark:text-emerald-100">
+                          • {name}{dosage}
+                          <div className={`ml-4 text-xs ${hasSpecificInstruction ? 'text-emerald-700 dark:text-emerald-300' : 'text-emerald-600/70 dark:text-emerald-200/70 italic'}`}>
+                            Instrucciones: {instructionText}
+                          </div>
+                        </li>
+                      );
+                    })}
                     {extractedData.medicines?.length > 3 && (
                       <li className="text-emerald-700 dark:text-emerald-400 italic text-xs">
                         +{extractedData.medicines.length - 3} medicamentos más
@@ -250,6 +307,16 @@ export default function NewPrescriptionPage() {
                     )}
                   </ul>
                 </div>
+                {aiGeneralNotes && (
+                  <div>
+                    <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 mb-1">
+                      NOTAS GENERALES DETECTADAS
+                    </p>
+                    <p className="text-emerald-900 dark:text-emerald-100 whitespace-pre-wrap leading-relaxed">
+                      {aiGeneralNotes}
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -386,8 +453,19 @@ export default function NewPrescriptionPage() {
           </h2>
 
           <div className="space-y-3 sm:space-y-4">
-            {medicines.map((med, index) => (
-              <div 
+            {medicines.map((med, index) => {
+              const instructionsValue = typeof med.instructions === 'string'
+                ? med.instructions
+                : med.instructions !== null && med.instructions !== undefined
+                  ? String(med.instructions)
+                  : '';
+              const trimmedInstructions = instructionsValue.trim();
+              const showInstructionWarning = med._extractedFromAI && (
+                !trimmedInstructions || trimmedInstructions.toLowerCase() === 'no especificado'
+              );
+
+              return (
+                <div 
                 key={index} 
                 className="p-3 sm:p-5 rounded-lg border border-gray-200 dark:border-gray-700 
                           bg-gray-50 dark:bg-slate-800/50 space-y-4 relative
@@ -475,11 +553,19 @@ export default function NewPrescriptionPage() {
                     value={med.instructions} 
                     onChange={e => handleMedicineChange(index, 'instructions', e.target.value)} 
                     placeholder="Ej: Con alimentos, no con lácteos..."
-                    className="focus:ring-2 focus:ring-emerald-500 text-sm"
+                    className={`focus:ring-2 focus:ring-emerald-500 text-sm ${
+                      showInstructionWarning
+                        ? 'bg-yellow-50 dark:bg-yellow-950/20 border-yellow-300 dark:border-yellow-700'
+                        : ''
+                    }`}
                   />
+                  {showInstructionWarning && (
+                    <p className="text-xs text-yellow-700 dark:text-yellow-300">⚠️ Instrucciones no especificadas</p>
+                  )}
                 </div>
-              </div>
-            ))}
+                </div>
+              );
+            })}
           </div>
 
           {/* Add Medicine Button */}
@@ -495,7 +581,7 @@ export default function NewPrescriptionPage() {
         </div>
 
         {/* Submit Button */}
-        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-end sticky bottom-4 bg-white dark:bg-slate-950 p-3 sm:p-4 rounded-lg border border-gray-200 dark:border-gray-800 -m-4 sm:-m-6">
+  <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 justify-end bg-white dark:bg-slate-950 p-3 sm:p-4 rounded-lg border border-gray-200 dark:border-gray-800 -mx-4 sm:mx-0 md:sticky md:bottom-4">
           <Button type="button" variant="outline" className="text-sm">
             Cancelar
           </Button>

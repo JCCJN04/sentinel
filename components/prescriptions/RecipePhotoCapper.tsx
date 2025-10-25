@@ -22,6 +22,37 @@ export function RecipePhotoCapper({ onPhotoCapture, onDataExtracted }: RecipePho
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const normalizeText = (value: any): string => {
+    const collect = (input: any): string[] => {
+      if (input === null || input === undefined) return [];
+      if (typeof input === 'string') {
+        const trimmed = input.trim();
+        return trimmed ? [trimmed] : [];
+      }
+      if (typeof input === 'number' || typeof input === 'boolean') {
+        return [String(input)];
+      }
+      if (Array.isArray(input)) {
+        return input.flatMap(item => collect(item));
+      }
+      if (typeof input === 'object') {
+        return Object.values(input).flatMap(item => collect(item));
+      }
+      return [];
+    };
+
+    return collect(value).join('. ');
+  };
+  const toNumericValue = (value: any): number | null => {
+    if (value === null || value === undefined || value === '') return null;
+    if (typeof value === 'number' && !Number.isNaN(value)) return value;
+    if (typeof value === 'string') {
+      const match = value.match(/\d+(?:[\.,]\d+)?/);
+      return match ? Number(match[0].replace(',', '.')) : null;
+    }
+    return null;
+  };
+  const extractedGeneralNotes = normalizeText(extractedData?.additional_notes);
 
   // Iniciar cámara
   const startCamera = async () => {
@@ -132,7 +163,7 @@ export function RecipePhotoCapper({ onPhotoCapture, onDataExtracted }: RecipePho
   return (
     <>
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="max-w-2xl">
+  <DialogContent className="max-w-2xl w-[calc(100vw-2rem)] sm:w-full max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Capturar Receta Médica</DialogTitle>
           </DialogHeader>
@@ -290,20 +321,31 @@ export function RecipePhotoCapper({ onPhotoCapture, onDataExtracted }: RecipePho
                           </p>
                           {extractedData.medicines.length > 0 ? (
                             <ul className="space-y-2 mt-2">
-                              {extractedData.medicines.map((med: any, idx: number) => (
-                                <li key={idx} className="text-xs p-2 rounded bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-800">
-                                  <div className="font-semibold text-emerald-900 dark:text-emerald-100">{med.name || '(sin nombre)'}</div>
-                                  <div className="text-emerald-700 dark:text-emerald-300 mt-1">
-                                    {med.dosage && <div>• Dosis: {med.dosage}</div>}
-                                    <div className={med.frequency_hours ? 'text-emerald-700 dark:text-emerald-300' : 'text-yellow-700 dark:text-yellow-300 font-medium'}>
-                                      • Frecuencia: {med.frequency_hours ? `c/${med.frequency_hours}h` : '⚠️ No encontrada'}
+                              {extractedData.medicines.map((med: any, idx: number) => {
+                                const instructionText = normalizeText(med.instructions) || 'No especificado';
+                                const hasSpecificInstruction = instructionText.toLowerCase() !== 'no especificado';
+                                const nameText = normalizeText(med.name || med.medicine_name) || '(sin nombre)';
+                                const dosageText = normalizeText(med.dosage);
+                                const frequencyValue = toNumericValue(med.frequency_hours ?? med.frequencyHours ?? med.frequency);
+                                const durationValue = toNumericValue(med.duration_days ?? med.durationDays ?? med.duration);
+                                return (
+                                  <li key={idx} className="text-xs p-2 rounded bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-800">
+                                    <div className="font-semibold text-emerald-900 dark:text-emerald-100">{nameText}</div>
+                                    <div className="text-emerald-700 dark:text-emerald-300 mt-1 space-y-1">
+                                      {dosageText && <div>• Dosis: {dosageText}</div>}
+                                      <div className={frequencyValue ? 'text-emerald-700 dark:text-emerald-300' : 'text-yellow-700 dark:text-yellow-300 font-medium'}>
+                                        • Frecuencia: {frequencyValue ? `c/${frequencyValue}h` : '⚠️ No encontrada'}
+                                      </div>
+                                      <div className={durationValue ? 'text-emerald-700 dark:text-emerald-300' : 'text-yellow-700 dark:text-yellow-300 font-medium'}>
+                                        • Duración: {durationValue ? `${durationValue} días` : '⚠️ No encontrada'}
+                                      </div>
+                                      <div className={hasSpecificInstruction ? 'text-emerald-700 dark:text-emerald-300' : 'text-emerald-600/70 dark:text-emerald-200/70 italic'}>
+                                        • Instrucciones: {instructionText}
+                                      </div>
                                     </div>
-                                    <div className={med.duration_days ? 'text-emerald-700 dark:text-emerald-300' : 'text-yellow-700 dark:text-yellow-300 font-medium'}>
-                                      • Duración: {med.duration_days ? `${med.duration_days} días` : '⚠️ No encontrada'}
-                                    </div>
-                                  </div>
-                                </li>
-                              ))}
+                                  </li>
+                                );
+                              })}
                             </ul>
                           ) : (
                             <p className="text-emerald-700 dark:text-emerald-400 italic text-xs mt-1">
@@ -311,6 +353,16 @@ export function RecipePhotoCapper({ onPhotoCapture, onDataExtracted }: RecipePho
                             </p>
                           )}
                         </div>
+                        {extractedGeneralNotes && (
+                          <div>
+                            <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 uppercase">
+                              Notas generales
+                            </p>
+                            <p className="text-emerald-900 dark:text-emerald-100 whitespace-pre-wrap leading-relaxed">
+                              {extractedGeneralNotes}
+                            </p>
+                          </div>
+                        )}
 
                         {extractedData.prescription_date && (
                           <div>

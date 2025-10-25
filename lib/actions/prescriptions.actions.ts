@@ -302,6 +302,8 @@ export type UpcomingDose = {
     prescription_medicines: {
         medicine_name: string;
         dosage: string;
+        instructions: string | null;
+        frequency_hours: number | null;
     } | null; // Es un objeto o null
 };
 
@@ -318,7 +320,7 @@ export async function getUpcomingDoses(): Promise<{ data: UpcomingDose[], error?
     // La consulta no cambia
     const { data, error } = await supabase
         .from('medication_doses')
-        .select(`id, scheduled_at, prescription_medicines ( medicine_name, dosage )`)
+        .select(`id, scheduled_at, prescription_medicines ( medicine_name, dosage, instructions, frequency_hours )`)
         .eq('user_id', user.id)
         .eq('status', 'scheduled')
         .order('scheduled_at', { ascending: true })
@@ -330,14 +332,28 @@ export async function getUpcomingDoses(): Promise<{ data: UpcomingDose[], error?
     }
 
     // 3. Se transforman los datos recibidos para que coincidan con el tipo esperado
-    const mappedData: UpcomingDose[] = (data || []).map(dose => ({
-        id: dose.id,
-        scheduled_at: dose.scheduled_at,
-        // Se toma el primer elemento del array de medicamentos, o null si está vacío
-        prescription_medicines: (dose.prescription_medicines && Array.isArray(dose.prescription_medicines) && dose.prescription_medicines.length > 0)
+    const mappedData: UpcomingDose[] = (data || []).map(dose => {
+        const rawMedicine = Array.isArray(dose.prescription_medicines)
             ? dose.prescription_medicines[0]
-            : null
-    }));
+            : dose.prescription_medicines;
+
+        const normalizedMedicine = rawMedicine
+            ? {
+                medicine_name: rawMedicine.medicine_name ?? 'Medicamento',
+                dosage: rawMedicine.dosage ?? '',
+                instructions: rawMedicine.instructions ?? null,
+                frequency_hours: rawMedicine.frequency_hours !== undefined && rawMedicine.frequency_hours !== null
+                    ? Number(rawMedicine.frequency_hours)
+                    : null,
+            }
+            : null;
+
+        return {
+            id: dose.id,
+            scheduled_at: dose.scheduled_at,
+            prescription_medicines: normalizedMedicine,
+        };
+    });
 
     return { data: mappedData, error: null };
 }

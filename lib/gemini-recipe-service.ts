@@ -14,6 +14,7 @@ export const extractRecipeDataFromImage = async (
     dosage: string;
     frequency_hours: number | null;
     duration_days: number | null;
+    instructions: string;
   }>;
   prescription_date: string;
   additional_notes: string;
@@ -36,13 +37,14 @@ export const extractRecipeDataFromImage = async (
     
     1. **Diagnóstico**: ¿Cuál es el diagnóstico o motivo de la consulta?
     2. **Nombre del doctor**: ¿Quién es el profesional que firma la receta?
-    3. **Medicamentos**: Extrae cada medicamento con:
+   3. **Medicamentos**: Extrae cada medicamento con:
        - Nombre del medicamento
        - Dosis (ej: 500mg, 2 comprimidos)
        - Frecuencia en HORAS (ej: 8 para cada 8 horas, 12 para cada 12 horas, 6 para 4 veces al día)
-       - Duración en DÍAS (ej: 7 para una semana, 10 para 10 días)
-    4. **Fecha de prescripción**: ¿Cuándo fue emitida la receta?
-    5. **Notas adicionales**: Instrucciones especiales, advertencias, contraindicaciones
+     - Duración en DÍAS (ej: 7 para una semana, 10 para 10 días)
+     - Instrucciones específicas o recomendaciones del médico
+  4. **Fecha de prescripción**: ¿Cuándo fue emitida la receta?
+  5. **Notas generales**: Indicaciones adicionales, recomendaciones o advertencias generales escritas por el médico
     
     Responde en JSON con la siguiente estructura EXACTA:
     {
@@ -53,11 +55,12 @@ export const extractRecipeDataFromImage = async (
           "name": "nombre medicamento",
           "dosage": "dosis",
           "frequency_hours": 8,
-          "duration_days": 7
+          "duration_days": 7,
+          "instructions": "tomar con alimentos"
         }
       ],
       "prescription_date": "YYYY-MM-DD",
-      "additional_notes": "notas relevantes",
+  "additional_notes": "notas generales relevantes",
       "confidence": 0.95
     }
     
@@ -69,7 +72,8 @@ export const extractRecipeDataFromImage = async (
       - doctor_name: "Doctor no identificado"
       - medicines: []
       - prescription_date: fecha actual
-      - additional_notes: "Información incompleta en la receta"
+  - additional_notes: ""
+      - instructions: "No especificado"
     `;
 
     // Llamar a Gemini con la imagen
@@ -95,19 +99,52 @@ export const extractRecipeDataFromImage = async (
     const extractedData = JSON.parse(jsonMatch[0]);
 
     // Procesar medicamentos para asegurar que tengan los campos correctos
-    const processedMedicines = (extractedData.medicines || []).map((med: any) => ({
-      name: med.name || '',
-      dosage: med.dosage || '',
-      frequency_hours: med.frequency_hours !== undefined && med.frequency_hours !== null ? med.frequency_hours : null,
-      duration_days: med.duration_days !== undefined && med.duration_days !== null ? med.duration_days : null,
-    }));
+    const collectText = (value: unknown): string[] => {
+      if (value === null || value === undefined) return [];
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        return trimmed ? [trimmed] : [];
+      }
+      if (typeof value === 'number' || typeof value === 'boolean') {
+        return [String(value)];
+      }
+      if (Array.isArray(value)) {
+        return value.flatMap((item) => collectText(item));
+      }
+      if (typeof value === 'object') {
+        return Object.values(value as Record<string, unknown>).flatMap((item) => collectText(item));
+      }
+      return [];
+    };
+
+    const processText = (value: unknown): string => collectText(value).join('. ');
+
+    const processedMedicines = (extractedData.medicines || []).map((med: any) => {
+      const instructionsText = processText(med.instructions);
+      const frequencyValue = med.frequency_hours ?? med.frequencyHours ?? med.frequency ?? null;
+      const durationValue = med.duration_days ?? med.durationDays ?? med.duration ?? null;
+
+      return {
+        name: processText(med.name || med.medicine_name) || '',
+        dosage: processText(med.dosage) || '',
+        frequency_hours:
+          frequencyValue !== undefined && frequencyValue !== null && frequencyValue !== ''
+            ? Number(frequencyValue)
+            : null,
+        duration_days:
+          durationValue !== undefined && durationValue !== null && durationValue !== ''
+            ? Number(durationValue)
+            : null,
+        instructions: instructionsText || 'No especificado',
+      };
+    });
 
     return {
-      diagnosis: extractedData.diagnosis || 'No especificado',
-      doctor_name: extractedData.doctor_name || 'Doctor no identificado',
+      diagnosis: processText(extractedData.diagnosis) || 'No especificado',
+      doctor_name: processText(extractedData.doctor_name) || 'Doctor no identificado',
       medicines: processedMedicines,
-      prescription_date: extractedData.prescription_date || new Date().toISOString().split('T')[0],
-      additional_notes: extractedData.additional_notes || '',
+      prescription_date: processText(extractedData.prescription_date) || new Date().toISOString().split('T')[0],
+      additional_notes: processText(extractedData.additional_notes),
       confidence: extractedData.confidence || 0.8,
     };
   } catch (error) {
