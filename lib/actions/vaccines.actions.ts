@@ -64,11 +64,16 @@ export async function addVaccine(formData: VaccineForm) {
     return { success: false, error: 'Datos inválidos.' }
   }
 
-  const { error } = await supabase.from('vaccinations').insert({ ...validatedFields.data, user_id: user.id })
-  if (error) return { success: false, error: 'No se pudo añadir la vacuna.' }
+  const { data, error } = await supabase
+    .from('vaccinations')
+    .insert({ ...validatedFields.data, user_id: user.id })
+    .select('id, vaccine_name, disease_protected, dose_details, administration_date, lot_number, application_site')
+    .single()
+
+  if (error || !data) return { success: false, error: 'No se pudo añadir la vacuna.' }
 
   revalidatePath('/dashboard/vacunas')
-  return { success: true }
+  return { success: true, data: data as VaccineRecord }
 }
 
 // Eliminar un registro de vacuna

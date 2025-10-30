@@ -1,47 +1,32 @@
 // components/alergias/alergias-manager.tsx
 "use client"
 
-import { useEffect, useState, type FC } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import { type User } from '@supabase/supabase-js';
-import { useForm, Controller } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { toast } from 'sonner';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { 
-  Trash2, 
-  Plus, 
-  AlertTriangle, 
-  Loader2, 
-  Pill, 
-  MapPin, 
-  Calendar,
-  AlertCircle,
-  CheckCircle,
-  Edit,
-  X,
-  Shield
-} from 'lucide-react';
-import { 
-  AlertDialog, 
-  AlertDialogAction, 
-  AlertDialogCancel, 
-  AlertDialogContent, 
-  AlertDialogDescription, 
-  AlertDialogFooter, 
-  AlertDialogHeader, 
-  AlertDialogTitle, 
-  AlertDialogTrigger 
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import type { User } from "@supabase/supabase-js";
+import { Controller, useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -49,36 +34,143 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertCircle,
+  AlertTriangle,
+  Calendar,
+  CheckCircle,
+  Edit,
+  Loader2,
+  Pill,
+  Plus,
+  RefreshCcw,
+  Search,
+  Shield,
+  Trash2,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 
-// Tipos para las alergias del usuario
+type Severity = "leve" | "moderada" | "severa";
+type ReactionType = "cutanea" | "gastrointestinal" | "respiratoria" | "anafilactica" | "otra";
+
 type UserAllergy = {
   id: string;
   allergy_name: string;
   reaction_description: string | null;
   notes: string | null;
-  severity: 'leve' | 'moderada' | 'severa' | null;
+  severity: Severity | null;
   treatment: string | null;
   date_diagnosed: string | null;
-  reaction_type: string | null;
+  reaction_type: ReactionType | null;
   created_at: string;
 };
 
-// Esquema de validación para el formulario de nueva alergia
+type CommonAllergen = {
+  name: string;
+  icon: string;
+  category: AllergenCategory;
+  defaultSeverity?: Severity;
+  defaultReactionType?: ReactionType;
+};
+
+const severitySchema = z.enum(["leve", "moderada", "severa"], {
+  required_error: "Selecciona una severidad",
+});
+
+const reactionTypeSchema = z.enum([
+  "cutanea",
+  "gastrointestinal",
+  "respiratoria",
+  "anafilactica",
+  "otra",
+]);
+
 const allergySchema = z.object({
-  allergy_name: z.string().min(2, { message: "El nombre del alérgeno es requerido (mín. 2 caracteres)." }),
-  severity: z.string().optional(),
-  reaction_description: z.string().optional(),
-  reaction_type: z.string().optional(),
-  treatment: z.string().optional(),
-  notes: z.string().optional(),
-  date_diagnosed: z.string().optional(),
+  allergy_name: z
+    .string()
+    .trim()
+    .min(2, { message: "El nombre del alérgeno debe tener al menos 2 caracteres." })
+    .max(120, { message: "El nombre del alérgeno es demasiado largo." }),
+  severity: severitySchema.optional(),
+  reaction_description: z
+    .string()
+    .trim()
+    .max(600, { message: "Máximo 600 caracteres." })
+    .optional(),
+  reaction_type: reactionTypeSchema.optional(),
+  treatment: z
+    .string()
+    .trim()
+    .max(600, { message: "Máximo 600 caracteres." })
+    .optional(),
+  notes: z
+    .string()
+    .trim()
+    .max(600, { message: "Máximo 600 caracteres." })
+    .optional(),
+  date_diagnosed: z
+    .string()
+    .optional()
+    .refine(
+      (value) => !value || !Number.isNaN(Date.parse(value)),
+      "Selecciona una fecha válida."
+    ),
 });
 
 type AllergyFormValues = z.infer<typeof allergySchema>;
 
-const COMMON_ALLERGENS = [
-  // MEDICAMENTOS
-  { name: "Penicilina", icon: "💊", category: "Medicamentos" },
+const severityStyles: Record<Severity, { badge: string; label: string; tone: string }> = {
+  leve: {
+    badge:
+      "bg-yellow-100 dark:bg-yellow-950 text-yellow-800 dark:text-yellow-200 border-yellow-300 dark:border-yellow-700",
+    label: "Leve",
+    tone: "text-yellow-700 dark:text-yellow-200",
+  },
+  moderada: {
+    badge:
+      "bg-orange-100 dark:bg-orange-950 text-orange-800 dark:text-orange-200 border-orange-300 dark:border-orange-700",
+    label: "Moderada",
+    tone: "text-orange-700 dark:text-orange-200",
+  },
+  severa: {
+    badge:
+      "bg-red-100 dark:bg-red-950 text-red-800 dark:text-red-200 border-red-300 dark:border-red-700",
+    label: "Severa",
+    tone: "text-red-700 dark:text-red-200",
+  },
+};
+
+const reactionTypeLabels: Record<ReactionType, string> = {
+  cutanea: "Cutánea",
+  gastrointestinal: "Gastrointestinal",
+  respiratoria: "Respiratoria",
+  anafilactica: "Anafiláctica",
+  otra: "Otra",
+};
+
+const reactionTypeBadges: Partial<Record<ReactionType, string>> = {
+  cutanea: "bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-200",
+  gastrointestinal: "bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-200",
+  respiratoria: "bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-200",
+  anafilactica: "bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-200",
+  otra: "bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-200",
+};
+
+const DEFAULT_SEVERITY_BADGE =
+  "bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700";
+
+const severityOrder: Record<Severity, number> = {
+  severa: 0,
+  moderada: 1,
+  leve: 2,
+};
+
+type AllergenCategory = "Medicamentos" | "Alimentos" | "Ambiental" | "Contacto" | "Inyectables";
+
+const COMMON_ALLERGENS: readonly CommonAllergen[] = [
+  { name: "Penicilina", icon: "💊", category: "Medicamentos", defaultSeverity: "severa" },
   { name: "Amoxicilina", icon: "💊", category: "Medicamentos" },
   { name: "Aspirina", icon: "💊", category: "Medicamentos" },
   { name: "Ibuprofeno", icon: "💊", category: "Medicamentos" },
@@ -88,11 +180,9 @@ const COMMON_ALLERGENS = [
   { name: "Claritromicina", icon: "💊", category: "Medicamentos" },
   { name: "Ciprofloxacino", icon: "💊", category: "Medicamentos" },
   { name: "Dipirona", icon: "💊", category: "Medicamentos" },
-  { name: "Ácido Acetilsalicílico", icon: "💊", category: "Medicamentos" },
+  { name: "Ácido acetilsalicílico", icon: "💊", category: "Medicamentos" },
   { name: "Naproxeno", icon: "💊", category: "Medicamentos" },
-  
-  // ALIMENTOS
-  { name: "Cacahuates", icon: "🥜", category: "Alimentos" },
+  { name: "Cacahuates", icon: "🥜", category: "Alimentos", defaultSeverity: "severa" },
   { name: "Frutos secos", icon: "🌰", category: "Alimentos" },
   { name: "Mariscos", icon: "🦐", category: "Alimentos" },
   { name: "Camarones", icon: "🦐", category: "Alimentos" },
@@ -102,723 +192,1089 @@ const COMMON_ALLERGENS = [
   { name: "Trigo", icon: "🌾", category: "Alimentos" },
   { name: "Soja", icon: "🫘", category: "Alimentos" },
   { name: "Pescado", icon: "🐟", category: "Alimentos" },
-  { name: "Sesamo", icon: "�", category: "Alimentos" },
-  { name: "Mostaza", icon: "🔴", category: "Alimentos" },
+  { name: "Sésamo", icon: "🌿", category: "Alimentos" },
+  { name: "Mostaza", icon: "🌶️", category: "Alimentos" },
   { name: "Moluscos", icon: "🐚", category: "Alimentos" },
   { name: "Apio", icon: "🥬", category: "Alimentos" },
-  { name: "Auyama/Calabaza", icon: "🎃", category: "Alimentos" },
+  { name: "Calabaza", icon: "🎃", category: "Alimentos" },
   { name: "Kiwi", icon: "🥝", category: "Alimentos" },
   { name: "Plátano", icon: "🍌", category: "Alimentos" },
   { name: "Avellana", icon: "🌰", category: "Alimentos" },
   { name: "Chocolate", icon: "🍫", category: "Alimentos" },
-  
-  // AMBIENTALES
-  { name: "Polen", icon: "�🌼", category: "Ambiental" },
+  { name: "Polen", icon: "🌼", category: "Ambiental" },
   { name: "Ácaros del polvo", icon: "🦠", category: "Ambiental" },
   { name: "Moho", icon: "🍄", category: "Ambiental" },
   { name: "Polvo de casa", icon: "💨", category: "Ambiental" },
-  { name: "Caspa de animales", icon: "🐱", category: "Ambiental" },
+  { name: "Caspa de animales", icon: "🐾", category: "Ambiental" },
   { name: "Pasto", icon: "🌾", category: "Ambiental" },
   { name: "Humo", icon: "💨", category: "Ambiental" },
-  
-  // CONTACTO
   { name: "Látex", icon: "🧤", category: "Contacto" },
   { name: "Níquel", icon: "⌚", category: "Contacto" },
   { name: "Cobre", icon: "🪙", category: "Contacto" },
-  { name: "Cromo", icon: "⌚", category: "Contacto" },
-  { name: "Fragancia", icon: "💐", category: "Contacto" },
+  { name: "Cromo", icon: "⚙️", category: "Contacto" },
+  { name: "Fragancias", icon: "💐", category: "Contacto" },
   { name: "Cosméticos", icon: "💄", category: "Contacto" },
-  
-  // INYECTABLES
   { name: "Anestésicos locales", icon: "💉", category: "Inyectables" },
   { name: "Vacunas", icon: "💉", category: "Inyectables" },
   { name: "Contraste radiológico", icon: "💉", category: "Inyectables" },
   { name: "Insulina", icon: "💉", category: "Inyectables" },
 ];
 
-const getSeverityColor = (severity?: string | null) => {
-  switch (severity) {
-    case 'leve':
-      return 'bg-yellow-100 dark:bg-yellow-950 text-yellow-800 dark:text-yellow-200 border-yellow-300 dark:border-yellow-700';
-    case 'moderada':
-      return 'bg-orange-100 dark:bg-orange-950 text-orange-800 dark:text-orange-200 border-orange-300 dark:border-orange-700';
-    case 'severa':
-      return 'bg-red-100 dark:bg-red-950 text-red-800 dark:text-red-200 border-red-300 dark:border-red-700';
-    default:
-      return 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-600';
-  }
+const defaultFormValues: AllergyFormValues = {
+  allergy_name: "",
+  severity: undefined,
+  reaction_description: "",
+  reaction_type: undefined,
+  treatment: "",
+  notes: "",
+  date_diagnosed: "",
 };
 
-const getSeverityLabel = (severity?: string | null) => {
-  switch (severity) {
-    case 'leve':
-      return 'Leve';
-    case 'moderada':
-      return 'Moderada';
-    case 'severa':
-      return 'Severa ⚠️';
-    default:
-      return 'Sin especificar';
-  }
+type SeverityFilter = "all" | Severity;
+
+const severityFilterOptions: Array<{ value: SeverityFilter; label: string }> = [
+  { value: "all", label: "Todas" },
+  { value: "severa", label: "Severas" },
+  { value: "moderada", label: "Moderadas" },
+  { value: "leve", label: "Leves" },
+];
+
+const SUGGESTION_LIMIT = 12;
+
+const sanitizeText = (value?: string | null) => {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
 };
 
-export const AlergiasManager: FC = () => {
-  const supabase = createClient();
+const formatDate = (value: string | null) => {
+  if (!value) return "Sin dato";
+  const isoCandidate = value.length === 10 && value.includes("-");
+  const parsed = isoCandidate ? new Date(`${value}T00:00:00`) : new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString("es-ES", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+};
+
+const formatDateTime = (value: Date | string | null) => {
+  if (!value) return "";
+  const parsed = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toLocaleString("es-ES", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const toDateInputValue = (value: string | null) => {
+  if (!value) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString().slice(0, 10);
+};
+
+const LoadingState = () => (
+  <div className="space-y-6">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <Skeleton className="h-[120px] rounded-xl" />
+      <Skeleton className="h-[120px] rounded-xl" />
+      <Skeleton className="h-[120px] rounded-xl" />
+    </div>
+    <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-6">
+      <div className="space-y-4">
+        <Skeleton className="h-10 w-full rounded-md" />
+        <Skeleton className="h-10 w-48 rounded-md" />
+        <div className="space-y-3">
+          <Skeleton className="h-32 rounded-xl" />
+          <Skeleton className="h-32 rounded-xl" />
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+interface AllergyCardProps {
+  allergy: UserAllergy;
+  onEdit: (allergy: UserAllergy) => void;
+  onDelete: (id: string) => void;
+  pendingDeleteId: string | null;
+}
+
+const AllergyCard = ({ allergy, onEdit, onDelete, pendingDeleteId }: AllergyCardProps) => {
+  const severityStyle = allergy.severity ? severityStyles[allergy.severity] : undefined;
+  const reactionBadgeClass = allergy.reaction_type
+    ? reactionTypeBadges[allergy.reaction_type] ?? reactionTypeBadges.otra
+    : undefined;
+  const reactionLabel = allergy.reaction_type
+    ? reactionTypeLabels[allergy.reaction_type] ?? "Otra"
+    : null;
+
+  return (
+    <Card className="rounded-2xl border-slate-200 transition-shadow hover:shadow-lg dark:border-slate-800">
+      <CardHeader className="pb-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
+              <CardTitle className="text-lg font-semibold md:text-xl">{allergy.allergy_name}</CardTitle>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge className={cn("w-fit border", severityStyle?.badge ?? DEFAULT_SEVERITY_BADGE)}>
+                {severityStyle ? severityStyle.label : "Sin severidad"}
+              </Badge>
+              {reactionLabel && (
+                <Badge className={cn("w-fit border border-transparent", reactionBadgeClass)}>
+                  {reactionLabel}
+                </Badge>
+              )}
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => onEdit(allergy)}
+              className="h-11 w-11 md:h-9 md:w-9"
+              aria-label={`Editar ${allergy.allergy_name}`}
+            >
+              <Edit className="h-4 w-4" />
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-11 w-11 text-destructive hover:text-destructive md:h-9 md:w-9"
+                  aria-label={`Eliminar ${allergy.allergy_name}`}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="flex items-center gap-2">
+                    <AlertCircle className="h-5 w-5 text-red-600" />
+                    ¿Eliminar alergia?
+                  </AlertDialogTitle>
+                  <AlertDialogDescription className="text-base leading-relaxed md:text-sm">
+                    El registro para <strong>{allergy.allergy_name}</strong> se eliminará
+                    permanentemente.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter className="flex flex-col gap-2 md:flex-row md:justify-end">
+                  <AlertDialogCancel className="h-11 w-full text-base md:h-9 md:w-auto md:text-sm">
+                    Cancelar
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    className="h-11 w-full bg-destructive text-base text-destructive-foreground hover:bg-destructive/90 md:h-9 md:w-auto md:text-sm"
+                    disabled={pendingDeleteId === allergy.id}
+                    onClick={() => onDelete(allergy.id)}
+                  >
+                    {pendingDeleteId === allergy.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      "Sí, eliminar"
+                    )}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </div>
+      </CardHeader>
+
+      <CardContent className="space-y-4">
+        {allergy.reaction_description && (
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-base font-medium md:text-sm">
+              <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              Síntomas y reacción
+            </div>
+            <p className="ml-6 whitespace-pre-wrap rounded-lg border border-amber-200 bg-amber-50 p-3 text-base leading-relaxed text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200 md:text-sm">
+              {allergy.reaction_description}
+            </p>
+          </div>
+        )}
+
+        {allergy.treatment && (
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-base font-medium md:text-sm">
+              <Pill className="h-4 w-4 text-green-600 dark:text-green-400" />
+              Tratamiento recomendado
+            </div>
+            <p className="ml-6 whitespace-pre-wrap rounded-lg border border-green-200 bg-green-50 p-3 text-base leading-relaxed text-green-800 dark:border-green-800 dark:bg-green-950/30 dark:text-green-200 md:text-sm">
+              {allergy.treatment}
+            </p>
+          </div>
+        )}
+
+        {allergy.notes && (
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-base font-medium md:text-sm">
+              <Shield className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              Notas adicionales
+            </div>
+            <p className="ml-6 whitespace-pre-wrap rounded-lg border border-blue-200 bg-blue-50 p-3 text-base leading-relaxed text-blue-800 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-200 md:text-sm">
+              {allergy.notes}
+            </p>
+          </div>
+        )}
+
+        {allergy.date_diagnosed && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground md:text-xs">
+            <Calendar className="h-4 w-4" />
+            Diagnóstico: {formatDate(allergy.date_diagnosed)}
+          </div>
+        )}
+
+        <div className="flex items-center gap-2 border-t border-slate-200 pt-3 text-xs text-muted-foreground dark:border-slate-800">
+          <Calendar className="h-3 w-3" />
+          Registrado: {formatDateTime(allergy.created_at)}
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+export const AlergiasManager = () => {
+  const supabase = useMemo(() => createClient(), []);
   const [user, setUser] = useState<User | null>(null);
   const [userAllergies, setUserAllergies] = useState<UserAllergy[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingAllergy, setEditingAllergy] = useState<UserAllergy | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [quickAddLoading, setQuickAddLoading] = useState<string | null>(null);
+  const [lastSynced, setLastSynced] = useState<Date | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all");
+  const [showAllSuggestions, setShowAllSuggestions] = useState(false);
+  const [quickSearchTerm, setQuickSearchTerm] = useState("");
 
   const {
     control,
     handleSubmit,
     reset,
     formState: { isSubmitting },
-    setValue,
   } = useForm<AllergyFormValues>({
     resolver: zodResolver(allergySchema),
-    defaultValues: {
-      allergy_name: '',
-      severity: '',
-      reaction_description: '',
-      reaction_type: '',
-      treatment: '',
-      notes: '',
-      date_diagnosed: '',
-    },
+    defaultValues: defaultFormValues,
   });
 
-  // Función para obtener las alergias del usuario
-  const fetchUserAllergies = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('user_allergies')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      toast.error('Error al cargar tus alergias.');
-      console.error(error);
-    } else {
-      setUserAllergies(data || []);
-    }
-  };
-  
-  // Hook inicial para obtener usuario y sus alergias
-  useEffect(() => {
-    const initialize = async () => {
-      setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setUser(user);
-        await fetchUserAllergies(user.id);
+  const fetchUserAllergies = useCallback(
+    async (userId: string, options: { silent?: boolean } = {}) => {
+      if (!options.silent) {
+        setIsRefreshing(true);
       }
-      setLoading(false);
+
+      try {
+        const { data, error } = await supabase
+          .from("user_allergies")
+          .select(
+            "id, allergy_name, reaction_description, notes, severity, treatment, date_diagnosed, reaction_type, created_at"
+          )
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false });
+
+        if (error) {
+          console.error("[Alergias] Error al cargar:", error);
+          setFetchError("No pudimos cargar tus alergias. Intenta nuevamente.");
+          toast.error("No pudimos cargar tus alergias.");
+          return;
+        }
+
+        setUserAllergies(data ?? []);
+        setFetchError(null);
+        setLastSynced(new Date());
+      } catch (error) {
+        console.error("[Alergias] Error inesperado al cargar:", error);
+        setFetchError("Ocurrió un error inesperado al obtener la información.");
+        toast.error("Ocurrió un error inesperado.");
+      } finally {
+        if (!options.silent) {
+          setIsRefreshing(false);
+        }
+      }
+    },
+    [supabase]
+  );
+
+  useEffect(() => {
+    const bootstrap = async () => {
+      setInitialLoading(true);
+      try {
+        const {
+          data: { user: currentUser },
+          error,
+        } = await supabase.auth.getUser();
+
+        if (error) {
+          console.error("[Alergias] Error obteniendo el usuario:", error);
+          setFetchError("No pudimos validar tu sesión. Intenta nuevamente.");
+          toast.error("No pudimos validar tu sesión.");
+          setUser(null);
+          setUserAllergies([]);
+          return;
+        }
+
+        if (currentUser) {
+          setUser(currentUser);
+          await fetchUserAllergies(currentUser.id, { silent: true });
+        } else {
+          setUser(null);
+          setUserAllergies([]);
+        }
+      } finally {
+        setInitialLoading(false);
+      }
     };
 
-    initialize();
-  }, [supabase]);
+    void bootstrap();
+  }, [fetchUserAllergies, supabase]);
 
-  // Función para manejar la creación de una nueva alergia
+  const severityCounts = useMemo(() => {
+    return userAllergies.reduce(
+      (acc, allergy) => {
+        if (allergy.severity) {
+          acc[allergy.severity] += 1;
+        }
+        return acc;
+      },
+      { leve: 0, moderada: 0, severa: 0 } as Record<Severity, number>
+    );
+  }, [userAllergies]);
+
+  const lastAllergyUpdate = useMemo(() => {
+    if (!userAllergies.length) return null;
+    const latest = userAllergies.reduce((latestDate, allergy) => {
+      const createdAt = new Date(allergy.created_at).getTime();
+      return createdAt > latestDate ? createdAt : latestDate;
+    }, 0);
+    return latest ? new Date(latest) : null;
+  }, [userAllergies]);
+
+  const filteredAllergies = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+
+    return userAllergies
+      .filter((allergy) => {
+        const matchesSeverity = severityFilter === "all" || allergy.severity === severityFilter;
+        if (!matchesSeverity) return false;
+
+        if (!normalizedSearch) return true;
+
+        const haystack = [
+          allergy.allergy_name,
+          allergy.reaction_description ?? "",
+          allergy.notes ?? "",
+          allergy.treatment ?? "",
+        ]
+          .join(" ")
+          .toLowerCase();
+
+        return haystack.includes(normalizedSearch);
+      })
+      .sort((a, b) => {
+        const severityRankA = a.severity ? severityOrder[a.severity] : 3;
+        const severityRankB = b.severity ? severityOrder[b.severity] : 3;
+        if (severityRankA !== severityRankB) return severityRankA - severityRankB;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+  }, [searchTerm, severityFilter, userAllergies]);
+
+  const quickSuggestions = useMemo(() => {
+    const normalizedSearch = quickSearchTerm.trim().toLowerCase();
+    const baseList = normalizedSearch
+      ? COMMON_ALLERGENS.filter((allergen) =>
+          [allergen.name, allergen.category].some((value) =>
+            value.toLowerCase().includes(normalizedSearch)
+          )
+        )
+      : COMMON_ALLERGENS;
+
+    if (normalizedSearch) {
+      return baseList;
+    }
+
+    return showAllSuggestions ? baseList : baseList.slice(0, SUGGESTION_LIMIT);
+  }, [quickSearchTerm, showAllSuggestions]);
+
+  const isSearchingSuggestions = quickSearchTerm.trim().length > 0;
+  const canToggleSuggestions = !isSearchingSuggestions && COMMON_ALLERGENS.length > SUGGESTION_LIMIT;
+  const allSuggestionsAdded = useMemo(
+    () =>
+      COMMON_ALLERGENS.every((allergen) =>
+        userAllergies.some(
+          (item) => item.allergy_name.trim().toLowerCase() === allergen.name.toLowerCase()
+        )
+      ),
+    [userAllergies]
+  );
+  const noQuickMatches = quickSuggestions.length === 0;
+  const quickHelperText = isSearchingSuggestions
+    ? "Resultados que coinciden con tu búsqueda."
+    : "Selecciona un alérgeno frecuente y completa los detalles cuando lo necesites.";
+
+  const openCreateDialog = () => {
+    setEditingAllergy(null);
+    reset(defaultFormValues);
+    setIsDialogOpen(true);
+  };
+
+  const openEditDialog = (allergy: UserAllergy) => {
+    setEditingAllergy(allergy);
+    reset({
+      allergy_name: allergy.allergy_name,
+      severity: allergy.severity ?? undefined,
+      reaction_description: allergy.reaction_description ?? "",
+      reaction_type: allergy.reaction_type ?? undefined,
+      treatment: allergy.treatment ?? "",
+      notes: allergy.notes ?? "",
+      date_diagnosed: toDateInputValue(allergy.date_diagnosed),
+    });
+    setIsDialogOpen(true);
+  };
+
+  const closeDialog = () => {
+    setIsDialogOpen(false);
+    setEditingAllergy(null);
+    reset(defaultFormValues);
+  };
+
+  const handleRefresh = async () => {
+    if (!user) return;
+    await fetchUserAllergies(user.id);
+  };
+
   const handleAddAllergy = async (values: AllergyFormValues) => {
     if (!user) return;
 
+    const payload = {
+      user_id: user.id,
+      allergy_name: values.allergy_name.trim(),
+      severity: values.severity ?? null,
+      reaction_description: sanitizeText(values.reaction_description),
+      reaction_type: values.reaction_type ?? null,
+      treatment: sanitizeText(values.treatment),
+      notes: sanitizeText(values.notes),
+      date_diagnosed: values.date_diagnosed?.trim() ? values.date_diagnosed.trim() : null,
+    };
+
+    const normalizedName = payload.allergy_name.toLowerCase();
+    const duplicated = userAllergies.some(
+      (item) => item.allergy_name.trim().toLowerCase() === normalizedName
+    );
+
+    if (duplicated) {
+      toast.info("Esta alergia ya está registrada.");
+      return;
+    }
+
     try {
-      // Solo enviamos campos que sabemos que existen en la tabla
-      const dataToInsert: any = {
-        user_id: user.id,
-        allergy_name: values.allergy_name.trim(),
-        reaction_description: values.reaction_description && values.reaction_description.trim() ? values.reaction_description : null,
-        notes: values.notes && values.notes.trim() ? values.notes : null,
-        severity: values.severity && values.severity.trim() ? values.severity : null,
-      };
-
-      // Agregar campos opcionales solo si existen en la tabla
-      if (values.reaction_type && values.reaction_type.trim()) {
-        dataToInsert.reaction_type = values.reaction_type;
-      }
-      if (values.treatment && values.treatment.trim()) {
-        dataToInsert.treatment = values.treatment;
-      }
-      if (values.date_diagnosed && values.date_diagnosed.trim()) {
-        dataToInsert.date_diagnosed = values.date_diagnosed;
-      }
-
-      console.log('Enviando datos:', dataToInsert);
-      const { data, error } = await supabase.from('user_allergies').insert([dataToInsert]).select();
+      const { error } = await supabase.from("user_allergies").insert([payload]);
 
       if (error) {
-        console.error('Error de Supabase:', error);
-        console.error('Detalles:', error.details, error.hint);
-        toast.error(`No se pudo añadir la alergia: ${error.message}`);
-      } else {
-        console.log('Alergia agregada:', data);
-        toast.success('¡Alergia añadida correctamente!');
-        reset();
-        setIsDialogOpen(false);
-        await fetchUserAllergies(user.id);
+        console.error("[Alergias] Error al crear:", error);
+        toast.error("No se pudo guardar la alergia.");
+        return;
       }
-    } catch (err) {
-      console.error('Error inesperado:', err);
-      toast.error('Error inesperado al añadir la alergia.');
+
+      toast.success("Alergia añadida correctamente.");
+      closeDialog();
+      await fetchUserAllergies(user.id, { silent: true });
+    } catch (error) {
+      console.error("[Alergias] Error inesperado al crear:", error);
+      toast.error("Ocurrió un error inesperado al guardar.");
     }
   };
 
-  // Función para manejar la actualización de una alergia
   const handleUpdateAllergy = async (values: AllergyFormValues) => {
     if (!user || !editingAllergy) return;
 
-    try {
-      // Solo actualizamos campos que sabemos que existen
-      const dataToUpdate: any = {
-        allergy_name: values.allergy_name.trim(),
-        reaction_description: values.reaction_description && values.reaction_description.trim() ? values.reaction_description : null,
-        notes: values.notes && values.notes.trim() ? values.notes : null,
-        severity: values.severity && values.severity.trim() ? values.severity : null,
-      };
+    const payload = {
+      allergy_name: values.allergy_name.trim(),
+      severity: values.severity ?? null,
+      reaction_description: sanitizeText(values.reaction_description),
+      reaction_type: values.reaction_type ?? null,
+      treatment: sanitizeText(values.treatment),
+      notes: sanitizeText(values.notes),
+      date_diagnosed: values.date_diagnosed?.trim() ? values.date_diagnosed.trim() : null,
+    };
 
-      // Agregar campos opcionales solo si existen
-      if (values.reaction_type && values.reaction_type.trim()) {
-        dataToUpdate.reaction_type = values.reaction_type;
-      }
-      if (values.treatment && values.treatment.trim()) {
-        dataToUpdate.treatment = values.treatment;
-      }
-      if (values.date_diagnosed && values.date_diagnosed.trim()) {
-        dataToUpdate.date_diagnosed = values.date_diagnosed;
-      }
+    const normalizedName = payload.allergy_name.toLowerCase();
+    const duplicated = userAllergies.some(
+      (item) =>
+        item.id !== editingAllergy.id &&
+        item.allergy_name.trim().toLowerCase() === normalizedName
+    );
 
-      console.log('Actualizando con datos:', dataToUpdate);
-      const { data, error } = await supabase
-        .from('user_allergies')
-        .update(dataToUpdate)
-        .eq('id', editingAllergy.id)
-        .eq('user_id', user.id)
-        .select();
-
-      if (error) {
-        console.error('Error de Supabase:', error);
-        console.error('Detalles:', error.details, error.hint);
-        toast.error(`No se pudo actualizar la alergia: ${error.message}`);
-      } else {
-        console.log('Alergia actualizada:', data);
-        toast.success('¡Alergia actualizada correctamente!');
-        reset();
-        setIsDialogOpen(false);
-        setEditingAllergy(null);
-        await fetchUserAllergies(user.id);
-      }
-    } catch (err) {
-      console.error('Error inesperado:', err);
-      toast.error('Error inesperado al actualizar la alergia.');
+    if (duplicated) {
+      toast.info("Ya tienes otra alergia con ese nombre.");
+      return;
     }
-  };
-
-  // Función para manejar la eliminación de una alergia
-  const handleDeleteAllergy = async (allergyId: string) => {
-    if (!user) return;
 
     try {
       const { error } = await supabase
-        .from('user_allergies')
+        .from("user_allergies")
+        .update(payload)
+        .eq("id", editingAllergy.id)
+        .eq("user_id", user.id);
+
+      if (error) {
+        console.error("[Alergias] Error al actualizar:", error);
+        toast.error("No se pudo actualizar la alergia.");
+        return;
+      }
+
+      toast.success("Alergia actualizada correctamente.");
+      closeDialog();
+      await fetchUserAllergies(user.id, { silent: true });
+    } catch (error) {
+      console.error("[Alergias] Error inesperado al actualizar:", error);
+      toast.error("Ocurrió un error inesperado al actualizar.");
+    }
+  };
+
+  const handleDeleteAllergy = async (allergyId: string) => {
+    if (!user) return;
+
+    setPendingDeleteId(allergyId);
+    try {
+      const { error } = await supabase
+        .from("user_allergies")
         .delete()
         .match({ id: allergyId, user_id: user.id });
 
       if (error) {
-        console.error('Error de Supabase:', error);
-        toast.error(`No se pudo eliminar la alergia: ${error.message}`);
-      } else {
-        toast.success('Alergia eliminada correctamente.');
-        await fetchUserAllergies(user.id);
+        console.error("[Alergias] Error al eliminar:", error);
+        toast.error("No se pudo eliminar la alergia.");
+        return;
       }
-    } catch (err) {
-      console.error('Error inesperado:', err);
-      toast.error('Error inesperado al eliminar la alergia.');
+
+      toast.success("Alergia eliminada correctamente.");
+      await fetchUserAllergies(user.id, { silent: true });
+    } catch (error) {
+      console.error("[Alergias] Error inesperado al eliminar:", error);
+      toast.error("Ocurrió un error inesperado al eliminar.");
+    } finally {
+      setPendingDeleteId(null);
     }
   };
 
-  const handleAddQuickAllergy = async (allergenName: string) => {
-    if (!user) return;
+  const handleAddQuickAllergy = async (allergen: CommonAllergen) => {
+    if (!user) {
+      toast.info("Inicia sesión para registrar tus alergias.");
+      return;
+    }
 
-    const { error } = await supabase.from('user_allergies').insert({
-      user_id: user.id,
-      allergy_name: allergenName,
-      reaction_description: null,
-      notes: null,
-      severity: null,
-    });
+    const normalizedName = allergen.name.trim().toLowerCase();
+    const alreadyExists = userAllergies.some(
+      (item) => item.allergy_name.trim().toLowerCase() === normalizedName
+    );
 
-    if (error) {
-      toast.error('No se pudo añadir la alergia.');
-    } else {
-      toast.success(`¡"${allergenName}" añadido!`);
-      await fetchUserAllergies(user.id);
+    if (alreadyExists) {
+      toast.info("Ya registraste este alérgeno.");
+      return;
+    }
+
+    setQuickAddLoading(allergen.name);
+
+    try {
+      const { error } = await supabase.from("user_allergies").insert([
+        {
+          user_id: user.id,
+          allergy_name: allergen.name,
+          severity: allergen.defaultSeverity ?? null,
+          reaction_type: allergen.defaultReactionType ?? null,
+          reaction_description: null,
+          treatment: null,
+          notes: null,
+          date_diagnosed: null,
+        },
+      ]);
+
+      if (error) {
+        console.error("[Alergias] Error en añadido rápido:", error);
+        toast.error("No se pudo añadir este alérgeno.");
+        return;
+      }
+
+      toast.success(`${allergen.name} se añadió a tu lista.`);
+      await fetchUserAllergies(user.id, { silent: true });
+    } catch (error) {
+      console.error("[Alergias] Error inesperado en añadido rápido:", error);
+      toast.error("Ocurrió un error inesperado.");
+    } finally {
+      setQuickAddLoading(null);
     }
   };
 
-  const handleEditAllergy = (allergy: UserAllergy) => {
-    setEditingAllergy(allergy);
-    setValue('allergy_name', allergy.allergy_name);
-    setValue('severity', allergy.severity as any);
-    setValue('reaction_description', allergy.reaction_description || '');
-    setValue('reaction_type', allergy.reaction_type || '');
-    setValue('treatment', allergy.treatment || '');
-    setValue('notes', allergy.notes || '');
-    setValue('date_diagnosed', allergy.date_diagnosed || '');
-    setIsDialogOpen(true);
-  };
+  if (initialLoading) {
+    return <LoadingState />;
+  }
 
-  const handleCloseDialog = () => {
-    setIsDialogOpen(false);
-    setEditingAllergy(null);
-    reset();
-  };
-
-  if (loading) {
+  if (!user) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-center space-y-3">
-          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
-          <p className="text-muted-foreground">Cargando información de alergias...</p>
-        </div>
-      </div>
+      <Alert className="border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+        <AlertCircle className="h-5 w-5" />
+        <AlertDescription className="ml-3 text-base leading-relaxed md:text-sm">
+          No pudimos identificar tu sesión. Por favor inicia sesión nuevamente para gestionar tus alergias.
+        </AlertDescription>
+      </Alert>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="border-slate-200 dark:border-slate-800">
-          <CardContent className="pt-6">
-            <div className="text-center space-y-1">
-              <p className="text-4xl font-bold text-red-600 dark:text-red-400">{userAllergies.length}</p>
-              <p className="text-sm text-muted-foreground">Alergias registradas</p>
-            </div>
+    <div className="space-y-5 md:space-y-6">
+      <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/60 md:flex-row md:items-center md:justify-between md:p-6">
+        <div className="space-y-2">
+          <p className="text-base font-semibold text-slate-900 dark:text-slate-100 md:text-sm">Panel de alergias personales</p>
+          <p className="text-base leading-relaxed text-muted-foreground md:text-sm">
+            Revisa, filtra y actualiza tus alergias para que el equipo médico cuente con información confiable.
+          </p>
+          {lastSynced && (
+            <p className="text-sm text-muted-foreground md:text-xs">
+              Última sincronización: <span className="font-medium">{formatDateTime(lastSynced)}</span>
+            </p>
+          )}
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:w-full sm:justify-end md:w-auto">
+          <Button
+            variant="outline"
+            onClick={() => void handleRefresh()}
+            disabled={isRefreshing}
+            className="h-11 w-full gap-2 text-base md:h-10 md:w-auto md:text-sm"
+          >
+            {isRefreshing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCcw className="h-4 w-4" />
+            )}
+            Actualizar
+          </Button>
+          <Button onClick={openCreateDialog} className="h-11 w-full gap-2 text-base md:h-10 md:w-auto md:text-sm">
+            <Plus className="h-4 w-4" />
+            Nueva alergia
+          </Button>
+        </div>
+      </div>
+
+      {fetchError && (
+        <Alert className="border-destructive/50 bg-destructive/10 text-destructive">
+          <AlertCircle className="h-5 w-5" />
+          <AlertDescription className="ml-3 text-base leading-relaxed md:text-sm">{fetchError}</AlertDescription>
+        </Alert>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Card className="rounded-2xl border-slate-200 dark:border-slate-800">
+          <CardContent className="space-y-3 pt-6 md:pt-6">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground md:text-[0.7rem]">Registros totales</p>
+            <p className="text-4xl font-bold text-red-600 dark:text-red-400">{userAllergies.length}</p>
+            <p className="text-base leading-relaxed text-muted-foreground md:text-sm">
+              {severityCounts.severa} severas • {severityCounts.moderada} moderadas • {severityCounts.leve} leves
+            </p>
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200 dark:border-slate-800">
-          <CardContent className="pt-6">
-            <div className="text-center space-y-1">
-              <p className="text-4xl font-bold text-orange-600 dark:text-orange-400">
-                {userAllergies.filter(a => a.severity === 'severa').length}
+        <Card className="rounded-2xl border-slate-200 dark:border-slate-800">
+          <CardContent className="flex items-center justify-between pt-6 md:pt-6">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground md:text-[0.7rem]">Última actualización</p>
+              <p className="text-lg font-semibold text-slate-900 dark:text-slate-100 md:text-base">
+                {lastAllergyUpdate ? formatDate(lastAllergyUpdate.toISOString()) : "Sin historial"}
               </p>
-              <p className="text-sm text-muted-foreground">Alergias severas</p>
+              <p className="text-base leading-relaxed text-muted-foreground md:text-sm">
+                {lastAllergyUpdate ? "Mantén tu información vigente" : "Agrega tu primera alergia"}
+              </p>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-slate-200 dark:border-slate-800">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-2xl font-bold">100%</p>
-                <p className="text-sm text-muted-foreground">Protegido</p>
-              </div>
-              <Shield className="h-8 w-8 text-green-600 dark:text-green-400" />
-            </div>
+            <Shield className="h-10 w-10 text-green-600 dark:text-green-400 md:h-9 md:w-9" />
           </CardContent>
         </Card>
       </div>
 
-      {/* Tabs Section */}
-      <Tabs defaultValue="list" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2 bg-slate-100 dark:bg-slate-800">
-          <TabsTrigger value="list" className="gap-2">
-            <AlertCircle className="h-4 w-4" />
-            <span>Mis Alergias ({userAllergies.length})</span>
-          </TabsTrigger>
-          <TabsTrigger value="quick" className="gap-2">
-            <Plus className="h-4 w-4" />
-            <span>Alérgenos Comunes</span>
-          </TabsTrigger>
-        </TabsList>
-
-        {/* Tab 1: My Allergies */}
-        <TabsContent value="list" className="space-y-4">
-          {userAllergies.length > 0 ? (
-            <div className="grid grid-cols-1 gap-4">
-              {userAllergies.map((allergy) => (
-                <Card key={allergy.id} className="border-slate-200 dark:border-slate-800 hover:shadow-lg transition-shadow">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 space-y-2">
-                        <div className="flex items-center gap-3">
-                          <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0" />
-                          <CardTitle className="text-xl">{allergy.allergy_name}</CardTitle>
-                        </div>
-                        {allergy.severity && (
-                          <Badge className={`w-fit border ${getSeverityColor(allergy.severity)}`}>
-                            {getSeverityLabel(allergy.severity)}
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex gap-2">
-                        <Button 
-                          variant="outline" 
-                          size="icon"
-                          onClick={() => handleEditAllergy(allergy)}
-                          className="h-9 w-9"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button 
-                              variant="outline" 
-                              size="icon"
-                              className="h-9 w-9 text-destructive hover:text-destructive hover:bg-destructive/10"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle className="flex items-center gap-2">
-                                <AlertCircle className="h-5 w-5 text-red-600" />
-                                ¿Eliminar alergia?
-                              </AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Se eliminará permanentemente la alergia a <strong>"{allergy.allergy_name}"</strong> de tu perfil. Esta acción no se puede deshacer.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction 
-                                onClick={() => handleDeleteAllergy(allergy.id)} 
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                              >
-                                Sí, eliminar
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
-                    </div>
-                  </CardHeader>
-
-                  <CardContent className="space-y-4">
-                    {/* TIPO DE REACCIÓN */}
-                    {allergy.reaction_type && (
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 text-sm font-medium">
-                          <AlertTriangle className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                          Tipo de Reacción
-                        </div>
-                        <p className="text-sm text-muted-foreground ml-6 bg-purple-50 dark:bg-purple-950/20 p-2 rounded-lg border border-purple-200 dark:border-purple-800">
-                          {allergy.reaction_type}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* SÍNTOMAS/REACCIÓN DETALLADOS */}
-                    {allergy.reaction_description && (
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 text-sm font-medium">
-                          <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                          Síntomas/Reacción Detallados
-                        </div>
-                        <p className="text-sm text-muted-foreground ml-6 bg-amber-50 dark:bg-amber-950/20 p-3 rounded-lg border border-amber-200 dark:border-amber-800 whitespace-pre-wrap">
-                          {allergy.reaction_description}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* TRATAMIENTO */}
-                    {allergy.treatment && (
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 text-sm font-medium">
-                          <Pill className="h-4 w-4 text-green-600 dark:text-green-400" />
-                          Tratamiento/Manejo
-                        </div>
-                        <p className="text-sm text-muted-foreground ml-6 bg-green-50 dark:bg-green-950/20 p-3 rounded-lg border border-green-200 dark:border-green-800 whitespace-pre-wrap">
-                          {allergy.treatment}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* FECHA DE DIAGNÓSTICO */}
-                    {allergy.date_diagnosed && (
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 text-sm font-medium">
-                          <Calendar className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                          Fecha de Diagnóstico
-                        </div>
-                        <p className="text-sm text-muted-foreground ml-6">
-                          {new Date(allergy.date_diagnosed).toLocaleDateString('es-ES')}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* NOTAS ADICIONALES */}
-                    {allergy.notes && (
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 text-sm font-medium">
-                          <Pill className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                          Notas Adicionales
-                        </div>
-                        <p className="text-sm text-muted-foreground ml-6 bg-blue-50 dark:bg-blue-950/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800 whitespace-pre-wrap">
-                          {allergy.notes}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* FECHA DE REGISTRO */}
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t border-slate-200 dark:border-slate-800">
-                      <Calendar className="h-3 w-3" />
-                      Registrado: {new Date(allergy.created_at).toLocaleDateString('es-ES')}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+      <section className="space-y-5">
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div className="flex w-full flex-col gap-3 md:max-w-3xl md:flex-row md:items-end md:gap-4">
+            <div className="relative w-full">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Buscar por nombre, síntomas o notas"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                className="h-11 pl-9 text-base md:h-10 md:text-sm"
+              />
             </div>
-          ) : (
-            <Alert className="bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800">
-              <AlertCircle className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-              <AlertDescription className="text-blue-800 dark:text-blue-300 ml-3">
-                No tienes ninguna alergia registrada. Usa el botón "Nueva Alergia" para comenzar.
-              </AlertDescription>
-            </Alert>
-          )}
-        </TabsContent>
+            <div className="w-full md:w-48">
+              <span className="text-sm font-medium uppercase text-muted-foreground md:text-xs">Filtrar por severidad</span>
+              <Select
+                value={severityFilter}
+                onValueChange={(value) => setSeverityFilter((value as SeverityFilter) || "all")}
+              >
+                <SelectTrigger className="mt-1 h-11 text-base md:h-9 md:text-sm">
+                  <SelectValue placeholder="Todas" />
+                </SelectTrigger>
+                <SelectContent>
+                  {severityFilterOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <p className="text-base text-muted-foreground md:text-sm">
+            Mostrando {filteredAllergies.length} de {userAllergies.length} {userAllergies.length === 1 ? "registro" : "registros"}
+          </p>
+        </div>
 
-        {/* Tab 2: Quick Allergens */}
-        <TabsContent value="quick" className="space-y-4">
-          <Alert className="bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-700">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription className="ml-3">
-              Haz clic en cualquier alérgeno común para añadirlo rápidamente a tu perfil.
+        <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950/60 md:p-6">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-base font-semibold text-slate-900 dark:text-slate-100 md:text-sm">Añadir con un toque</p>
+              <p className="text-sm text-muted-foreground md:text-xs">{quickHelperText}</p>
+            </div>
+            {canToggleSuggestions && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAllSuggestions((prev) => !prev)}
+                className="h-10 px-4 text-base md:h-9 md:px-3 md:text-sm"
+              >
+                {showAllSuggestions ? "Ver menos" : `Ver todos (${COMMON_ALLERGENS.length})`}
+              </Button>
+            )}
+          </div>
+
+          <div className="relative w-full md:max-w-sm">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              type="search"
+              placeholder="Buscar en el catálogo de alérgenos"
+              value={quickSearchTerm}
+              onChange={(event) => setQuickSearchTerm(event.target.value)}
+              className="h-11 pl-9 text-base md:h-10 md:text-sm"
+            />
+          </div>
+
+          {noQuickMatches ? (
+            <p className="text-base text-muted-foreground md:text-sm">
+              No encontramos alérgenos con ese nombre. Prueba con otra palabra clave.
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {quickSuggestions.map((allergen) => {
+                const alreadyAdded = userAllergies.some(
+                  (item) => item.allergy_name.trim().toLowerCase() === allergen.name.toLowerCase()
+                );
+                const isLoading = quickAddLoading === allergen.name;
+                return (
+                  <Button
+                    key={`${allergen.category}-${allergen.name}`}
+                    type="button"
+                    variant="outline"
+                    className={cn(
+                      "flex items-center gap-2 rounded-full border px-4 py-2 text-base md:px-3 md:py-1.5 md:text-sm",
+                      alreadyAdded
+                        ? "border-green-300 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-950/40 dark:text-green-200"
+                        : "border-slate-200 dark:border-slate-700"
+                    )}
+                    disabled={alreadyAdded || isLoading}
+                    onClick={() => void handleAddQuickAllergy(allergen)}
+                  >
+                    <span className="text-base" aria-hidden>
+                      {allergen.icon}
+                    </span>
+                    <span>{allergen.name}</span>
+                    {alreadyAdded ? (
+                      <CheckCircle className="h-3 w-3" />
+                    ) : isLoading ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : null}
+                  </Button>
+                );
+              })}
+            </div>
+          )}
+
+          {!isSearchingSuggestions && allSuggestionsAdded && !noQuickMatches && (
+            <p className="text-xs text-emerald-600 dark:text-emerald-300">
+              Ya registraste todos los alérgenos sugeridos. Puedes añadir otros desde el botón "Nueva alergia".
+            </p>
+          )}
+        </div>
+
+        {filteredAllergies.length === 0 ? (
+          <Alert className="border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-200">
+            <AlertCircle className="h-5 w-5" />
+            <AlertDescription className="ml-3 text-base leading-relaxed md:text-sm">
+              {userAllergies.length === 0
+                ? "Todavía no has registrado alergias. Añade tu primera alergia para tenerla siempre a mano."
+                : "No encontramos coincidencias. Ajusta la búsqueda o la severidad para ver otros resultados."}
             </AlertDescription>
           </Alert>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {COMMON_ALLERGENS.map((allergen) => {
-              const isAdded = userAllergies.some(a => a.allergy_name === allergen.name);
-              return (
-                <Card 
-                  key={allergen.name}
-                  className="border-slate-200 dark:border-slate-800 cursor-pointer hover:shadow-md transition-shadow"
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <span className="text-2xl">{allergen.icon}</span>
-                        <div>
-                          <p className="font-medium">{allergen.name}</p>
-                          <p className="text-xs text-muted-foreground">{allergen.category}</p>
-                        </div>
-                      </div>
-                      {isAdded ? (
-                        <Badge variant="secondary" className="bg-green-100 dark:bg-green-950 text-green-800 dark:text-green-200">
-                          <CheckCircle className="h-3 w-3 mr-1" />
-                          Añadido
-                        </Badge>
-                      ) : (
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleAddQuickAllergy(allergen.name)}
-                          className="gap-1"
-                        >
-                          <Plus className="h-3 w-3" />
-                          Añadir
-                        </Button>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
+        ) : (
+          <div className="space-y-3">
+            {filteredAllergies.map((allergy) => (
+              <AllergyCard
+                key={allergy.id}
+                allergy={allergy}
+                onEdit={openEditDialog}
+                onDelete={(id) => void handleDeleteAllergy(id)}
+                pendingDeleteId={pendingDeleteId}
+              />
+            ))}
           </div>
-        </TabsContent>
-      </Tabs>
+        )}
+      </section>
 
-      {/* Add/Edit Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={handleCloseDialog}>
+      <Dialog open={isDialogOpen} onOpenChange={(open) => (open ? setIsDialogOpen(true) : closeDialog())}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
-              {editingAllergy ? 'Editar Alergia' : 'Añadir Nueva Alergia'}
+              {editingAllergy ? "Editar alergia" : "Añadir nueva alergia"}
             </DialogTitle>
-            <DialogDescription>
-              {editingAllergy ? 'Actualiza todos los detalles de tu alergia.' : 'Registra una alergia con todos sus detalles para mantener tu perfil seguro.'}
+            <DialogDescription className="text-base leading-relaxed md:text-sm">
+              {editingAllergy
+                ? "Actualiza los detalles para mantener tu información al día."
+                : "Registra una alergia con la mayor cantidad de detalles posibles."}
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit((data) => {
-            console.log('Formulario enviado con datos:', data);
-            editingAllergy ? handleUpdateAllergy(data) : handleAddAllergy(data);
-          })} className="space-y-4">
-            {/* NOMBRE DEL ALÉRGENO */}
+          <form
+            onSubmit={handleSubmit((data) => {
+              if (editingAllergy) {
+                void handleUpdateAllergy(data);
+              } else {
+                void handleAddAllergy(data);
+              }
+            })}
+            className="space-y-4"
+          >
             <div className="space-y-2">
-              <Label htmlFor="allergy_name" className="flex items-center gap-1">
+              <Label
+                htmlFor="allergy_name"
+                className="flex items-center gap-2 text-base font-medium md:text-sm"
+              >
                 <Pill className="h-4 w-4" />
-                Nombre del Alérgeno *
+                Nombre del alérgeno *
               </Label>
               <Controller
                 name="allergy_name"
                 control={control}
                 render={({ field, fieldState }) => (
-                  <>
-                    <Input 
-                      id="allergy_name" 
-                      placeholder="Ej: Penicilina, Cacahuates..." 
-                      {...field} 
-                      className="h-9"
+                  <div className="space-y-1">
+                    <Input
+                      id="allergy_name"
+                      placeholder="Ej. Penicilina, Cacahuates"
+                      className="h-11 text-base md:h-10 md:text-sm"
+                      {...field}
+                      autoFocus={!editingAllergy}
                     />
                     {fieldState.error && (
-                      <p className="text-xs text-red-500 flex items-center gap-1">
+                      <p className="flex items-center gap-1 text-xs text-red-500">
                         <AlertCircle className="h-3 w-3" />
                         {fieldState.error.message}
                       </p>
                     )}
-                  </>
+                  </div>
                 )}
               />
             </div>
 
-            {/* SEVERIDAD */}
-            <div className="space-y-2">
-              <Label htmlFor="severity" className="flex items-center gap-1">
-                <AlertTriangle className="h-4 w-4" />
-                Severidad
-              </Label>
-              <Controller
-                name="severity"
-                control={control}
-                render={({ field }) => (
-                  <select
-                    id="severity"
-                    {...field}
-                    className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm"
-                  >
-                    <option value="">Sin especificar</option>
-                    <option value="leve">Leve</option>
-                    <option value="moderada">Moderada</option>
-                    <option value="severa">Severa ⚠️</option>
-                  </select>
-                )}
-              />
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label
+                  htmlFor="severity"
+                  className="flex items-center gap-2 text-base font-medium md:text-sm"
+                >
+                  <AlertTriangle className="h-4 w-4" />
+                  Severidad
+                </Label>
+                <Controller
+                  name="severity"
+                  control={control}
+                  render={({ field }) => (
+                    <select
+                      id="severity"
+                      value={field.value ?? ""}
+                      onChange={(event) => field.onChange(event.target.value ? (event.target.value as Severity) : undefined)}
+                      className="h-11 w-full rounded-md border border-input bg-background px-3 text-base md:h-9 md:text-sm"
+                    >
+                      <option value="">Sin especificar</option>
+                      <option value="leve">Leve</option>
+                      <option value="moderada">Moderada</option>
+                      <option value="severa">Severa</option>
+                    </select>
+                  )}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label
+                  htmlFor="reaction_type"
+                  className="flex items-center gap-2 text-base font-medium md:text-sm"
+                >
+                  <AlertTriangle className="h-4 w-4" />
+                  Tipo de reacción
+                </Label>
+                <Controller
+                  name="reaction_type"
+                  control={control}
+                  render={({ field }) => (
+                    <select
+                      id="reaction_type"
+                      value={field.value ?? ""}
+                      onChange={(event) => field.onChange(event.target.value ? (event.target.value as ReactionType) : undefined)}
+                      className="h-11 w-full rounded-md border border-input bg-background px-3 text-base md:h-9 md:text-sm"
+                    >
+                      <option value="">Sin especificar</option>
+                      <option value="cutanea">Cutánea (rash, picazón)</option>
+                      <option value="gastrointestinal">Gastrointestinal (náuseas, vómito)</option>
+                      <option value="respiratoria">Respiratoria (tos, asma)</option>
+                      <option value="anafilactica">Anafiláctica (crítica)</option>
+                      <option value="otra">Otra</option>
+                    </select>
+                  )}
+                />
+              </div>
             </div>
 
-            {/* TIPO DE REACCIÓN */}
             <div className="space-y-2">
-              <Label htmlFor="reaction_type" className="flex items-center gap-1">
-                <AlertTriangle className="h-4 w-4" />
-                Tipo de Reacción
-              </Label>
-              <Controller
-                name="reaction_type"
-                control={control}
-                render={({ field }) => (
-                  <select
-                    id="reaction_type"
-                    {...field}
-                    className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm"
-                  >
-                    <option value="">Selecciona un tipo</option>
-                    <option value="cutanea">Cutánea (Rash, picazón)</option>
-                    <option value="gastrointestinal">Gastrointestinal (Náusea, vómito)</option>
-                    <option value="respiratoria">Respiratoria (Tos, asma)</option>
-                    <option value="anafilactica">Anafiláctica (Severa, shock)</option>
-                    <option value="otra">Otra</option>
-                  </select>
-                )}
-              />
-            </div>
-
-            {/* SÍNTOMAS/REACCIÓN DETALLADOS */}
-            <div className="space-y-2">
-              <Label htmlFor="reaction_description" className="flex items-center gap-1">
-                Síntomas/Reacción Detallados
+              <Label htmlFor="reaction_description" className="text-base font-medium md:text-sm">
+                Síntomas / reacción
               </Label>
               <Controller
                 name="reaction_description"
                 control={control}
-                render={({ field }) => (
-                  <Textarea 
-                    id="reaction_description" 
-                    placeholder="Ej: Urticaria en brazos, dificultad para respirar, hinchazón de labios..." 
-                    {...field}
-                    className="min-h-24 resize-none text-sm"
-                  />
+                render={({ field, fieldState }) => (
+                  <div className="space-y-1">
+                    <Textarea
+                      id="reaction_description"
+                      placeholder="Describe los síntomas presentados durante la reacción."
+                      className="min-h-[96px] resize-none text-base md:text-sm"
+                      {...field}
+                    />
+                    {fieldState.error && (
+                      <p className="flex items-center gap-1 text-xs text-red-500">
+                        <AlertCircle className="h-3 w-3" />
+                        {fieldState.error.message}
+                      </p>
+                    )}
+                  </div>
                 )}
               />
             </div>
 
-            {/* TRATAMIENTO */}
             <div className="space-y-2">
-              <Label htmlFor="treatment" className="flex items-center gap-1">
-                Tratamiento/Manejo
+              <Label htmlFor="treatment" className="text-base font-medium md:text-sm">
+                Tratamiento recomendado
               </Label>
               <Controller
                 name="treatment"
                 control={control}
-                render={({ field }) => (
-                  <Textarea 
-                    id="treatment" 
-                    placeholder="Ej: Tomar antihistamínicos, usar EpiPen si es necesario, evitar completamente..." 
-                    {...field}
-                    className="min-h-24 resize-none text-sm"
-                  />
+                render={({ field, fieldState }) => (
+                  <div className="space-y-1">
+                    <Textarea
+                      id="treatment"
+                      placeholder="Medicamentos, dispositivos o acciones sugeridas."
+                      className="min-h-[96px] resize-none text-base md:text-sm"
+                      {...field}
+                    />
+                    {fieldState.error && (
+                      <p className="flex items-center gap-1 text-xs text-red-500">
+                        <AlertCircle className="h-3 w-3" />
+                        {fieldState.error.message}
+                      </p>
+                    )}
+                  </div>
                 )}
               />
             </div>
 
-            {/* FECHA DE DIAGNÓSTICO */}
-            <div className="space-y-2">
-              <Label htmlFor="date_diagnosed" className="flex items-center gap-1">
-                <Calendar className="h-4 w-4" />
-                Fecha de Diagnóstico
-              </Label>
-              <Controller
-                name="date_diagnosed"
-                control={control}
-                render={({ field }) => (
-                  <Input 
-                    id="date_diagnosed" 
-                    type="date"
-                    {...field}
-                    className="h-9"
-                  />
-                )}
-              />
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label
+                  htmlFor="date_diagnosed"
+                  className="flex items-center gap-2 text-base font-medium md:text-sm"
+                >
+                  <Calendar className="h-4 w-4" />
+                  Fecha de diagnóstico
+                </Label>
+                <Controller
+                  name="date_diagnosed"
+                  control={control}
+                  render={({ field, fieldState }) => (
+                    <div className="space-y-1">
+                      <Input
+                        id="date_diagnosed"
+                        type="date"
+                        max={new Date().toISOString().slice(0, 10)}
+                        className="h-11 text-base md:h-10 md:text-sm"
+                        {...field}
+                      />
+                      {fieldState.error && (
+                        <p className="flex items-center gap-1 text-xs text-red-500">
+                          <AlertCircle className="h-3 w-3" />
+                          {fieldState.error.message}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="notes" className="text-base font-medium md:text-sm">
+                  Notas adicionales
+                </Label>
+                <Controller
+                  name="notes"
+                  control={control}
+                  render={({ field, fieldState }) => (
+                    <div className="space-y-1">
+                      <Textarea
+                        id="notes"
+                        placeholder="Indicaciones especiales, recordatorios o contactos médicos."
+                        className="min-h-[96px] resize-none text-base md:text-sm"
+                        {...field}
+                      />
+                      {fieldState.error && (
+                        <p className="flex items-center gap-1 text-xs text-red-500">
+                          <AlertCircle className="h-3 w-3" />
+                          {fieldState.error.message}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                />
+              </div>
             </div>
 
-            {/* NOTAS ADICIONALES */}
-            <div className="space-y-2">
-              <Label htmlFor="notes" className="flex items-center gap-1">
-                Notas Adicionales
-              </Label>
-              <Controller
-                name="notes"
-                control={control}
-                render={({ field }) => (
-                  <Textarea 
-                    id="notes" 
-                    placeholder="Ej: Informar a médicos, llevar identificación médica, reacciones previas..." 
-                    {...field}
-                    className="min-h-24 resize-none text-sm"
-                  />
-                )}
-              />
-            </div>
-
-            <DialogFooter className="gap-2 pt-4">
-              <Button 
-                type="button" 
+            <DialogFooter className="flex flex-col gap-2 md:flex-row md:justify-end">
+              <Button
+                type="button"
                 variant="outline"
-                onClick={handleCloseDialog}
+                onClick={closeDialog}
+                className="h-11 w-full text-base md:h-10 md:w-auto md:text-sm"
               >
                 Cancelar
               </Button>
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
+                className="h-11 w-full gap-2 text-base md:h-10 md:w-auto md:text-sm"
                 disabled={isSubmitting}
-                className="gap-1"
               >
                 {isSubmitting ? (
                   <>
@@ -833,7 +1289,7 @@ export const AlergiasManager: FC = () => {
                 ) : (
                   <>
                     <Plus className="h-4 w-4" />
-                    Añadir Alergia
+                    Añadir alergia
                   </>
                 )}
               </Button>
@@ -842,12 +1298,12 @@ export const AlergiasManager: FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Floating Action Button */}
-      <div className="fixed bottom-8 right-8">
+      <div className="fixed bottom-24 right-5 z-40 md:hidden">
         <Button
-          onClick={() => setIsDialogOpen(true)}
-          className="h-14 w-14 rounded-full shadow-lg hover:shadow-xl gap-2 bg-red-600 hover:bg-red-700 text-white"
+          onClick={openCreateDialog}
+          className="h-14 w-14 rounded-full bg-rose-600 text-white shadow-lg hover:bg-rose-700"
           size="icon"
+          aria-label="Registrar nueva alergia"
         >
           <Plus className="h-6 w-6" />
         </Button>
