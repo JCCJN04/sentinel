@@ -128,12 +128,16 @@ export function MedicalHistoryClient({ initialPersonalHistory, initialFamilyHist
               <div className="space-y-2">
                 <Label htmlFor="personal-condition" className="text-xs sm:text-sm">Enfermedad o condición</Label>
                 <Controller name="condition_name" control={personalForm.control} render={({ field }) => (
-                    <Input 
-                      id="personal-condition"
-                      placeholder="Ej: Asma, Diabetes" 
-                      className="h-9 sm:h-10 text-sm"
-                      {...field} 
-                    />
+                    <Select onValueChange={field.onChange} value={field.value || ''}>
+                      <SelectTrigger id="personal-condition" className="h-9 sm:h-10 text-sm">
+                        <SelectValue placeholder="Selecciona una condición..." />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[300px] overflow-y-auto">
+                        {conditionsCatalog.map(name => (
+                          <SelectItem key={name} value={name} className="text-sm">{name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                 )}/>
               </div>
               <div className="space-y-2">
@@ -207,7 +211,7 @@ export function MedicalHistoryClient({ initialPersonalHistory, initialFamilyHist
                         <SelectTrigger id="family-condition" className="h-9 sm:h-10 text-sm">
                           <SelectValue placeholder="Selecciona una enfermedad..." />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="max-h-[300px] overflow-y-auto">
                             {conditionsCatalog.map(name => <SelectItem key={name} value={name} className="text-sm">{name}</SelectItem>)}
                         </SelectContent>
                      </Select>
@@ -220,7 +224,7 @@ export function MedicalHistoryClient({ initialPersonalHistory, initialFamilyHist
                         <SelectTrigger id="family-member" className="h-9 sm:h-10 text-sm">
                             <SelectValue placeholder="Selecciona parentesco..." />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="max-h-[300px] overflow-y-auto">
                             {familyRelationships.map(relationship => (
                                 <SelectItem key={relationship} value={relationship} className="text-sm">{relationship}</SelectItem>
                             ))}
@@ -303,12 +307,16 @@ export function MedicalHistoryClient({ initialPersonalHistory, initialFamilyHist
                   <div className="space-y-2">
                     <Label htmlFor="mobile-personal-condition" className="text-xs">Enfermedad</Label>
                     <Controller name="condition_name" control={personalForm.control} render={({ field }) => (
-                        <Input 
-                          id="mobile-personal-condition"
-                          placeholder="Ej: Asma" 
-                          className="h-10 text-sm"
-                          {...field} 
-                        />
+                        <Select onValueChange={field.onChange} value={field.value || ''}>
+                          <SelectTrigger id="mobile-personal-condition" className="h-10 text-sm">
+                            <SelectValue placeholder="Selecciona..." />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-[300px] overflow-y-auto">
+                            {conditionsCatalog.map(name => (
+                              <SelectItem key={name} value={name} className="text-sm">{name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                     )}/>
                   </div>
                   <div className="space-y-2">
@@ -381,7 +389,7 @@ export function MedicalHistoryClient({ initialPersonalHistory, initialFamilyHist
                             <SelectTrigger id="mobile-family-condition" className="h-10 text-sm">
                               <SelectValue placeholder="Selecciona..." />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent className="max-h-[300px] overflow-y-auto">
                                 {conditionsCatalog.map(name => <SelectItem key={name} value={name} className="text-sm">{name}</SelectItem>)}
                             </SelectContent>
                          </Select>
@@ -394,7 +402,7 @@ export function MedicalHistoryClient({ initialPersonalHistory, initialFamilyHist
                             <SelectTrigger id="mobile-family-member" className="h-10 text-sm">
                                 <SelectValue placeholder="Selecciona..." />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent className="max-h-[300px] overflow-y-auto">
                                 {familyRelationships.map(relationship => (
                                     <SelectItem key={relationship} value={relationship} className="text-sm">{relationship}</SelectItem>
                                 ))}

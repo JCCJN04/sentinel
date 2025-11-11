@@ -4,13 +4,13 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Upload, PlusCircle, FileText, Pill, Bell } from "lucide-react"; // Asegúrate de que los iconos estén disponibles
+import { Upload, PlusCircle, FileText, Pill, Bell, Share2 } from "lucide-react"; // Asegúrate de que los iconos estén disponibles
 
 export function QuickActions() {
   const actions = [
     { href: "/dashboard/subir", icon: Upload, label: "Subir Documento", color: "blue" },
     { href: "/dashboard/prescriptions/new", icon: Pill, label: "Nueva Prescripción", color: "red" },
-    { href: "/dashboard/medicamentos", icon: Pill, label: "Ver Medicamentos", color: "green" },
+    { href: "/dashboard/compartir-rapido", icon: Share2, label: "Compartir Rápido", color: "emerald" },
     { href: "/dashboard/alertas", icon: Bell, label: "Ver Alertas", color: "amber" },
     { href: "/dashboard/documentos", icon: FileText, label: "Todos los Docs", color: "purple" },
   ];
@@ -18,6 +18,7 @@ export function QuickActions() {
   const colorMap: Record<string, { bg: string; text: string; border: string }> = {
     blue: { bg: "bg-blue-50 dark:bg-blue-900/20", text: "text-blue-600 dark:text-blue-400", border: "border-blue-200/50 dark:border-blue-800/50" },
     red: { bg: "bg-red-50 dark:bg-red-900/20", text: "text-red-600 dark:text-red-400", border: "border-red-200/50 dark:border-red-800/50" },
+    emerald: { bg: "bg-emerald-50 dark:bg-emerald-900/20", text: "text-emerald-600 dark:text-emerald-400", border: "border-emerald-200/50 dark:border-emerald-800/50" },
     green: { bg: "bg-green-50 dark:bg-green-900/20", text: "text-green-600 dark:text-green-400", border: "border-green-200/50 dark:border-green-800/50" },
     amber: { bg: "bg-amber-50 dark:bg-amber-900/20", text: "text-amber-600 dark:text-amber-400", border: "border-amber-200/50 dark:border-amber-800/50" },
     purple: { bg: "bg-purple-50 dark:bg-purple-900/20", text: "text-purple-600 dark:text-purple-400", border: "border-purple-200/50 dark:border-purple-800/50" },

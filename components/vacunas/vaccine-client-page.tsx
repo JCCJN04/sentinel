@@ -462,9 +462,9 @@ export function VaccineClientPage({ initialVaccines, vaccineCatalog }: VaccineCl
                   />
                 </div>
               </CardHeader>
-              <CardContent className="flex flex-wrap gap-2 p-4 sm:gap-3 sm:p-6">
+              <CardContent className="grid grid-cols-1 gap-2 p-4 sm:grid-cols-2 sm:gap-3 sm:p-6 lg:grid-cols-3">
                 {catalogMatches.length === 0 ? (
-                  <p className="text-sm sm:text-base text-muted-foreground">No hay coincidencias con tu búsqueda.</p>
+                  <p className="col-span-full text-sm sm:text-base text-muted-foreground">No hay coincidencias con tu búsqueda.</p>
                 ) : (
                   catalogMatches.map((item) => {
                     const alreadyAdded = vaccines.some((record) => record.vaccine_name === item.name)
@@ -475,7 +475,7 @@ export function VaccineClientPage({ initialVaccines, vaccineCatalog }: VaccineCl
                         variant="outline"
                         size="sm"
                         className={cn(
-                          'flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm shadow-sm transition',
+                          'flex items-center gap-2 rounded-lg border px-3 py-2 text-xs sm:text-sm shadow-sm transition justify-start h-auto',
                           alreadyAdded
                             ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200'
                             : 'border-slate-200 bg-white hover:border-emerald-200 hover:text-emerald-700 dark:border-slate-700 dark:bg-slate-950',
@@ -483,14 +483,14 @@ export function VaccineClientPage({ initialVaccines, vaccineCatalog }: VaccineCl
                         disabled={alreadyAdded}
                         onClick={() => openDialogPrefilled(item.name)}
                       >
-                        <Syringe className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                        <span className="truncate">{item.name}</span>
+                        <Syringe className="h-4 w-4 flex-shrink-0" />
+                        <span className="truncate text-left">{item.name}</span>
                       </Button>
                     )
                   })
                 )}
                 {!quickSearchTerm && allSuggestionsAdded && (
-                  <p className="text-xs text-emerald-600 dark:text-emerald-300">
+                  <p className="col-span-full text-xs text-emerald-600 dark:text-emerald-300">
                     Ya registraste todo el catálogo disponible.
                   </p>
                 )}
@@ -822,7 +822,7 @@ export function VaccineClientPage({ initialVaccines, vaccineCatalog }: VaccineCl
                     <SelectTrigger className="h-10 text-sm">
                       <SelectValue placeholder="Selecciona una vacuna" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="max-h-[300px] overflow-y-auto">
                       {vaccineCatalog.map((item) => (
                         <SelectItem key={item.name} value={item.name}>
                           <div className="flex flex-col">
