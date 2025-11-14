@@ -890,21 +890,7 @@ export default function LandingPage() {
                 </div>
               </div>
 
-              {/* Social proof */}
-              <div className="pt-8 flex flex-col items-center gap-4">
-                <div className="flex -space-x-3">
-                  {[...Array(5)].map((_, i) => (
-                    <Avatar key={i} className="h-12 w-12 border-2 border-white">
-                      <AvatarFallback className="bg-gradient-to-br from-emerald-400 to-cyan-400 text-white font-bold">
-                        {String.fromCharCode(65 + i)}
-                      </AvatarFallback>
-                    </Avatar>
-                  ))}
-                </div>
-                <p className="text-white/90 text-sm font-medium">
-                  <span className="font-bold">2,847 personas</span> se registraron esta semana
-                </p>
-              </div>
+              
             </div>
           </div>
         </section>
