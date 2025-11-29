@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { uploadRecipeImage } from './recipe-storage.actions';
+import { onPrescriptionCreated } from '@/lib/alerts-hooks';
 
 // Función helper (sin cambios)
 const createSupabaseClient = () => {
@@ -276,6 +277,23 @@ export async function createPrescription(
              console.error('Error al generar las dosis:', dosesError);
              return { message: 'Receta creada, pero falló la generación del calendario de dosis.' };
         }
+    }
+
+    // 🆕 Generar alertas automáticas para medicamentos
+    if (createdMedicines.length > 0) {
+        const medicinesForAlert = createdMedicines.map(m => ({
+            id: m.id,
+            name: m.medicine_name,
+            dosage: m.dosage || '',
+            frequency_hours: m.frequency_hours || 24
+        }));
+        
+        onPrescriptionCreated({
+            userId: user.id,
+            prescriptionId: prescriptionId,
+            medicines: medicinesForAlert,
+            startDate: `${start_date}T${start_time || '00:00'}`
+        }).catch(err => console.error('Error generando alertas de medicamentos:', err));
     }
 
     // Si hay warning de imagen, agregarlo al mensaje

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Shield } from "lucide-react"
 import { sidebarItems } from "@/config/dashboard-nav" // <-- Importa la configuración central
+import { AlertsBadge } from "./alerts-badge"
 
 export function Sidebar({ className }: { className?: string }) {
   const pathname = usePathname()
@@ -24,6 +25,8 @@ export function Sidebar({ className }: { className?: string }) {
             {sidebarItems.map((item) => {
               const Icon = item.icon
               const isActive = pathname.startsWith(item.href) && (item.href !== "/dashboard" || pathname === "/dashboard");
+              const isAlertsPage = item.href === "/dashboard/alertas";
+              
               return (
                 <Link
                   key={item.href}
@@ -35,6 +38,7 @@ export function Sidebar({ className }: { className?: string }) {
                 >
                   <Icon className="h-4 w-4" />
                   <span>{item.title}</span>
+                  {isAlertsPage && <AlertsBadge />}
                 </Link>
               )
             })}

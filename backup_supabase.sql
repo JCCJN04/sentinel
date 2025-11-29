@@ -96,6 +96,24 @@ $$;
 ALTER FUNCTION "public"."add_document_history"() OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."cleanup_old_alerts"() RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+BEGIN
+  DELETE FROM custom_alerts
+  WHERE status IN ('completada', 'cancelada') 
+    AND updated_at < now() - interval '90 days';
+    
+  DELETE FROM document_reminders
+  WHERE status IN ('completada', 'pospuesta') 
+    AND updated_at < now() - interval '90 days';
+END;
+$$;
+
+
+ALTER FUNCTION "public"."cleanup_old_alerts"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."add_document_share_history"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     AS $$
@@ -181,6 +199,54 @@ $$;
 ALTER FUNCTION "public"."get_user_id_for_upload"() OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."generate_recurring_alerts"() RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+DECLARE
+  alert_record RECORD;
+  next_trigger_date timestamp with time zone;
+BEGIN
+  FOR alert_record IN 
+    SELECT * FROM custom_alerts 
+    WHERE recurrence IS NOT NULL 
+      AND status = 'completada'
+      AND (recurrence->>'end_date' IS NULL OR (recurrence->>'end_date')::timestamp > now())
+  LOOP
+    CASE alert_record.recurrence->>'frequency'
+      WHEN 'daily' THEN
+        next_trigger_date := alert_record.trigger_date + (alert_record.recurrence->>'interval')::int * interval '1 day';
+      WHEN 'weekly' THEN
+        next_trigger_date := alert_record.trigger_date + (alert_record.recurrence->>'interval')::int * interval '1 week';
+      WHEN 'monthly' THEN
+        next_trigger_date := alert_record.trigger_date + (alert_record.recurrence->>'interval')::int * interval '1 month';
+      ELSE
+        next_trigger_date := NULL;
+    END CASE;
+    
+    IF next_trigger_date IS NOT NULL AND next_trigger_date > now() THEN
+      INSERT INTO custom_alerts (
+        user_id, title, message, type, priority, trigger_date, 
+        recurrence, metadata, link
+      ) VALUES (
+        alert_record.user_id,
+        alert_record.title,
+        alert_record.message,
+        alert_record.type,
+        alert_record.priority,
+        next_trigger_date,
+        alert_record.recurrence,
+        alert_record.metadata,
+        alert_record.link
+      );
+    END IF;
+  END LOOP;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."generate_recurring_alerts"() OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."handle_updated_at"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     AS $$
@@ -206,6 +272,20 @@ $$;
 
 
 ALTER FUNCTION "public"."increment_share_access_count"("share_id" "uuid") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."mark_alerts_as_read"("alert_ids" "uuid"[]) RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+BEGIN
+  UPDATE custom_alerts
+  SET is_read = true, updated_at = now()
+  WHERE id = ANY(alert_ids) AND user_id = auth.uid();
+END;
+$$;
+
+
+ALTER FUNCTION "public"."mark_alerts_as_read"("alert_ids" "uuid"[]) OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."log_activity"("activity_type" "text", "description" "text", "ip_address" "text" DEFAULT NULL::"text", "user_agent" "text" DEFAULT NULL::"text") RETURNS "uuid"
@@ -382,6 +462,44 @@ CREATE TABLE IF NOT EXISTS "public"."categories" (
 
 
 ALTER TABLE "public"."categories" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."custom_alerts" (
+    "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
+    "user_id" "uuid" NOT NULL,
+    "title" "text" NOT NULL,
+    "message" "text" NOT NULL,
+    "type" "text" DEFAULT 'custom'::"text" NOT NULL,
+    "priority" "text" DEFAULT 'media'::"text" NOT NULL,
+    "status" "text" DEFAULT 'pendiente'::"text" NOT NULL,
+    "is_read" boolean DEFAULT false NOT NULL,
+    "link" "text",
+    "metadata" "jsonb" DEFAULT '{}'::"jsonb",
+    "trigger_date" timestamp with time zone,
+    "expiry_date" timestamp with time zone,
+    "recurrence" "jsonb",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."custom_alerts" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."custom_alerts" IS 'Alertas personalizadas creadas por los usuarios o generadas automáticamente por el sistema.';
+
+
+
+COMMENT ON COLUMN "public"."custom_alerts"."type" IS 'Tipo de alerta: custom, medication, vaccine, appointment, insurance, etc.';
+
+
+
+COMMENT ON COLUMN "public"."custom_alerts"."priority" IS 'Prioridad: baja, media, alta, crítica';
+
+
+
+COMMENT ON COLUMN "public"."custom_alerts"."recurrence" IS 'Configuración de recurrencia: {frequency: "daily"|"weekly"|"monthly", interval: number, end_date: string}';
+
 
 
 CREATE TABLE IF NOT EXISTS "public"."document_annotations" (
@@ -799,6 +917,11 @@ ALTER TABLE ONLY "public"."categories"
 
 
 
+ALTER TABLE ONLY "public"."custom_alerts"
+    ADD CONSTRAINT "custom_alerts_pkey" PRIMARY KEY ("id");
+
+
+
 ALTER TABLE ONLY "public"."document_annotations"
     ADD CONSTRAINT "document_annotations_pkey" PRIMARY KEY ("id");
 
@@ -965,6 +1088,22 @@ CREATE INDEX "idx_categories_user_id_parent_id" ON "public"."categories" USING "
 
 
 
+CREATE INDEX "idx_custom_alerts_user_id" ON "public"."custom_alerts" USING "btree" ("user_id");
+
+
+
+CREATE INDEX "idx_custom_alerts_status" ON "public"."custom_alerts" USING "btree" ("status");
+
+
+
+CREATE INDEX "idx_custom_alerts_is_read" ON "public"."custom_alerts" USING "btree" ("is_read");
+
+
+
+CREATE INDEX "idx_custom_alerts_trigger_date" ON "public"."custom_alerts" USING "btree" ("trigger_date");
+
+
+
 CREATE INDEX "idx_medication_doses_scheduled_at" ON "public"."medication_doses" USING "btree" ("scheduled_at");
 
 
@@ -998,6 +1137,10 @@ CREATE OR REPLACE TRIGGER "document_shares_updated_at" BEFORE UPDATE ON "public"
 
 
 CREATE OR REPLACE TRIGGER "on_categories_update" BEFORE UPDATE ON "public"."categories" FOR EACH ROW EXECUTE FUNCTION "public"."handle_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "update_custom_alerts_updated_at" BEFORE UPDATE ON "public"."custom_alerts" FOR EACH ROW EXECUTE FUNCTION "public"."update_modified_column"();
 
 
 
@@ -1058,6 +1201,11 @@ ALTER TABLE ONLY "public"."categories"
 
 ALTER TABLE ONLY "public"."categories"
     ADD CONSTRAINT "categories_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."custom_alerts"
+    ADD CONSTRAINT "custom_alerts_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
 
 
 
@@ -1223,6 +1371,22 @@ CREATE POLICY "Allow authenticated users to read their own categories" ON "publi
 
 
 CREATE POLICY "Allow authenticated users to update their own categories" ON "public"."categories" FOR UPDATE TO "authenticated" USING (("auth"."uid"() = "user_id")) WITH CHECK (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "Users can view their own custom alerts" ON "public"."custom_alerts" FOR SELECT TO "authenticated" USING (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "Users can insert their own custom alerts" ON "public"."custom_alerts" FOR INSERT TO "authenticated" WITH CHECK (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "Users can update their own custom alerts" ON "public"."custom_alerts" FOR UPDATE TO "authenticated" USING (("auth"."uid"() = "user_id")) WITH CHECK (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "Users can delete their own custom alerts" ON "public"."custom_alerts" FOR DELETE TO "authenticated" USING (("auth"."uid"() = "user_id"));
 
 
 
@@ -1516,6 +1680,9 @@ ALTER TABLE "public"."allergies" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."categories" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."custom_alerts" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."document_annotations" ENABLE ROW LEVEL SECURITY;
@@ -1894,6 +2061,12 @@ GRANT ALL ON TABLE "public"."categories" TO "service_role";
 
 
 
+GRANT ALL ON TABLE "public"."custom_alerts" TO "anon";
+GRANT ALL ON TABLE "public"."custom_alerts" TO "authenticated";
+GRANT ALL ON TABLE "public"."custom_alerts" TO "service_role";
+
+
+
 GRANT ALL ON TABLE "public"."document_annotations" TO "anon";
 GRANT ALL ON TABLE "public"."document_annotations" TO "authenticated";
 GRANT ALL ON TABLE "public"."document_annotations" TO "service_role";
@@ -2052,30 +2225,10 @@ ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TAB
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "service_role";
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+-- Permisos específicos para funciones de alertas personalizadas
+GRANT EXECUTE ON FUNCTION "public"."mark_alerts_as_read"("uuid"[]) TO "authenticated";
+GRANT EXECUTE ON FUNCTION "public"."cleanup_old_alerts"() TO "service_role";
+GRANT EXECUTE ON FUNCTION "public"."generate_recurring_alerts"() TO "service_role";
 
 
 

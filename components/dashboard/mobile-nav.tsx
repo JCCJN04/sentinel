@@ -9,6 +9,7 @@ import { sidebarItems } from "@/config/dashboard-nav"
 import { cn } from "@/lib/utils"
 // --- 1. Se añade la importación para el área de scroll ---
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { AlertsBadge } from "./alerts-badge"
 
 export function MobileNav() {
   const [open, setOpen] = useState(false)
@@ -42,19 +43,24 @@ export function MobileNav() {
         {/* --- 3. El resto de los enlaces se envuelve en ScrollArea --- */}
         <ScrollArea className="flex-1">
           <nav className="grid gap-2 text-lg font-medium p-4">
-            {sidebarItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setOpen(false)}
-                className={cn(
-                  "flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <item.icon className="h-5 w-5" />
-                {item.title}
-              </Link>
-            ))}
+            {sidebarItems.map((item) => {
+              const isAlertsPage = item.href === "/dashboard/alertas";
+              
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setOpen(false)}
+                  className={cn(
+                    "flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <item.icon className="h-5 w-5" />
+                  {item.title}
+                  {isAlertsPage && <AlertsBadge />}
+                </Link>
+              );
+            })}
           </nav>
         </ScrollArea>
       </SheetContent>

@@ -22,15 +22,12 @@ export default function CompartirRapidoPage() {
   const router = useRouter()
   const supabase = createClient()
 
-  // Opciones de qué compartir
+  // Opciones de qué compartir (nombres actualizados según tablas reales)
   const [shareOptions, setShareOptions] = useState({
-    alergias: true,
-    antecedentes: true,
-    tipoSangre: true,
-    medicamentos: true,
-    contactoEmergencia: true,
-    vacunas: false,
-    condicionesCronicas: true,
+    allergies: true,          // user_allergies
+    prescriptions: true,      // prescriptions + prescription_medicines
+    personalHistory: true,    // user_personal_history + user_family_history
+    vaccinations: true,       // vaccinations
   })
 
   useEffect(() => {
@@ -44,35 +41,114 @@ export default function CompartirRapidoPage() {
   }, [])
 
   const generateShareLink = async () => {
-    if (!userId) return
+    if (!userId) {
+      alert('⚠️ No se pudo obtener tu usuario. Por favor, recarga la página.')
+      return
+    }
     
     setLoading(true)
     try {
-      // Generar enlace directo al perfil público del usuario
-      const link = `${window.location.origin}/s/perfil/${userId}`
+      console.log('🔄 Generando enlace para usuario:', userId)
+      console.log('📝 Opciones seleccionadas:', shareOptions)
+
+      // Verificar si la tabla shared_profiles existe
+      const { data: tableCheck, error: tableError } = await supabase
+        .from('shared_profiles')
+        .select('id')
+        .limit(1)
+
+      if (tableError) {
+        console.error('❌ Error verificando tabla shared_profiles:', tableError)
+        
+        // Error común: tabla no existe
+        if (tableError.code === '42P01') {
+          alert(`❌ ERROR: La tabla 'shared_profiles' no existe en tu base de datos.
+
+📋 SOLUCIÓN:
+1. Abre Supabase: https://supabase.com/dashboard
+2. Ve a SQL Editor
+3. Copia y pega TODO el contenido del archivo: supabase/setup_compartir_rapido.sql
+4. Haz clic en RUN
+5. Vuelve a intentar generar el enlace
+
+💡 Si necesitas ayuda, lee el archivo: LEEME_COMPARTIR_RAPIDO.md`)
+          setLoading(false)
+          return
+        }
+        
+        throw tableError
+      }
+
+      console.log('✅ Tabla shared_profiles existe')
+
+      // Crear o actualizar registro en shared_profiles
+      const { data: sharedProfile, error: upsertError } = await supabase
+        .from('shared_profiles')
+        .upsert({
+          user_id: userId,
+          includes_allergies: shareOptions.allergies,
+          includes_prescriptions: shareOptions.prescriptions,
+          includes_personal_history: shareOptions.personalHistory,
+          includes_vaccinations: shareOptions.vaccinations,
+          is_active: true,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id'
+        })
+        .select()
+        .single()
+
+      if (upsertError) {
+        console.error('❌ Error en upsert:', upsertError)
+        
+        // Errores comunes
+        if (upsertError.code === '42501') {
+          alert(`❌ ERROR DE PERMISOS: No tienes permiso para crear perfiles compartidos.
+
+📋 SOLUCIÓN:
+Ejecuta este script SQL en Supabase para crear las políticas de seguridad:
+${window.location.origin}/supabase/setup_compartir_rapido.sql
+
+O lee el archivo: LEEME_COMPARTIR_RAPIDO.md`)
+        } else {
+          alert(`❌ ERROR: ${upsertError.message || 'Error desconocido'}
+
+Código: ${upsertError.code}
+Detalles: ${upsertError.details || 'N/A'}
+
+Revisa la consola del navegador (F12) para más información.`)
+        }
+        
+        throw upsertError
+      }
+
+      if (!sharedProfile) {
+        throw new Error('No se recibió el perfil compartido después del upsert')
+      }
+
+      console.log('✅ Perfil compartido creado/actualizado:', sharedProfile)
+
+      // Generar link con el share_token
+      const link = `${window.location.origin}/s/perfil/${sharedProfile.share_token}`
       setShareLink(link)
       
-      // Opcional: Guardar en base de datos para tracking
-      try {
-        await supabase
-          .from('share_links')
-          .upsert({
-            user_id: userId,
-            link_type: 'perfil_medico',
-            share_options: shareOptions,
-            created_at: new Date().toISOString(),
-            is_active: true
-          }, {
-            onConflict: 'user_id,link_type'
-          })
-      } catch (dbError) {
-        console.log('No se pudo guardar en BD, pero el enlace funciona:', dbError)
+      console.log('✅ Enlace generado exitosamente:', link)
+      alert('✅ ¡Enlace generado! Cópialo y compártelo.')
+      
+    } catch (error: any) {
+      console.error('❌ Error general:', error)
+      
+      // Si no es un error ya manejado, mostrar mensaje genérico
+      if (!error.code) {
+        alert(`❌ Error inesperado: ${error.message || 'Error desconocido'}
+        
+Verifica:
+1. ¿Ejecutaste el script SQL? (supabase/setup_compartir_rapido.sql)
+2. ¿Tu conexión a internet funciona?
+3. ¿Las variables de entorno están configuradas?
+
+Lee: LEEME_COMPARTIR_RAPIDO.md para más ayuda.`)
       }
-    } catch (error) {
-      console.error('Error:', error)
-      // Fallback: usar userId
-      const link = `${window.location.origin}/s/perfil/${userId}`
-      setShareLink(link)
     } finally {
       setLoading(false)
     }
@@ -132,13 +208,13 @@ export default function CompartirRapidoPage() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label htmlFor="alergias" className="font-medium">Alergias</Label>
+                  <Label htmlFor="allergies" className="font-medium">Alergias</Label>
                   <p className="text-xs text-muted-foreground">Alergias médicas y alimentarias</p>
                 </div>
                 <Switch
-                  id="alergias"
-                  checked={shareOptions.alergias}
-                  onCheckedChange={() => toggleOption('alergias')}
+                  id="allergies"
+                  checked={shareOptions.allergies}
+                  onCheckedChange={() => toggleOption('allergies')}
                 />
               </div>
 
@@ -146,13 +222,13 @@ export default function CompartirRapidoPage() {
 
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label htmlFor="tipoSangre" className="font-medium">Tipo de Sangre</Label>
-                  <p className="text-xs text-muted-foreground">Grupo sanguíneo y factor RH</p>
+                  <Label htmlFor="prescriptions" className="font-medium">Medicamentos Actuales</Label>
+                  <p className="text-xs text-muted-foreground">Prescripciones y tratamientos</p>
                 </div>
                 <Switch
-                  id="tipoSangre"
-                  checked={shareOptions.tipoSangre}
-                  onCheckedChange={() => toggleOption('tipoSangre')}
+                  id="prescriptions"
+                  checked={shareOptions.prescriptions}
+                  onCheckedChange={() => toggleOption('prescriptions')}
                 />
               </div>
 
@@ -160,13 +236,13 @@ export default function CompartirRapidoPage() {
 
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label htmlFor="medicamentos" className="font-medium">Medicamentos Actuales</Label>
-                  <p className="text-xs text-muted-foreground">Medicación en curso</p>
+                  <Label htmlFor="personalHistory" className="font-medium">Historial Médico</Label>
+                  <p className="text-xs text-muted-foreground">Antecedentes personales y familiares</p>
                 </div>
                 <Switch
-                  id="medicamentos"
-                  checked={shareOptions.medicamentos}
-                  onCheckedChange={() => toggleOption('medicamentos')}
+                  id="personalHistory"
+                  checked={shareOptions.personalHistory}
+                  onCheckedChange={() => toggleOption('personalHistory')}
                 />
               </div>
 
@@ -174,13 +250,13 @@ export default function CompartirRapidoPage() {
 
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label htmlFor="antecedentes" className="font-medium">Antecedentes Médicos</Label>
-                  <p className="text-xs text-muted-foreground">Historial de enfermedades</p>
+                  <Label htmlFor="vaccinations" className="font-medium">Vacunas</Label>
+                  <p className="text-xs text-muted-foreground">Registro de vacunación completo</p>
                 </div>
                 <Switch
-                  id="antecedentes"
-                  checked={shareOptions.antecedentes}
-                  onCheckedChange={() => toggleOption('antecedentes')}
+                  id="vaccinations"
+                  checked={shareOptions.vaccinations}
+                  onCheckedChange={() => toggleOption('vaccinations')}
                 />
               </div>
 
@@ -188,42 +264,12 @@ export default function CompartirRapidoPage() {
 
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label htmlFor="condicionesCronicas" className="font-medium">Condiciones Crónicas</Label>
-                  <p className="text-xs text-muted-foreground">Enfermedades de largo plazo</p>
+                  <div className="flex items-center gap-2">
+                    <Label className="font-medium">Información Básica</Label>
+                    <Badge variant="secondary" className="text-xs">Siempre incluido</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Nombre, tipo de sangre, contacto emergencia</p>
                 </div>
-                <Switch
-                  id="condicionesCronicas"
-                  checked={shareOptions.condicionesCronicas}
-                  onCheckedChange={() => toggleOption('condicionesCronicas')}
-                />
-              </div>
-
-              <Separator />
-
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="contactoEmergencia" className="font-medium">Contacto de Emergencia</Label>
-                  <p className="text-xs text-muted-foreground">Teléfono de contacto</p>
-                </div>
-                <Switch
-                  id="contactoEmergencia"
-                  checked={shareOptions.contactoEmergencia}
-                  onCheckedChange={() => toggleOption('contactoEmergencia')}
-                />
-              </div>
-
-              <Separator />
-
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="vacunas" className="font-medium">Vacunas</Label>
-                  <p className="text-xs text-muted-foreground">Historial de vacunación</p>
-                </div>
-                <Switch
-                  id="vacunas"
-                  checked={shareOptions.vacunas}
-                  onCheckedChange={() => toggleOption('vacunas')}
-                />
               </div>
             </div>
 
