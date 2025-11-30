@@ -65,12 +65,16 @@ export async function createPrescription(
         return { message: 'No autorizado.' };
     }
 
+    // Normalizar end_date vacío a null
+    const rawEndDate = formData.get('end_date');
+    const normalizedEndDate = rawEndDate && rawEndDate.toString().trim() !== '' ? rawEndDate : null;
+
     const validatedFields = PrescriptionFormSchema.safeParse({
         diagnosis: formData.get('diagnosis'),
         doctor_name: formData.get('doctor_name'),
         start_date: formData.get('start_date'),
         start_time: formData.get('start_time'),
-        end_date: formData.get('end_date'),
+        end_date: normalizedEndDate,
         notes: formData.get('notes'),
         medicines: formData.get('medicines'),
     });
@@ -249,14 +253,31 @@ export async function createPrescription(
     }
 
     const allDosesToInsert = [];
-    const prescriptionStartDate = new Date(`${start_date}T${start_time || '00:00'}`);
+    // Crear fecha en hora local (México) y mantenerla como tal
+    // Si el usuario pone 23:20, queremos que sea 23:20 en su zona horaria
+    const [year, month, day] = start_date.split('-').map(Number);
+    const [hours, minutes] = (start_time || '00:00').split(':').map(Number);
+    
+    // Crear fecha local ajustando para UTC-6 (México)
+    const prescriptionStartDate = new Date(Date.UTC(year, month - 1, day, hours + 6, minutes));
+    
+    console.log('🗓️ Generando calendario de dosis...');
+    console.log(`📅 Fecha inicio (local): ${start_date} ${start_time || '00:00'}`);
+    console.log(`📅 Fecha inicio (UTC): ${prescriptionStartDate.toISOString()}`);
+    console.log(`💊 Medicamentos creados: ${createdMedicines.length}`);
     
     for (const med of createdMedicines) {
         const frequencyHours = med.frequency_hours || 0;
         const durationDays = med.duration || 0;
 
+        console.log(`\n📋 Procesando: ${med.medicine_name}`);
+        console.log(`   ⏰ Frecuencia: ${frequencyHours}h`);
+        console.log(`   📆 Duración: ${durationDays} días`);
+
         if (frequencyHours > 0 && durationDays > 0) {
             const totalDoses = Math.floor((durationDays * 24) / frequencyHours);
+            console.log(`   💉 Total dosis a generar: ${totalDoses}`);
+            
             for (let i = 0; i < totalDoses; i++) {
                 const scheduledTime = new Date(prescriptionStartDate.getTime());
                 scheduledTime.setHours(scheduledTime.getHours() + (i * frequencyHours));
@@ -268,19 +289,30 @@ export async function createPrescription(
                     status: 'scheduled'
                 });
             }
+        } else {
+            console.log(`   ⚠️ Saltando (frecuencia o duración = 0)`);
         }
     }
+
+    console.log(`\n✅ Total dosis programadas: ${allDosesToInsert.length}`);
 
     if (allDosesToInsert.length > 0) {
         const { error: dosesError } = await supabase.from('medication_doses').insert(allDosesToInsert);
         if (dosesError) {
-             console.error('Error al generar las dosis:', dosesError);
+             console.error('❌ Error al generar las dosis:', dosesError);
              return { message: 'Receta creada, pero falló la generación del calendario de dosis.' };
         }
+        console.log('✅ Dosis insertadas en la BD correctamente');
+    } else {
+        console.log('⚠️ No se generaron dosis (medicamentos sin frecuencia/duración)');
     }
 
-    // 🆕 Generar alertas automáticas para medicamentos
-    if (createdMedicines.length > 0) {
+    // 🆕 Generar alertas automáticas solo si la prescripción es reciente (no más de 1 día en el pasado)
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const isFuturePrescription = prescriptionStartDate >= oneDayAgo;
+    
+    if (createdMedicines.length > 0 && isFuturePrescription) {
+        console.log('✅ Generando alertas automáticas para prescripción reciente');
         const medicinesForAlert = createdMedicines.map(m => ({
             id: m.id,
             name: m.medicine_name,
@@ -292,8 +324,10 @@ export async function createPrescription(
             userId: user.id,
             prescriptionId: prescriptionId,
             medicines: medicinesForAlert,
-            startDate: `${start_date}T${start_time || '00:00'}`
+            startDate: prescriptionStartDate.toISOString()
         }).catch(err => console.error('Error generando alertas de medicamentos:', err));
+    } else if (!isFuturePrescription) {
+        console.log('⏭️ Prescripción antigua detectada - no se generan alertas automáticas');
     }
 
     // Si hay warning de imagen, agregarlo al mensaje
@@ -335,12 +369,14 @@ export async function getUpcomingDoses(): Promise<{ data: UpcomingDose[], error?
 
     if (!user) return { error: 'No autorizado', data: [] };
 
-    // La consulta no cambia
+    // Obtener solo dosis futuras (desde ahora en adelante)
+    const now = new Date().toISOString();
     const { data, error } = await supabase
         .from('medication_doses')
         .select(`id, scheduled_at, prescription_medicines ( medicine_name, dosage, instructions, frequency_hours )`)
         .eq('user_id', user.id)
         .eq('status', 'scheduled')
+        .gte('scheduled_at', now)
         .order('scheduled_at', { ascending: true })
         .limit(5);
 

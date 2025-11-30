@@ -145,6 +145,7 @@ export function RecipePhotoCapper({ onPhotoCapture, onDataExtracted }: RecipePho
         doctor_name: "",
         medicines: [],
         prescription_date: new Date().toISOString().split("T")[0],
+        end_date: null,
         additional_notes: "Error al procesar la imagen. Por favor, verifica la calidad o intenta de nuevo.",
         confidence: 0,
       });
@@ -367,10 +368,21 @@ export function RecipePhotoCapper({ onPhotoCapture, onDataExtracted }: RecipePho
                         {extractedData.prescription_date && (
                           <div>
                             <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 uppercase">
-                              Fecha
+                              Fecha de Inicio
                             </p>
                             <p className="text-emerald-900 dark:text-emerald-100 text-xs">
                               {new Date(extractedData.prescription_date).toLocaleDateString("es-ES")}
+                            </p>
+                          </div>
+                        )}
+
+                        {extractedData.end_date && (
+                          <div>
+                            <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 uppercase">
+                              Fecha de Fin/Vencimiento
+                            </p>
+                            <p className="text-emerald-900 dark:text-emerald-100 text-xs">
+                              {new Date(extractedData.end_date).toLocaleDateString("es-ES")}
                             </p>
                           </div>
                         )}

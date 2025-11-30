@@ -43,129 +43,57 @@ export default function PerfilMedicoPublicoPage() {
   const [profile, setProfile] = useState<MedicalProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  "use client"
-
-import { useParams } from 'next/navigation'
-import { useEffect, useState } from 'react'
-import { createBrowserClient } from '@supabase/ssr'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { 
-  AlertTriangle, 
-  Heart, 
-  Pill, 
-  FileText, 
-  Phone, 
-  Droplet,
-  Activity,
-  Shield,
-  Calendar,
-  Clock,
-  User,
-  Syringe
-} from 'lucide-react'
-import { format } from 'date-fns'
-import { es } from 'date-fns/locale'
-
-interface UserProfile {
-  first_name: string
-  last_name: string
-  tipo_de_sangre?: string
-  phone?: string
-  contacto_emergencia?: any
-}
-
-interface SharedProfileConfig {
-  includes_allergies: boolean
-  includes_prescriptions: boolean
-  includes_personal_history: boolean
-  includes_vaccinations: boolean
-  user_id: string
-}
-
-interface MedicalProfile {
-  profile: UserProfile
-  allergies: any[]
-  prescriptions: any[]
-  personalHistory: any[]
-  familyHistory: any[]
-  vaccinations: any[]
-  sharedConfig: SharedProfileConfig
-}
-
-export default function PerfilMedicoPublicoPage() {
-  const params = useParams()
-  const shareToken = params.id as string
-  const [data, setData] = useState<MedicalProfile | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   
-  // Cliente de Supabase público (sin autenticación requerida)
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
+  const supabase = createClient()
 
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        // Obtener información del usuario
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('nombre, fecha_nacimiento, tipo_sangre, telefono_emergencia')
-          .eq('id', userId)
+        // Obtener información del usuario compartido
+        const { data: shareData, error: shareError } = await supabase
+          .from('shared_medical_profiles')
+          .select('*')
+          .eq('share_token', userId)
           .single()
 
-        if (userError) throw userError
+        if (shareError) throw shareError
+
+        const actualUserId = shareData.user_id
 
         // Obtener alergias
         const { data: alergiasData } = await supabase
-          .from('alergias')
+          .from('user_allergies')
           .select('*')
-          .eq('user_id', userId)
+          .eq('user_id', actualUserId)
           .order('created_at', { ascending: false })
 
         // Obtener medicamentos actuales
         const { data: medicamentosData } = await supabase
-          .from('medicamentos')
+          .from('prescription_medicines')
           .select('*')
-          .eq('user_id', userId)
-          .eq('activo', true)
+          .eq('user_id', actualUserId)
           .order('created_at', { ascending: false })
 
         // Obtener antecedentes
         const { data: antecedentesData } = await supabase
-          .from('antecedentes_medicos')
+          .from('user_personal_history')
           .select('*')
-          .eq('user_id', userId)
-          .order('fecha', { ascending: false })
+          .eq('user_id', actualUserId)
+          .order('created_at', { ascending: false })
 
         // Obtener vacunas
         const { data: vacunasData } = await supabase
-          .from('vacunas')
+          .from('vaccinations')
           .select('*')
-          .eq('user_id', userId)
-          .order('fecha_aplicacion', { ascending: false })
-
-        // Calcular edad si hay fecha de nacimiento
-        let edad
-        if (userData.fecha_nacimiento) {
-          const birthDate = new Date(userData.fecha_nacimiento)
-          const today = new Date()
-          edad = today.getFullYear() - birthDate.getFullYear()
-        }
+          .eq('user_id', actualUserId)
+          .order('administration_date', { ascending: false })
 
         setProfile({
-          nombre: userData.nombre || 'Usuario',
-          edad,
-          tipo_sangre: userData.tipo_sangre,
+          nombre: 'Paciente',
           alergias: alergiasData || [],
           medicamentos: medicamentosData || [],
           antecedentes: antecedentesData || [],
-          condiciones_cronicas: antecedentesData?.filter((a: any) => a.es_cronico) || [],
-          contacto_emergencia: userData.telefono_emergencia,
+          condiciones_cronicas: [],
           vacunas: vacunasData || [],
           ultima_actualizacion: new Date().toISOString()
         })

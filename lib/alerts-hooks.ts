@@ -68,6 +68,10 @@ export async function onFamilyMemberShared(params: {
 
 /**
  * Llamar cuando se crea una prescripción con medicamentos
+ * 
+ * NOTA: Crea alertas para la primera dosis de cada medicamento si es futura.
+ * Las alertas para dosis subsecuentes se generan automáticamente
+ * por el cron job cada hora (checkMedicationDoses en alerts-cron.ts)
  */
 export async function onPrescriptionCreated(params: {
   userId: string;
@@ -80,21 +84,32 @@ export async function onPrescriptionCreated(params: {
   }>;
   startDate: string;
 }) {
+  console.log('📋 onPrescriptionCreated: Generando alertas para primera dosis de cada medicamento');
+  
   // Crear alertas para las primeras dosis de cada medicamento
   for (const medicine of params.medicines) {
     const firstDoseTime = new Date(params.startDate);
+    const now = new Date();
     
-    await generateAutoAlert({
-      event_type: 'medication_reminder',
-      user_id: params.userId,
-      data: {
-        medicine_name: medicine.name,
-        dosage: medicine.dosage,
-        scheduled_at: firstDoseTime.toISOString(),
-        prescription_id: params.prescriptionId,
-      },
-    });
+    // Crear alerta si la primera dosis es en el futuro (incluso si es en varios días)
+    if (firstDoseTime > now) {
+      console.log(`  ✅ Creando alerta para primera dosis futura: ${medicine.name} a las ${firstDoseTime.toISOString()}`);
+      await generateAutoAlert({
+        event_type: 'medication_reminder',
+        user_id: params.userId,
+        data: {
+          medicine_name: medicine.name,
+          dosage: medicine.dosage,
+          scheduled_at: firstDoseTime.toISOString(),
+          prescription_id: params.prescriptionId,
+        },
+      });
+    } else {
+      console.log(`  ⏭️ Primera dosis de ${medicine.name} ya pasó (${firstDoseTime.toISOString()}) - no se crea alerta`);
+    }
   }
+  
+  console.log('ℹ️ Las alertas para dosis subsecuentes se generarán automáticamente por el cron job cada hora');
 }
 
 /**

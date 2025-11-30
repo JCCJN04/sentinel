@@ -17,6 +17,7 @@ export const extractRecipeDataFromImage = async (
     instructions: string;
   }>;
   prescription_date: string;
+  end_date: string | null;
   additional_notes: string;
   confidence: number;
 }> => {
@@ -43,8 +44,9 @@ export const extractRecipeDataFromImage = async (
        - Frecuencia en HORAS (ej: 8 para cada 8 horas, 12 para cada 12 horas, 6 para 4 veces al día)
      - Duración en DÍAS (ej: 7 para una semana, 10 para 10 días)
      - Instrucciones específicas o recomendaciones del médico
-  4. **Fecha de prescripción**: ¿Cuándo fue emitida la receta?
-  5. **Notas generales**: Indicaciones adicionales, recomendaciones o advertencias generales escritas por el médico
+  4. **Fecha de prescripción**: ¿Cuándo fue emitida la receta? (fecha de inicio del tratamiento)
+  5. **Fecha de fin**: ¿Cuándo termina o expira la receta? Busca cualquier indicación de validez, vencimiento o fecha límite de uso
+  6. **Notas generales**: Indicaciones adicionales, recomendaciones o advertencias generales escritas por el médico
     
     Responde en JSON con la siguiente estructura EXACTA:
     {
@@ -60,6 +62,7 @@ export const extractRecipeDataFromImage = async (
         }
       ],
       "prescription_date": "YYYY-MM-DD",
+      "end_date": "YYYY-MM-DD",
   "additional_notes": "notas generales relevantes",
       "confidence": 0.95
     }
@@ -67,11 +70,13 @@ export const extractRecipeDataFromImage = async (
     IMPORTANTE:
     - Si no encuentras la frecuencia en horas, deja frequency_hours como null
     - Si no encuentras la duración en días, deja duration_days como null
+    - Si no encuentras la fecha de fin/vencimiento, deja end_date como null
     - Si no encuentras algún campo, usa valores vacíos/null:
       - diagnosis: "No especificado"
       - doctor_name: "Doctor no identificado"
       - medicines: []
       - prescription_date: fecha actual
+      - end_date: null
   - additional_notes: ""
       - instructions: "No especificado"
     `;
@@ -144,6 +149,7 @@ export const extractRecipeDataFromImage = async (
       doctor_name: processText(extractedData.doctor_name) || 'Doctor no identificado',
       medicines: processedMedicines,
       prescription_date: processText(extractedData.prescription_date) || new Date().toISOString().split('T')[0],
+      end_date: extractedData.end_date ? processText(extractedData.end_date) : null,
       additional_notes: processText(extractedData.additional_notes),
       confidence: extractedData.confidence || 0.8,
     };

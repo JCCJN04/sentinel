@@ -1,7 +1,7 @@
 import { 
   ClipboardList, HeartPulse, Shield, FileText, Home, 
   Settings, ShieldAlert, Upload, AlertCircle, Share2, 
-  BarChart3, Users, Syringe, type LucideIcon 
+  BarChart3, Users, Syringe, Bot, type LucideIcon 
 } from "lucide-react";
 
 export interface NavItem {
@@ -18,6 +18,7 @@ export const sidebarItems: NavItem[] = [
   { title: "Alergias", href: "/dashboard/alergias", icon: ShieldAlert },
   { title: "Vacunas", href: "/dashboard/vacunas", icon: Syringe },
   { title: "Antecedentes", href: "/dashboard/antecedentes", icon: ClipboardList },
+  { title: "Asistente IA", href: "/dashboard/asistente-ia", icon: Bot },
   { title: "Subir documento", href: "/dashboard/subir", icon: Upload },
   { title: "Alertas", href: "/dashboard/alertas", icon: AlertCircle },
   { title: "Compartidos", href: "/dashboard/compartidos", icon: Share2 },

@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { calculateSmartPriority, getDaysUntilDate } from '@/lib/smart-priority';
 
@@ -25,7 +25,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = createClient();
+    // Usar service role client para bypassear RLS
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
+    );
     let alertData: any = {
       user_id,
       type: 'custom',
@@ -63,11 +73,16 @@ export async function POST(request: NextRequest) {
       case 'medication_reminder':
         alertData = {
           ...alertData,
-          title: 'Recordatorio de medicamento',
+          title: `Tomar ${data?.medicine_name}`,
           message: `Es hora de tomar ${data?.medicine_name} - ${data?.dosage}`,
           type: 'medication',
           priority: 'crítica', // Medicación siempre es crítica
-          link: '/dashboard/prescriptions'
+          link: '/dashboard/prescriptions',
+          metadata: {
+            ...data,
+            medicine_name: data?.medicine_name,
+            dosage: data?.dosage
+          }
         };
         break;
 
@@ -171,15 +186,36 @@ export async function POST(request: NextRequest) {
 
     // Verificar si ya existe una alerta similar reciente (últimas 24 horas)
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const { data: existingAlert } = await supabase
-      .from('custom_alerts')
-      .select('id')
-      .eq('user_id', user_id)
-      .eq('type', alertData.type)
-      .eq('title', alertData.title)
-      .gte('created_at', oneDayAgo)
-      .limit(1)
-      .single();
+    
+    // Para alertas de medicamentos, verificar también el nombre del medicamento
+    let existingAlert = null;
+    if (alertData.type === 'medication') {
+      const { data: alerts } = await supabase
+        .from('custom_alerts')
+        .select('id, metadata')
+        .eq('user_id', user_id)
+        .eq('type', alertData.type)
+        .eq('title', alertData.title)
+        .gte('created_at', oneDayAgo);
+      
+      // Buscar si hay una alerta con el mismo medicamento y dosis
+      existingAlert = alerts?.find(alert => 
+        alert.metadata?.medicine_name === data?.medicine_name &&
+        alert.metadata?.dosage === data?.dosage
+      );
+    } else {
+      // Para otros tipos de alerta, usar la lógica original
+      const { data: alert } = await supabase
+        .from('custom_alerts')
+        .select('id')
+        .eq('user_id', user_id)
+        .eq('type', alertData.type)
+        .eq('title', alertData.title)
+        .gte('created_at', oneDayAgo)
+        .limit(1)
+        .single();
+      existingAlert = alert;
+    }
 
     // No crear alerta duplicada
     if (existingAlert) {

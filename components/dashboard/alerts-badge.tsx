@@ -11,10 +11,10 @@ export function AlertsBadge() {
   useEffect(() => {
     const loadStats = async () => {
       const result = await getAlertStats();
-      if (result.success && result.data) {
-        const { unread_count, critical_count } = result.data;
-        setUnreadCount(unread_count || 0);
-        setCriticalCount(critical_count || 0);
+      if (!result.error && result.data) {
+        const { unread, pending } = result.data;
+        setUnreadCount(unread || 0);
+        setCriticalCount(pending || 0);
       }
     };
 

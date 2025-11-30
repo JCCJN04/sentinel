@@ -97,11 +97,13 @@ export default function NewPrescriptionPage() {
     const normalizedDiagnosis = normalizeText(data?.diagnosis);
     const normalizedDoctor = normalizeText(data?.doctor_name);
     const normalizedDate = normalizeText(data?.prescription_date);
+    const normalizedEndDate = normalizeText(data?.end_date);
     const normalizedNotes = normalizeText(data?.additional_notes);
 
     if (normalizedDiagnosis) setFormData(prev => ({ ...prev, diagnosis: normalizedDiagnosis }));
     if (normalizedDoctor) setFormData(prev => ({ ...prev, doctor_name: normalizedDoctor }));
     if (normalizedDate) setFormData(prev => ({ ...prev, start_date: normalizedDate }));
+    if (normalizedEndDate) setFormData(prev => ({ ...prev, end_date: normalizedEndDate }));
     if (normalizedNotes) setFormData(prev => ({ ...prev, notes: normalizedNotes }));
 
     if (data.medicines && Array.isArray(data.medicines)) {

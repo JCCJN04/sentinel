@@ -40,13 +40,13 @@ function getDoseStatus(target: Date, now: Date): DoseStatus {
   if (diffMinutes < -60) {
     return "missed"; // más de una hora atrasado
   }
-  if (diffMinutes < 0) {
-    return "due"; // en el rango cercano y ya debería tomarse
-  }
   if (diffMinutes <= 60) {
-    return "soon"; // dentro de la siguiente hora
+    return "due"; // dentro de la próxima hora (incluye pasado reciente)
   }
-  return "upcoming";
+  if (diffMinutes <= 120) {
+    return "soon"; // dentro de las próximas 2 horas
+  }
+  return "upcoming"; // más de 2 horas en el futuro
 }
 
 const statusCopy: Record<DoseStatus, { label: string; description: string }> = {
@@ -56,7 +56,7 @@ const statusCopy: Record<DoseStatus, { label: string; description: string }> = {
   },
   due: {
     label: "En curso",
-    description: "Deberías tomarla ya",
+    description: "Es hora de tomarla",
   },
   soon: {
     label: "Próxima",
@@ -64,7 +64,7 @@ const statusCopy: Record<DoseStatus, { label: string; description: string }> = {
   },
   upcoming: {
     label: "Programada",
-    description: "Aún falta un poco",
+    description: "Aún falta tiempo",
   },
 };
 

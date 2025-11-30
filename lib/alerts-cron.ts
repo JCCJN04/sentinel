@@ -10,6 +10,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { generateAutoAlert } from './alerts-service';
+import { sendMedicationReminder } from './whatsapp-service';
 
 /**
  * Verifica documentos próximos a vencer y genera alertas
@@ -53,6 +54,7 @@ export async function checkExpiringDocuments(): Promise<void> {
 
 /**
  * Verifica dosis de medicamentos pendientes y genera recordatorios
+ * También envía notificaciones por WhatsApp si el usuario lo tiene habilitado
  */
 export async function checkMedicationDoses(): Promise<void> {
   try {
@@ -70,7 +72,8 @@ export async function checkMedicationDoses(): Promise<void> {
         prescription_medicine_id,
         prescription_medicines(
           medicine_name,
-          dosage
+          dosage,
+          instructions
         )
       `)
       .eq('status', 'scheduled')
@@ -83,6 +86,7 @@ export async function checkMedicationDoses(): Promise<void> {
     }
 
     for (const dose of upcomingDoses || []) {
+      // Generar alerta en la app
       await generateAutoAlert({
         event_type: 'medication_reminder',
         user_id: dose.user_id,
@@ -93,6 +97,37 @@ export async function checkMedicationDoses(): Promise<void> {
           scheduled_at: dose.scheduled_at,
         },
       });
+
+      // Verificar si el usuario tiene WhatsApp habilitado
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('first_name, phone_number, whatsapp_notifications_enabled')
+        .eq('id', dose.user_id)
+        .single();
+
+      if (profile?.whatsapp_notifications_enabled && profile?.phone_number) {
+        const scheduledTime = new Date(dose.scheduled_at);
+        const timeString = scheduledTime.toLocaleTimeString('es-MX', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        });
+
+        // Enviar recordatorio por WhatsApp
+        const result = await sendMedicationReminder(profile.phone_number, {
+          patientName: profile.first_name || 'Paciente',
+          medicineName: (dose.prescription_medicines as any)?.medicine_name || 'Medicamento',
+          dosage: (dose.prescription_medicines as any)?.dosage || '',
+          scheduledTime: timeString,
+          instructions: (dose.prescription_medicines as any)?.instructions,
+        });
+
+        if (result.success) {
+          console.log(`✅ [WhatsApp] Recordatorio enviado a ${profile.phone_number}`);
+        } else {
+          console.error(`❌ [WhatsApp] Error enviando a ${profile.phone_number}:`, result.error);
+        }
+      }
     }
   } catch (error) {
     console.error('Error en checkMedicationDoses:', error);
