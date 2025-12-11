@@ -6,7 +6,16 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "setup": "npx tsx scripts/setup-new-project.ts",
+    "create-templates": "npx tsx scripts/create-twilio-templates.ts",
+    "test-whatsapp": "npx tsx scripts/test-whatsapp.ts",
+    "test:edge-function": "npx tsx test-edge-function.ts",
+    "supabase:login": "supabase login",
+    "supabase:link": "supabase link",
+    "supabase:deploy": "supabase functions deploy medication-reminders",
+    "supabase:logs": "supabase functions logs medication-reminders --tail",
+    "supabase:serve": "supabase functions serve medication-reminders"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -84,6 +93,7 @@
     "eslint": "^8.57.1",
     "eslint-config-next": "16.0.0",
     "postcss": "^8",
+    "sharp": "^0.34.5",
     "supabase": "^2.26.9",
     "tailwindcss": "^3.4.17",
     "typescript": "^5"

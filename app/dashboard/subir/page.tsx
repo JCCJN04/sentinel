@@ -268,13 +268,13 @@ export default function SubirDocumentoPage() {
       
       <div className="container mx-auto p-4 md:p-8 max-w-4xl">
         {/* Header Section */}
-        <div className="mb-12 animate-in fade-in slide-in-from-top-4 duration-500">
+        <div className="mb-8 animate-in fade-in slide-in-from-top-4 duration-500">
           <div className="space-y-2 text-center">
-            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
-              Subir Nuevo Documento
+            <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
+              Subir Documento
             </h1>
-            <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-              Organiza y almacena de forma segura tus documentos médicos. Carga, categoriza y accede a ellos en cualquier momento.
+            <p className="text-base text-gray-600 dark:text-gray-400">
+              Sube y organiza tus documentos médicos de forma segura
             </p>
           </div>
         </div>
@@ -315,34 +315,16 @@ export default function SubirDocumentoPage() {
             </CardContent>
           </Card>
 
-          {/* PASOS 2-4: SOLO SI HAY ARCHIVO SELECCIONADO */}
+          {/* PASO 2: INFORMACIÓN ESENCIAL (Solo campos necesarios) */}
           {isFileSelected && (
             <>
-              <Tabs defaultValue="basic" className="w-full animate-in fade-in slide-in-from-bottom-4 duration-300">
-                <TabsList className="grid w-full grid-cols-3 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-slate-800 dark:to-slate-800 p-1 rounded-lg border border-slate-200/50 dark:border-slate-700/50">
-                  <TabsTrigger value="basic" className="flex items-center gap-2 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700 data-[state=active]:shadow-sm">
-                    <FileText className="w-4 h-4" />
-                    <span className="hidden sm:inline">Básica</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="medical" className="flex items-center gap-2 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700 data-[state=active]:shadow-sm">
-                    <Stethoscope className="w-4 h-4" />
-                    <span className="hidden sm:inline">Médica</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="reminders" className="flex items-center gap-2 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700 data-[state=active]:shadow-sm">
-                    <Bell className="w-4 h-4" />
-                    <span className="hidden sm:inline">Recordatorios</span>
-                  </TabsTrigger>
-                </TabsList>
-
-              {/* TAB 1: INFORMACIÓN BÁSICA */}
-              <TabsContent value="basic" className="space-y-4 animate-in fade-in slide-in-from-right-2 duration-300">
-                <Card className="border-slate-200/50 dark:border-slate-700/50 hover:shadow-lg transition-all duration-300">
-                  <CardHeader className="bg-gradient-to-r from-emerald-50 to-transparent dark:from-slate-800 dark:to-transparent border-b border-slate-200 dark:border-slate-700">
+              <Card className="border-slate-200/50 dark:border-slate-700/50 hover:shadow-lg transition-all duration-300 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                <CardHeader className="bg-gradient-to-r from-emerald-50 to-transparent dark:from-slate-800 dark:to-transparent border-b border-slate-200 dark:border-slate-700">
                     <CardTitle className="text-lg flex items-center gap-2">
                       <span className="flex h-7 w-7 items-center justify-center rounded bg-emerald-600 text-white text-xs font-bold">2</span>
-                      Información Básica
+                      Información del Documento
                     </CardTitle>
-                  </CardHeader>
+                </CardHeader>
                   <CardContent className="pt-6 space-y-4">
                       <FormField
                         control={form.control}
@@ -356,9 +338,6 @@ export default function SubirDocumentoPage() {
                                 {...field}
                               />
                             </FormControl>
-                            <FormDescription>
-                              Pon un nombre descriptivo para identificarlo fácilmente
-                            </FormDescription>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -369,7 +348,7 @@ export default function SubirDocumentoPage() {
                         name="category"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Categoría *</FormLabel>
+                            <FormLabel>Categoría</FormLabel>
                             <FormControl>
                               <CategoryCombobox
                                 value={field.value}
@@ -384,16 +363,13 @@ export default function SubirDocumentoPage() {
                                 disabled={isLoadingCategories || !!categoryError}
                               />
                             </FormControl>
-                            <FormDescription>
-                              {documentDetection.confidence > 0.5 && (
+                            {documentDetection.confidence > 0.5 && (
+                              <FormDescription>
                                 <span className="text-blue-600 dark:text-blue-400">
                                   💡 Sugerida: {documentDetection.suggestedCategory}
                                 </span>
-                              )}
-                              {!documentDetection.confidence && (
-                                <span>Organiza tus documentos por tipo o especialidad</span>
-                              )}
-                            </FormDescription>
+                              </FormDescription>
+                            )}
                             <FormMessage />
                           </FormItem>
                         )}
@@ -408,9 +384,6 @@ export default function SubirDocumentoPage() {
                             <FormControl>
                               <Input type="date" {...field} />
                             </FormControl>
-                            <FormDescription>
-                              Fecha en la que se generó el documento
-                            </FormDescription>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -419,227 +392,20 @@ export default function SubirDocumentoPage() {
                       <FormField
                         control={form.control}
                         name="description"
-                        render={({ field }) => {
-                          const charCount = field.value?.length || 0
-                          const maxChars = 500
-                          const percentage = Math.round((charCount / maxChars) * 100)
-                          return (
-                            <FormItem>
-                              <FormLabel>Descripción / Notas</FormLabel>
-                              <FormControl>
-                                <Textarea
-                                  placeholder="Añade detalles importantes sobre este documento..."
-                                  className="resize-none"
-                                  rows={3}
-                                  maxLength={maxChars}
-                                  {...field}
-                                />
-                              </FormControl>
-                              <div className="flex justify-between items-center">
-                                <FormDescription>
-                                  Máximo 500 caracteres
-                                </FormDescription>
-                                <span className={cn(
-                                  'text-xs font-medium',
-                                  charCount === 0 && 'text-gray-400',
-                                  charCount < 250 && charCount > 0 && 'text-blue-600 dark:text-blue-400',
-                                  charCount >= 250 && charCount < 500 && 'text-amber-600 dark:text-amber-400',
-                                  charCount === 500 && 'text-red-600 dark:text-red-400'
-                                )}>
-                                  {charCount} / {maxChars}
-                                </span>
-                              </div>
-                              <FormMessage />
-                            </FormItem>
-                          )
-                        }}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="tags"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Etiquetas</FormLabel>
-                            <FormControl>
-                              <Input
-                                placeholder="Ej: urgente, cardiology, 2025"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormDescription>
-                              Separa con comas. Útil para búsquedas rápidas
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                {/* TAB 2: INFORMACIÓN MÉDICA */}
-                <TabsContent value="medical" className="space-y-4 animate-in fade-in slide-in-from-right-2 duration-300">
-                  <DynamicDocumentFields
-                    form={form}
-                    detectedType={documentDetection.type}
-                    show={documentDetection.confidence > 0.3}
-                  />
-                  <Card className="border-slate-200/50 dark:border-slate-700/50 hover:shadow-lg transition-all duration-300">
-                    <CardHeader className="bg-gradient-to-r from-red-50 to-transparent dark:from-slate-800 dark:to-transparent border-b border-slate-200 dark:border-slate-700">
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        <span className="flex h-7 w-7 items-center justify-center rounded bg-red-600 text-white text-xs font-bold">3</span>
-                        Información Médica (Opcional)
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="patient_name"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Nombre del Paciente</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Nombre completo del paciente" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="doctor_name"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Nombre del Médico</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Nombre del médico tratante" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="specialty"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Especialidad Médica</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Ej: Cardiología, Pediatría" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="provider"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Proveedor / Clínica</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Nombre del hospital o clínica" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="amount"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Monto</FormLabel>
-                            <FormControl>
-                              <Input type="number" step="0.01" placeholder="0.00" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="currency"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Moneda</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Ej: MXN, USD, EUR" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                {/* TAB 3: RECORDATORIOS */}
-                <TabsContent value="reminders" className="space-y-4 animate-in fade-in slide-in-from-right-2 duration-300">
-                  <Card className="border-slate-200/50 dark:border-slate-700/50 hover:shadow-lg transition-all duration-300">
-                    <CardHeader className="bg-gradient-to-r from-amber-50 to-transparent dark:from-slate-800 dark:to-transparent border-b border-slate-200 dark:border-slate-700">
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        <span className="flex h-7 w-7 items-center justify-center rounded bg-amber-600 text-white text-xs font-bold">4</span>
-                        Fechas y Recordatorios (Opcional)
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="expiry_date"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Fecha de Expiración</FormLabel>
-                            <FormControl>
-                              <Input type="date" {...field} />
-                            </FormControl>
-                            <FormDescription>
-                              Te avisaremos antes de que expire
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="reminderDate"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Fecha de Recordatorio</FormLabel>
-                            <FormControl>
-                              <Input type="date" {...field} />
-                            </FormControl>
-                            <FormDescription>
-                              Recibirás una notificación en esta fecha
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="reminderNote"
-                        render={({ field }) => (
-                          <FormItem className="md:col-span-2">
-                            <FormLabel>Nota del Recordatorio</FormLabel>
+                            <FormLabel>Notas (Opcional)</FormLabel>
                             <FormControl>
                               <Textarea
-                                placeholder="Ej: Programar cita de seguimiento, Llamar al doctor..."
+                                placeholder="Añade detalles importantes sobre este documento..."
                                 className="resize-none"
                                 rows={3}
+                                maxLength={500}
                                 {...field}
                               />
                             </FormControl>
                             <FormDescription>
-                              ¿Qué necesitas recordar sobre este documento?
+                              {field.value?.length || 0} / 500 caracteres
                             </FormDescription>
                             <FormMessage />
                           </FormItem>
@@ -647,11 +413,9 @@ export default function SubirDocumentoPage() {
                       />
                     </CardContent>
                   </Card>
-                </TabsContent>
-              </Tabs>
 
               {/* BOTONES DE ACCIÓN */}
-              <div className="flex gap-3">
+              <div className="flex gap-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <Button
                   type="button"
                   variant="outline"
@@ -664,7 +428,7 @@ export default function SubirDocumentoPage() {
                 <Button
                   type="submit"
                   disabled={isUploading || isLoadingCategories}
-                  className="flex-1 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-800"
+                  className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-md hover:shadow-lg transition-all"
                 >
                   {isUploading ? (
                     <>

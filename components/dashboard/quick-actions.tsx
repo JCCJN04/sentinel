@@ -9,17 +9,16 @@ import { Upload, PlusCircle, FileText, Pill, Bell, Share2 } from "lucide-react";
 export function QuickActions() {
   const actions = [
     { href: "/dashboard/subir", icon: Upload, label: "Subir Documento", color: "blue" },
-    { href: "/dashboard/prescriptions/new", icon: Pill, label: "Nueva Prescripción", color: "red" },
-    { href: "/dashboard/compartir-rapido", icon: Share2, label: "Compartir Rápido", color: "emerald" },
-    { href: "/dashboard/alertas", icon: Bell, label: "Ver Alertas", color: "amber" },
-    { href: "/dashboard/documentos", icon: FileText, label: "Todos los Docs", color: "purple" },
+    { href: "/dashboard/documentos", icon: FileText, label: "Ver Documentos", color: "purple" },
+    { href: "/dashboard/medicamentos", icon: Pill, label: "Medicamentos", color: "emerald" },
+    { href: "/dashboard/alertas", icon: Bell, label: "Alertas", color: "amber" },
+    { href: "/dashboard/compartidos", icon: Share2, label: "Compartir", color: "sky" },
   ];
 
   const colorMap: Record<string, { bg: string; text: string; border: string }> = {
     blue: { bg: "bg-blue-50 dark:bg-blue-900/20", text: "text-blue-600 dark:text-blue-400", border: "border-blue-200/50 dark:border-blue-800/50" },
-    red: { bg: "bg-red-50 dark:bg-red-900/20", text: "text-red-600 dark:text-red-400", border: "border-red-200/50 dark:border-red-800/50" },
+    sky: { bg: "bg-sky-50 dark:bg-sky-900/20", text: "text-sky-600 dark:text-sky-400", border: "border-sky-200/50 dark:border-sky-800/50" },
     emerald: { bg: "bg-emerald-50 dark:bg-emerald-900/20", text: "text-emerald-600 dark:text-emerald-400", border: "border-emerald-200/50 dark:border-emerald-800/50" },
-    green: { bg: "bg-green-50 dark:bg-green-900/20", text: "text-green-600 dark:text-green-400", border: "border-green-200/50 dark:border-green-800/50" },
     amber: { bg: "bg-amber-50 dark:bg-amber-900/20", text: "text-amber-600 dark:text-amber-400", border: "border-amber-200/50 dark:border-amber-800/50" },
     purple: { bg: "bg-purple-50 dark:bg-purple-900/20", text: "text-purple-600 dark:text-purple-400", border: "border-purple-200/50 dark:border-purple-800/50" },
   };
@@ -30,7 +29,7 @@ export function QuickActions() {
         <CardTitle className="bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
           Acciones Rápidas
         </CardTitle>
-        <CardDescription>Accede rápidamente a las funciones más usadas.</CardDescription>
+        <CardDescription>Acceso directo a funciones principales</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">

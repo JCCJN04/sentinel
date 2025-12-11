@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/hooks/use-auth';
+import { MarkdownMessage } from './markdown-message';
 import type { ChatMessage } from '@/types/medical-assistant';
 
 export function MedicalChatInterface() {
@@ -158,16 +159,11 @@ export function MedicalChatInterface() {
               } rounded-2xl px-4 py-3 sm:px-5 sm:py-4 transition-all hover:shadow-xl ${
                 message.role === 'user' ? 'rounded-tr-md' : 'rounded-tl-md'
               }`}>
-                {/* Contenido del mensaje */}
-                <div className={`prose prose-sm sm:prose-base max-w-none ${
-                  message.role === 'user' 
-                    ? 'prose-invert' 
-                    : 'prose-gray dark:prose-invert'
-                }`}>
-                  <p className="text-sm sm:text-base leading-relaxed whitespace-pre-wrap break-words m-0">
-                    {message.content}
-                  </p>
-                </div>
+                {/* Contenido del mensaje con markdown */}
+                <MarkdownMessage 
+                  content={message.content} 
+                  isUser={message.role === 'user'} 
+                />
                 
                 {/* Timestamp con estilo mejorado */}
                 <div className={`flex items-center gap-1.5 mt-2 pt-2 border-t ${

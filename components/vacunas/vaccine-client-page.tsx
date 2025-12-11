@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useMemo, useState, useTransition, useRef, useEffect } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -14,6 +14,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -49,6 +51,8 @@ import {
   Sparkles,
   Syringe,
   Trash2,
+  Check,
+  ChevronsUpDown,
 } from 'lucide-react'
 
 interface VaccineClientPageProps {
@@ -103,6 +107,7 @@ export function VaccineClientPage({ initialVaccines, vaccineCatalog }: VaccineCl
   const [activeTab, setActiveTab] = useState<'overview' | 'records'>('overview')
   const [activeDisease, setActiveDisease] = useState<string>('all')
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false)
+  const [openVaccineCombo, setOpenVaccineCombo] = useState(false)
 
   const {
     control,
@@ -812,27 +817,53 @@ export function VaccineClientPage({ initialVaccines, vaccineCatalog }: VaccineCl
                 name="vaccine_name"
                 control={control}
                 render={({ field }) => (
-                  <Select
-                    value={field.value}
-                    onValueChange={(value) => {
-                      field.onChange(value)
-                      handleVaccineSelection(value)
-                    }}
-                  >
-                    <SelectTrigger className="h-10 text-sm">
-                      <SelectValue placeholder="Selecciona una vacuna" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[300px] overflow-y-auto">
-                      {vaccineCatalog.map((item) => (
-                        <SelectItem key={item.name} value={item.name}>
-                          <div className="flex flex-col">
-                            <span className="text-sm">{item.name}</span>
-                            <span className="text-xs text-muted-foreground">{item.disease_protected}</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Popover open={openVaccineCombo} onOpenChange={setOpenVaccineCombo}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={openVaccineCombo}
+                        className="h-10 w-full justify-between text-sm font-normal"
+                      >
+                        {field.value
+                          ? vaccineCatalog.find((item) => item.name === field.value)?.name
+                          : "Selecciona una vacuna"}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="Buscar vacuna..." className="h-9" />
+                        <CommandList className="max-h-[300px] overflow-y-auto">
+                          <CommandEmpty>No se encontró la vacuna.</CommandEmpty>
+                          <CommandGroup>
+                            {vaccineCatalog.map((item) => (
+                              <CommandItem
+                                key={item.name}
+                                value={item.name}
+                                onSelect={() => {
+                                  field.onChange(item.name)
+                                  handleVaccineSelection(item.name)
+                                  setOpenVaccineCombo(false)
+                                }}
+                              >
+                                <div className="flex flex-col">
+                                  <span className="text-sm">{item.name}</span>
+                                  <span className="text-xs text-muted-foreground">{item.disease_protected}</span>
+                                </div>
+                                <Check
+                                  className={cn(
+                                    "ml-auto h-4 w-4",
+                                    field.value === item.name ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 )}
               />
               {errors.vaccine_name && (

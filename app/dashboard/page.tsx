@@ -11,8 +11,10 @@ export default function DashboardPage() {
       {/* Welcome Section with gradient background */}
       <div className="animate-in fade-in slide-in-from-top-4 duration-500">
         <div className="space-y-1">
-          <h1 className="text-3xl font-bold tracking-tight">Bienvenido a tu Dashboard</h1>
-          <p className="text-gray-600 dark:text-gray-400">Aquí puedes ver un resumen de tu información médica</p>
+          <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
+            Mi Expediente Médico
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400">Resumen de tu información de salud</p>
         </div>
       </div>
 

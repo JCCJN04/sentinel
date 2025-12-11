@@ -54,8 +54,8 @@ export default function LoginPage() {
 
       // Éxito - redirigir al dashboard
       toast({
-        title: "Inicio de sesión exitoso",
-        description: "Bienvenido a DocuVault",
+        title: "Bienvenido",
+        description: "Has iniciado sesión correctamente",
       })
 
       router.push("/dashboard")
@@ -71,8 +71,10 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1 text-center">
-          <CardTitle className="text-2xl font-bold">Iniciar sesión</CardTitle>
-          <CardDescription>Ingrese sus credenciales para acceder a la cuenta</CardDescription>
+          <CardTitle className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
+            Iniciar Sesión
+          </CardTitle>
+          <CardDescription>Ingresa tus credenciales para continuar</CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
@@ -120,9 +122,9 @@ export default function LoginPage() {
               )}
             </Button>
             <div className="text-center text-sm">
-              ¿No tiene una cuenta?{" "}
-              <Link href="/registro" className="text-primary hover:underline">
-                Registrarse
+              ¿No tienes cuenta?{" "}
+              <Link href="/registro" className="text-primary hover:underline font-medium">
+                Crear cuenta
               </Link>
             </div>
           </CardFooter>

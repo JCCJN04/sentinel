@@ -13,38 +13,41 @@ export default function LandingPage() {
       <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60 transition-all duration-300">
         <div className="container flex h-16 items-center justify-between px-4 md:px-6">
           <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-all duration-300 group">
-            <div className="bg-gradient-to-r from-emerald-600 to-cyan-600 dark:from-emerald-400 dark:to-cyan-400 p-2 rounded-xl shadow-lg group-hover:shadow-emerald-500/50 transition-all duration-300 group-hover:scale-110">
-              <ShieldCheck className="h-5 w-5 text-white" />
-            </div>
-            <span className="text-xl font-bold bg-gradient-to-r from-emerald-600 to-cyan-600 dark:from-emerald-400 dark:to-cyan-400 bg-clip-text text-transparent">ZYRA</span>
+            <img
+              src="/healthpal.png"
+              alt="HealthPal"
+              width={320}
+              height={320}
+              className="object-contain group-hover:scale-105 transition-transform duration-300"
+            />
           </Link>
           <nav className="hidden md:flex items-center gap-8">
-            <Link href="#beneficios" className="text-sm font-medium text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors relative group">
+            <Link href="#beneficios" className="text-sm font-medium text-muted-foreground hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors relative group">
               Beneficios
-              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-emerald-600 to-cyan-600 group-hover:w-full transition-all duration-300"></span>
+              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-indigo-600 to-blue-600 group-hover:w-full transition-all duration-300"></span>
             </Link>
-            <Link href="#casos-de-uso" className="text-sm font-medium text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors relative group">
+            <Link href="#casos-de-uso" className="text-sm font-medium text-muted-foreground hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors relative group">
               Casos de Uso
-              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-emerald-600 to-cyan-600 group-hover:w-full transition-all duration-300"></span>
+              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-indigo-600 to-blue-600 group-hover:w-full transition-all duration-300"></span>
             </Link>
-            <Link href="#caracteristicas" className="text-sm font-medium text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors relative group">
+            <Link href="#caracteristicas" className="text-sm font-medium text-muted-foreground hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors relative group">
               Características
-              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-emerald-600 to-cyan-600 group-hover:w-full transition-all duration-300"></span>
+              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-indigo-600 to-blue-600 group-hover:w-full transition-all duration-300"></span>
             </Link>
-            <Link href="#planes" className="text-sm font-medium text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors relative group">
+            <Link href="#planes" className="text-sm font-medium text-muted-foreground hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors relative group">
               Planes
-              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-emerald-600 to-cyan-600 group-hover:w-full transition-all duration-300"></span>
+              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-indigo-600 to-blue-600 group-hover:w-full transition-all duration-300"></span>
             </Link>
-            <Link href="#faq" className="text-sm font-medium text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors relative group">
+            <Link href="#faq" className="text-sm font-medium text-muted-foreground hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors relative group">
               FAQ
-              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-emerald-600 to-cyan-600 group-hover:w-full transition-all duration-300"></span>
+              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-indigo-600 to-blue-600 group-hover:w-full transition-all duration-300"></span>
             </Link>
           </nav>
           <div className="flex items-center gap-2">
-            <Button asChild variant="ghost" size="sm" className="hover:bg-emerald-50 dark:hover:bg-emerald-950/30">
+            <Button asChild variant="ghost" size="sm" className="hover:bg-indigo-50 dark:hover:bg-indigo-950/30">
               <Link href="/login">Iniciar sesión</Link>
             </Button>
-            <Button asChild size="sm" className="bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-700 hover:to-cyan-700 text-white shadow-lg hover:shadow-emerald-500/50 transition-all duration-300">
+            <Button asChild size="sm" className="bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white shadow-lg hover:shadow-indigo-500/50 transition-all duration-300">
               <Link href="/registro">Comenzar Gratis</Link>
             </Button>
           </div>
@@ -126,15 +129,15 @@ export default function LandingPage() {
           
           <div className="container px-4 md:px-6 relative">
             <div className="text-center mb-20">
-              <div className="inline-flex items-center gap-2 px-4 py-1.5 mb-6 bg-emerald-100/80 dark:bg-emerald-900/30 rounded-full border border-emerald-200/50 dark:border-emerald-800/50">
-                <Sparkles className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Por qué elegir ZYRA</span>
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 mb-6 bg-indigo-100/80 dark:bg-indigo-900/30 rounded-full border border-indigo-200/50 dark:border-indigo-800/50">
+                <Sparkles className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                <span className="text-sm font-medium text-indigo-700 dark:text-indigo-300">Por qué elegir HealthPal</span>
               </div>
               <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tighter mb-6">
                 Tranquilidad en cada clic
               </h2>
               <p className="mx-auto max-w-2xl text-lg md:text-xl text-muted-foreground leading-relaxed">
-                ZYRA te da las herramientas para que la gestión de tu salud familiar sea <span className="text-foreground font-medium">simple, segura e inteligente.</span>
+                HealthPal te da las herramientas para que la gestión de tu salud familiar sea <span className="text-foreground font-medium">simple, segura e inteligente.</span>
               </p>
             </div>
             
@@ -300,7 +303,7 @@ export default function LandingPage() {
                 Adaptado a tus necesidades
               </h2>
               <p className="mx-auto max-w-2xl text-lg md:text-xl text-muted-foreground leading-relaxed">
-                ZYRA crece contigo y con tu familia, facilitando el cuidado de la salud en cada momento
+                HealthPal crece contigo y con tu familia, facilitando el cuidado de la salud en cada momento
               </p>
             </div>
             
@@ -507,20 +510,20 @@ export default function LandingPage() {
             
             <div className="container px-4 md:px-6 relative">
                 <div className="text-center mb-20">
-                    <div className="inline-flex items-center gap-2 px-4 py-1.5 mb-6 bg-gradient-to-r from-emerald-100/80 to-cyan-100/80 dark:from-emerald-900/40 dark:to-cyan-900/40 rounded-full border border-emerald-200/50 dark:border-emerald-800/50">
-                        <Star className="h-4 w-4 text-emerald-600 dark:text-emerald-400 fill-emerald-600 dark:fill-emerald-400" />
-                        <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Lo que dicen nuestros usuarios</span>
+                    <div className="inline-flex items-center gap-2 px-4 py-1.5 mb-6 bg-gradient-to-r from-indigo-100/80 to-blue-100/80 dark:from-indigo-900/40 dark:to-blue-900/40 rounded-full border border-indigo-200/50 dark:border-indigo-800/50">
+                        <Star className="h-4 w-4 text-indigo-600 dark:text-indigo-400 fill-indigo-600 dark:fill-indigo-400" />
+                        <span className="text-sm font-medium text-indigo-700 dark:text-indigo-300">Lo que dicen nuestros usuarios</span>
                     </div>
                     <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tighter mb-6">
                         Historias que inspiran confianza
                     </h2>
                     <p className="mx-auto max-w-2xl text-lg md:text-xl text-muted-foreground leading-relaxed">
-                        Miles de familias ya confían en ZYRA para proteger su salud
+                        Miles de familias ya confían en HealthPal para proteger su salud
                     </p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-                    <div className="group relative p-10 rounded-2xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-emerald-200/50 dark:border-emerald-800/50 hover:border-emerald-400 dark:hover:border-emerald-600 hover:shadow-2xl hover:scale-105 transition-all duration-500">
-                        <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/0 to-cyan-500/0 group-hover:from-emerald-500/5 group-hover:to-cyan-500/10 rounded-2xl transition-all duration-500"></div>
+                    <div className="group relative p-10 rounded-2xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-indigo-200/50 dark:border-indigo-800/50 hover:border-indigo-400 dark:hover:border-indigo-600 hover:shadow-2xl hover:scale-105 transition-all duration-500">
+                        <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/0 to-blue-500/0 group-hover:from-indigo-500/5 group-hover:to-blue-500/10 rounded-2xl transition-all duration-500"></div>
                         <div className="relative">
                             <div className="flex gap-1 mb-6">
                                 {[...Array(5)].map((_, i) => (
@@ -552,7 +555,7 @@ export default function LandingPage() {
                                 ))}
                             </div>
                             <p className="text-foreground mb-8 italic leading-relaxed text-base">
-                                "En una emergencia, mostré las alergias y medicamentos de mi esposo al médico en segundos. <span className="font-semibold text-cyan-600 dark:text-cyan-400">¡ZYRA literalmente salvó su vida!</span> Es imprescindible."
+                                "En una emergencia, mostré las alergias y medicamentos de mi esposo al médico en segundos. <span className="font-semibold text-indigo-600 dark:text-indigo-400">¡HealthPal literalmente salvó su vida!</span> Es imprescindible."
                             </p>
                             <div className="flex items-center gap-4">
                                 <Avatar className="h-14 w-14 border-2 border-cyan-200 dark:border-cyan-800">
@@ -576,7 +579,7 @@ export default function LandingPage() {
                                 ))}
                             </div>
                             <p className="text-foreground mb-8 italic leading-relaxed text-base">
-                                "Manejar las citas y medicamentos de mis padres era un caos. Con ZYRA, <span className="font-semibold text-blue-600 dark:text-blue-400">todo está bajo control</span> y puedo compartir info con mis hermanos al instante."
+                                "Manejar las citas y medicamentos de mis padres era un caos. Con HealthPal, <span className="font-semibold text-blue-600 dark:text-blue-400">todo está bajo control</span> y puedo compartir info con mis hermanos al instante."
                             </p>
                             <div className="flex items-center gap-4">
                                 <Avatar className="h-14 w-14 border-2 border-blue-200 dark:border-blue-800">
@@ -616,11 +619,15 @@ export default function LandingPage() {
                 <ul className="space-y-3 mb-8 flex-grow">
                   <li className="flex items-center gap-3">
                     <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
-                    <span>Hasta 3 miembros familiares</span>
+                    <span>Usuario individual</span>
                   </li>
                   <li className="flex items-center gap-3">
                     <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
                     <span>Almacenamiento de 5GB</span>
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
+                    <span>Gestión de documentos médicos</span>
                   </li>
                   <li className="flex items-center gap-3">
                     <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
@@ -676,7 +683,7 @@ export default function LandingPage() {
                 </Button>
               </div>
 
-              {/* Plan Enterprise */}
+              {/* Plan Premium */}
               <div className="p-8 rounded-xl border border-gray-200 dark:border-gray-800 bg-background hover:shadow-lg transition-all duration-300 flex flex-col">
                 <h3 className="text-2xl font-bold mb-2">Premium</h3>
                 <p className="text-muted-foreground mb-6">Para profesionales</p>
@@ -765,14 +772,14 @@ export default function LandingPage() {
             <div className="text-center mb-16">
               <h2 className="text-4xl sm:text-5xl font-bold tracking-tighter mb-4">Preguntas Frecuentes</h2>
               <p className="mx-auto max-w-[700px] text-lg text-muted-foreground">
-                Resolvemos tus dudas más importantes sobre ZYRA.
+                Resolvemos tus dudas más importantes sobre HealthPal.
               </p>
             </div>
             
             <div className="mx-auto max-w-3xl">
               <Accordion type="single" collapsible className="w-full">
                 <AccordionItem value="item-1" className="border-b border-gray-200 dark:border-gray-800">
-                  <AccordionTrigger className="text-lg font-semibold hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors py-4">
+                  <AccordionTrigger className="text-lg font-semibold hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors py-4">
                     ¿Quién puede ver mis documentos y mi información médica?
                   </AccordionTrigger>
                   <AccordionContent className="text-base text-muted-foreground pb-4">
@@ -782,7 +789,7 @@ export default function LandingPage() {
 
                 <AccordionItem value="item-2" className="border-b border-gray-200 dark:border-gray-800">
                   <AccordionTrigger className="text-lg font-semibold hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors py-4">
-                    ¿Qué tan segura es la plataforma ZYRA?
+                    ¿Qué tan segura es la plataforma HealthPal?
                   </AccordionTrigger>
                   <AccordionContent className="text-base text-muted-foreground pb-4">
                     Muy segura. Utilizamos cifrado AES-256 (nivel bancario) para toda tu información, servidores en infraestructura cloud con certificación ISO 27001, backups automáticos y redundancia geográfica. Realizamos auditorías de seguridad periódicas y cumplimos con HIPAA y regulaciones internacionales de privacidad médica.
@@ -903,10 +910,13 @@ export default function LandingPage() {
             {/* Brand */}
             <div className="md:col-span-2 space-y-6">
               <div className="flex items-center gap-2">
-                <div className="bg-gradient-to-r from-emerald-600 to-cyan-600 dark:from-emerald-400 dark:to-cyan-400 p-2.5 rounded-xl shadow-lg">
-                  <ShieldCheck className="h-6 w-6 text-white" />
-                </div>
-                <span className="text-2xl font-bold bg-gradient-to-r from-emerald-600 to-cyan-600 dark:from-emerald-400 dark:to-cyan-400 bg-clip-text text-transparent">ZYRA</span>
+                <img
+                  src="/healthpal.png"
+                  alt="HealthPal"
+                  width={360}
+                  height={360}
+                  className="object-contain"
+                />
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed max-w-sm">
                 La plataforma más segura para gestionar el historial médico de tu familia. 
@@ -1025,7 +1035,7 @@ export default function LandingPage() {
           {/* Bottom */}
           <div className="flex flex-col md:flex-row justify-between items-center gap-6 text-sm text-muted-foreground">
             <div className="flex items-center gap-2">
-              <p>&copy; {new Date().getFullYear()} ZYRA Health. Todos los derechos reservados.</p>
+              <p>&copy; {new Date().getFullYear()} HealthPal. Todos los derechos reservados.</p>
               <span className="hidden md:inline">•</span>
               <p className="hidden md:block">Hecho con ❤️ para tu salud</p>
             </div>

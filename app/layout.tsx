@@ -19,11 +19,20 @@ const robotoSlab = Roboto_Slab({
 })
 
 export const metadata = {
-  title: "ZYRA", // Aquí está el cambio
-  description: "ZYRA", // También he actualizado la descripción para mantener la coherencia
-  generator: 'JC',
-  // Añade esta configuración para el viewport
-  viewport: 'width=device-width, initial-scale=1, maximum-scale=1',
+  title: "HealthPal.mx",
+  description: "Tu asistente personal de salud - Gestiona tu información médica y la de tu familia de forma segura",
+  generator: 'HealthPal',
+  icons: {
+    icon: '/favicon.ico',
+    shortcut: '/favicon.ico',
+    apple: '/favicon.ico',
+  },
+}
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
 }
 
 export default function RootLayout({

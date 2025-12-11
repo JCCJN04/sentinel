@@ -1,10 +1,19 @@
 /**
  * Servicio de WhatsApp con Twilio
  * 
- * Envía recordatorios de medicamentos por WhatsApp
+ * Envía SOLO:
+ * 1. Mensaje de bienvenida al verificar número
+ * 2. Recordatorios de medicamentos
  */
 
 import twilio from 'twilio';
+import { secureLog } from '@/middleware/security';
+
+// SIDs de las Content Templates aprobadas en Twilio (verificadas Dec 9, 2025)
+const TEMPLATES = {
+  MEDICATION_REMINDER: 'HX7a90a5d7840f9e6139f1efbd526700d3', // medication_reminder
+  WELCOME_VERIFICATION: 'HXed4dad300cdd95154003a6998b0d4d1f', // welcome_verification
+} as const;
 
 // Inicializar cliente de Twilio
 function getTwilioClient() {
@@ -28,7 +37,7 @@ interface MedicationReminder {
 }
 
 /**
- * Envía un recordatorio de medicamento por WhatsApp
+ * Envía un recordatorio de medicamento por WhatsApp usando Content Template
  */
 export async function sendMedicationReminder(
   toPhoneNumber: string,
@@ -51,19 +60,29 @@ export async function sendMedicationReminder(
       ? fromNumber
       : `whatsapp:${fromNumber}`;
 
-    // Construir mensaje
-    const message = buildReminderMessage(reminder);
+    secureLog('info', 'Sending WhatsApp medication reminder', {
+      to: formattedTo.substring(0, 15) + '***', // Partial number for privacy
+      medicine: reminder.medicineName,
+      time: reminder.scheduledTime
+    });
 
-    console.log(`📱 [WhatsApp] Enviando recordatorio a ${formattedTo}`);
-
-    // Enviar mensaje
+    // Usar Content Template aprobada
     const result = await client.messages.create({
       from: formattedFrom,
       to: formattedTo,
-      body: message,
+      contentSid: TEMPLATES.MEDICATION_REMINDER,
+      contentVariables: JSON.stringify({
+        '1': reminder.patientName,
+        '2': reminder.medicineName,
+        '3': reminder.dosage,
+        '4': reminder.scheduledTime,
+      }),
     });
 
-    console.log(`✅ [WhatsApp] Mensaje enviado exitosamente. SID: ${result.sid}`);
+    secureLog('info', 'WhatsApp medication reminder sent successfully', {
+      messageSid: result.sid,
+      status: result.status
+    });
 
     return {
       success: true,
@@ -71,7 +90,10 @@ export async function sendMedicationReminder(
     };
 
   } catch (error) {
-    console.error('❌ [WhatsApp] Error enviando mensaje:', error);
+    secureLog('error', 'Failed to send WhatsApp medication reminder', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      medicine: reminder.medicineName
+    });
     
     return {
       success: false,
@@ -81,47 +103,11 @@ export async function sendMedicationReminder(
 }
 
 /**
- * Construye el texto del mensaje de recordatorio
+ * Envía un mensaje de bienvenida/verificación usando Content Template
  */
-function buildReminderMessage(reminder: MedicationReminder): string {
-  const { patientName, medicineName, dosage, scheduledTime, instructions, isImmediate } = reminder;
-  const isNow = isImmediate === true;
-
-  let message = isNow 
-    ? `⏰ *¡Es hora de tu medicamento!*\n\n`
-    : `🏥 *Recordatorio de Medicamento*\n\n`;
-  
-  message += `Hola ${patientName},\n\n`;
-  
-  if (isNow) {
-    message += `💊 Toma ahora: *${medicineName}* - ${dosage}\n`;
-    message += `⏰ Hora programada: ${scheduledTime}\n`;
-  } else {
-    message += `En 1 hora debes tomar:\n`;
-    message += `💊 *${medicineName}* - ${dosage}\n`;
-    message += `⏰ Programado: ${scheduledTime}\n`;
-  }
-
-  if (instructions) {
-    message += `\n📋 Instrucciones: ${instructions}\n`;
-  }
-
-  if (isNow) {
-    message += `\n✅ Por favor, registra tu toma en la app después de tomarla.\n\n`;
-  } else {
-    message += `\n⏰ Recibirás otro recordatorio cuando sea el momento exacto.\n\n`;
-  }
-  
-  message += `🩺 Cuida tu salud con Zyra`;
-
-  return message;
-}
-
-/**
- * Envía un mensaje de prueba para verificar la configuración
- */
-export async function sendTestMessage(
-  toPhoneNumber: string
+export async function sendWelcomeMessage(
+  toPhoneNumber: string,
+  userName: string
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
     const client = getTwilioClient();
@@ -139,18 +125,22 @@ export async function sendTestMessage(
       ? fromNumber
       : `whatsapp:${fromNumber}`;
 
-    const message = `🏥 *Zyra - Prueba de Conexión*\n\n` +
-                   `✅ Tu número ha sido verificado correctamente.\n\n` +
-                   `A partir de ahora recibirás recordatorios de tus medicamentos por WhatsApp.\n\n` +
-                   `🩺 Cuida tu salud con Zyra`;
+    secureLog('info', 'Sending WhatsApp welcome message', {
+      to: formattedTo.substring(0, 15) + '***'
+    });
 
     const result = await client.messages.create({
       from: formattedFrom,
       to: formattedTo,
-      body: message,
+      contentSid: TEMPLATES.WELCOME_VERIFICATION,
+      contentVariables: JSON.stringify({
+        '1': userName,
+      }),
     });
 
-    console.log(`✅ [WhatsApp] Mensaje de prueba enviado. SID: ${result.sid}`);
+    secureLog('info', 'WhatsApp welcome message sent successfully', {
+      messageSid: result.sid
+    });
 
     return {
       success: true,
@@ -158,7 +148,9 @@ export async function sendTestMessage(
     };
 
   } catch (error) {
-    console.error('❌ [WhatsApp] Error en mensaje de prueba:', error);
+    secureLog('error', 'Failed to send WhatsApp welcome message', {
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
     
     return {
       success: false,

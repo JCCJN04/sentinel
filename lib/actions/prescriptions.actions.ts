@@ -412,11 +412,34 @@ export async function getUpcomingDoses(): Promise<{ data: UpcomingDose[], error?
     return { data: mappedData, error: null };
 }
 
-// markDoseAsTaken (sin cambios)
+// markDoseAsTaken - Mejorado con feedback
 export async function markDoseAsTaken(formData: FormData) {
     const doseId = formData.get('doseId') as string;
-    if (!doseId) { throw new Error('ID de dosis no proporcionado'); }
+    if (!doseId) { 
+        return { success: false, error: 'ID de dosis no proporcionado' };
+    }
+    
     const supabase = createSupabaseClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+        return { success: false, error: 'No autorizado' };
+    }
+    
+    // Primero verificar que la dosis existe y pertenece al usuario
+    const { data: dose, error: fetchError } = await supabase
+        .from('medication_doses')
+        .select('id, user_id, scheduled_at')
+        .eq('id', doseId)
+        .eq('user_id', user.id)
+        .single();
+    
+    if (fetchError || !dose) {
+        console.error('Error al buscar la dosis:', fetchError);
+        return { success: false, error: 'Dosis no encontrada' };
+    }
+    
+    // Actualizar la dosis
     const { error } = await supabase
         .from('medication_doses')
         .update({ 
@@ -424,11 +447,14 @@ export async function markDoseAsTaken(formData: FormData) {
             status: 'taken' 
         })
         .eq('id', doseId);
+    
     if (error) {
         console.error('Error al actualizar la dosis:', error);
-        throw new Error('No se pudo actualizar la dosis.');
-    };
+        return { success: false, error: 'No se pudo registrar la toma' };
+    }
+    
     revalidatePath('/dashboard');
+    return { success: true };
 }
 
 // getPrescriptions (sin cambios)

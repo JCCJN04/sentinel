@@ -162,25 +162,29 @@ export function WhatsAppSettings() {
       </div>
 
       {/* Información importante */}
-      <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/40 p-4">
+      <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/40 p-4">
         <div className="flex gap-2">
-          <AlertCircle className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-          <div className="text-sm text-blue-900 dark:text-blue-100">
-            <p className="font-semibold mb-2">Configuración inicial requerida:</p>
-            <ol className="list-decimal list-inside space-y-2 text-blue-800 dark:text-blue-200">
-              <li>
-                Envía un WhatsApp a <strong className="font-mono">+1 415 523 8886</strong> con el texto:
-                <div className="mt-1 p-2 bg-white dark:bg-blue-900/50 rounded font-mono text-xs border border-blue-300 dark:border-blue-800">
-                  join visit-whenever
-                </div>
-              </li>
-              <li>Espera la confirmación de Twilio</li>
-              <li>Ingresa tu número aquí con código de país (ej: +5218111230266)</li>
-              <li>Activa los recordatorios y guarda</li>
-            </ol>
-            <p className="mt-3 text-xs">
-              📱 Los recordatorios llegan 1 hora antes de cada dosis programada
-            </p>
+          <Check className="h-5 w-5 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
+          <div className="text-sm text-emerald-900 dark:text-emerald-100">
+            <p className="font-semibold mb-2">✨ Servicio Premium de WhatsApp Activo</p>
+            <div className="space-y-2 text-emerald-800 dark:text-emerald-200">
+              <p>
+                Tus recordatorios se envían desde nuestro número oficial de WhatsApp Business.
+                No necesitas hacer ningún join ni configuración adicional.
+              </p>
+              <div className="mt-3 p-3 bg-white dark:bg-emerald-900/30 rounded-lg border border-emerald-300 dark:border-emerald-800">
+                <p className="font-semibold text-emerald-900 dark:text-emerald-100 mb-1">Cómo configurar:</p>
+                <ol className="list-decimal list-inside space-y-1 text-sm">
+                  <li>Ingresa tu número de WhatsApp con código de país</li>
+                  <li>Activa los recordatorios</li>
+                  <li>Guarda la configuración</li>
+                  <li>¡Listo! Recibirás notificaciones automáticamente</li>
+                </ol>
+              </div>
+              <p className="mt-3 text-xs">
+                📱 Los recordatorios llegan 1 hora antes de cada dosis programada
+              </p>
+            </div>
           </div>
         </div>
       </div>

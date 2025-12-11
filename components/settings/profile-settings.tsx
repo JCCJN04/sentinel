@@ -19,7 +19,6 @@ interface ProfileFormData {
   first_name: string;
   last_name: string;
   email: string;
-  phone: string;
   language: string;
   timezone: string;
   date_format: string;
@@ -36,7 +35,6 @@ export function ProfileSettings() {
     first_name: "",
     last_name: "",
     email: "",
-    phone: "",
     language: "es",
     timezone: "America/Mexico_City",
     date_format: "DD/MM/YYYY",
@@ -60,7 +58,6 @@ export function ProfileSettings() {
           first_name: profile.first_name || "",
           last_name: profile.last_name || "",
           email: profile.email || "",
-          phone: profile.phone || "",
           language: profile.language || "es",
           timezone: profile.timezone || "America/Mexico_City",
           date_format: profile.date_format || "DD/MM/YYYY",
@@ -108,7 +105,6 @@ export function ProfileSettings() {
       const profileUpdates: Partial<UserProfile> = {
         first_name: formData.first_name,
         last_name: formData.last_name,
-        phone: formData.phone,
         language: formData.language,
         timezone: formData.timezone,
         date_format: formData.date_format,
@@ -227,10 +223,6 @@ export function ProfileSettings() {
                       <div className="space-y-2">
                           <Label htmlFor="email">Correo electrónico</Label>
                           <Input id="email" type="email" value={formData.email} disabled readOnly />
-                      </div>
-                      <div className="space-y-2">
-                          <Label htmlFor="phone">Teléfono</Label>
-                          <Input id="phone" type="tel" value={formData.phone} onChange={handleInputChange} disabled={!isEditing || isSaving} placeholder="Ej. +52 8112345678" />
                       </div>
                   </div>
               </div>

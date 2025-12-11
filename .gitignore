@@ -18,6 +18,7 @@ yarn-error.log*
 
 # env files
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -25,3 +26,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# supabase
+.supabase/
+**/supabase/.branches
+**/supabase/.temp
+
+# local testing scripts output
+test-output/
+*.log

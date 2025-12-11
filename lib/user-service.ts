@@ -12,7 +12,6 @@ export interface UserProfile {
   first_name: string;
   last_name: string;
   email?: string;
-  phone: string;
   avatar_url: string;
   language: string;
   timezone: string;
@@ -78,7 +77,6 @@ export const getUserProfile = async (): Promise<UserProfile | null> => {
         first_name: "",
         last_name: "",
         email: user.email || "",
-        phone: "",
         avatar_url: "",
         language: "es",
         timezone: "America/Mexico_City",
@@ -93,7 +91,6 @@ export const getUserProfile = async (): Promise<UserProfile | null> => {
       first_name: profileData.first_name || "",
       last_name: profileData.last_name || "",
       email: user.email || "",
-      phone: profileData.phone || "",
       avatar_url: profileData.avatar_url || "",
       language: profileData.language || "es",
       timezone: profileData.timezone || "America/Mexico_City",

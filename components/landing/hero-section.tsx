@@ -18,7 +18,7 @@ export function HeroSection() {
           </h1>
           {/* Ajustamos el tamaño de fuente del párrafo */}
           <p className="mt-6 text-base md:text-xl text-muted-foreground">
-            ZYRA es la plataforma definitiva para centralizar, gestionar y acceder a toda tu información de salud y la de tu familia, en cualquier momento y lugar.
+            HealthPal es la plataforma definitiva para centralizar, gestionar y acceder a toda tu información de salud y la de tu familia, en cualquier momento y lugar.
           </p>
           <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
             <Button size="lg" onClick={handleGetStarted}>

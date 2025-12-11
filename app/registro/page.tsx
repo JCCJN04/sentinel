@@ -68,18 +68,18 @@ export default function RegisterPage() {
       if (data?.user && data?.session) {
         // Registro exitoso con sesión automática
         toast({
-          title: "Registro exitoso",
-          description: "Bienvenido a DocuVault",
+          title: "¡Bienvenido!",
+          description: "Tu cuenta ha sido creada correctamente",
         })
         router.push("/dashboard")
       } else {
         // Se requiere confirmación de correo
         setSuccess(
-          "Se ha enviado un enlace de confirmación a su correo electrónico. Por favor verifique su bandeja de entrada.",
+          "Te hemos enviado un enlace de confirmación. Revisa tu correo electrónico.",
         )
         toast({
-          title: "Registro exitoso",
-          description: "Por favor verifique su correo electrónico para confirmar su cuenta",
+          title: "Cuenta creada",
+          description: "Revisa tu correo para confirmar tu cuenta",
         })
       }
     } catch (err: any) {
@@ -94,8 +94,10 @@ export default function RegisterPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1 text-center">
-          <CardTitle className="text-2xl font-bold">Crear una cuenta</CardTitle>
-          <CardDescription>Ingrese sus datos para registrarse en DocuVault</CardDescription>
+          <CardTitle className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
+            Crear Cuenta
+          </CardTitle>
+          <CardDescription>Ingresa tus datos para registrarte</CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
@@ -155,8 +157,8 @@ export default function RegisterPage() {
               )}
             </Button>
             <div className="text-center text-sm">
-              ¿Ya tiene una cuenta?{" "}
-              <Link href="/login" className="text-primary hover:underline">
+              ¿Ya tienes cuenta?{" "}
+              <Link href="/login" className="text-primary hover:underline font-medium">
                 Iniciar sesión
               </Link>
             </div>

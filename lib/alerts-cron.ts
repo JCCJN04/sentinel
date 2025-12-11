@@ -8,16 +8,17 @@
  * NO importar desde componentes cliente
  */
 
-import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
 import { generateAutoAlert } from './alerts-service';
-import { sendMedicationReminder } from './whatsapp-service';
+import { sendMedicationReminder, sendDocumentAlert } from './whatsapp-service';
 
 /**
  * Verifica documentos próximos a vencer y genera alertas
+ * También envía notificaciones por WhatsApp si el usuario lo tiene habilitado
  */
 export async function checkExpiringDocuments(): Promise<void> {
   try {
-    const supabase = createClient();
+    const supabase = createServiceClient();
     
     // Documentos que vencen en los próximos 30 días
     const thirtyDaysFromNow = new Date();
@@ -46,6 +47,46 @@ export async function checkExpiringDocuments(): Promise<void> {
           expiry_date: doc.expiry_date,
         },
       });
+
+      // Verificar si el usuario tiene WhatsApp habilitado
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('first_name, last_name, phone_number, whatsapp_notifications_enabled')
+        .eq('id', doc.user_id)
+        .single();
+
+      if (profile?.whatsapp_notifications_enabled && profile?.phone_number) {
+        const userName = profile.first_name || profile.last_name || 'Usuario';
+        
+        // Formatear fecha de vencimiento
+        const expiryDate = new Date(doc.expiry_date);
+        const formattedDate = expiryDate.toLocaleDateString('es-MX', {
+          day: '2-digit',
+          month: 'long',
+          year: 'numeric'
+        });
+
+        // Calcular días restantes
+        const today = new Date();
+        const diffTime = expiryDate.getTime() - today.getTime();
+        const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        // Solo enviar si faltan 30, 15, 7 o 3 días (evitar spam)
+        if ([30, 15, 7, 3].includes(daysRemaining)) {
+          const result = await sendDocumentAlert(
+            profile.phone_number,
+            userName,
+            doc.name,
+            formattedDate
+          );
+
+          if (result.success) {
+            console.log(`✅ [WhatsApp] Alerta de documento enviada a ${profile.phone_number}`);
+          } else {
+            console.error(`❌ [WhatsApp] Error enviando alerta:`, result.error);
+          }
+        }
+      }
     }
   } catch (error) {
     console.error('Error en checkExpiringDocuments:', error);
@@ -58,10 +99,27 @@ export async function checkExpiringDocuments(): Promise<void> {
  */
 export async function checkMedicationDoses(): Promise<void> {
   try {
-    const supabase = createClient();
+    const supabase = createServiceClient();
     
+    // IMPORTANTE: Usar UTC para evitar problemas de zona horaria
     const now = new Date();
     const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000);
+    
+    // Convertir a formato ISO compatible con PostgreSQL timestamptz
+    const nowISO = now.toISOString();
+    const oneHourISO = oneHourFromNow.toISOString();
+
+    console.log('[checkMedicationDoses] Buscando dosis entre:', {
+      desde: nowISO,
+      hasta: oneHourISO,
+      now_utc: now.toUTCString()
+    });
+
+    console.log('[checkMedicationDoses] Buscando dosis entre:', {
+      desde: nowISO,
+      hasta: oneHourISO,
+      now_utc: now.toUTCString()
+    });
 
     const { data: upcomingDoses, error } = await supabase
       .from('medication_doses')
@@ -77,15 +135,25 @@ export async function checkMedicationDoses(): Promise<void> {
         )
       `)
       .eq('status', 'scheduled')
-      .gte('scheduled_at', now.toISOString())
-      .lte('scheduled_at', oneHourFromNow.toISOString());
+      .gte('scheduled_at', nowISO)
+      .lte('scheduled_at', oneHourISO);
 
     if (error) {
       console.error('Error al verificar dosis de medicamentos:', error);
       return;
     }
 
+    console.log(`[checkMedicationDoses] Encontradas ${upcomingDoses?.length || 0} dosis próximas`);
+
+    console.log(`[checkMedicationDoses] Encontradas ${upcomingDoses?.length || 0} dosis próximas`);
+
     for (const dose of upcomingDoses || []) {
+      console.log('[checkMedicationDoses] Procesando dosis:', {
+        id: dose.id,
+        scheduled_at: dose.scheduled_at,
+        medicine: (dose.prescription_medicines as any)?.medicine_name
+      });
+
       // Generar alerta en la app
       await generateAutoAlert({
         event_type: 'medication_reminder',

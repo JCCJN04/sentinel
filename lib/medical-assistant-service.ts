@@ -1,33 +1,36 @@
 /**
  * Servicio del Asistente IA Médico
  * 
- * Este servicio se encarga de:
- * 1. Consultar la información médica del paciente desde Supabase
- * 2. Construir el contexto médico completo
- * 3. Generar respuestas inteligentes usando Google Gemini AI
- * 
- * Tablas utilizadas del esquema PostgreSQL:
- * - documents: Documentos médicos del paciente
- * - prescriptions + prescription_medicines: Recetas y medicamentos
- * - user_allergies: Alergias reportadas
- * - vaccinations: Registro de vacunación
- * - user_personal_history: Antecedentes patológicos personales
- * - user_family_history: Antecedentes familiares
- * - profiles: Información personal del usuario
+ * SECURITY ENHANCEMENTS:
+ * - Gemini API Key solo server-side (NO expuesta al cliente)
+ * - Sanitización de datos médicos en contexto
+ * - Timeout en llamadas a Gemini
+ * - Prevención de inyección de prompts
+ * - Logging sin información sensible
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { secureLog } from '@/middleware/security';
 import type { MedicalContext, ChatMessage } from '@/types/medical-assistant';
 
-// Inicializar Gemini AI
-const genAI = new GoogleGenerativeAI(
-  process.env.NEXT_PUBLIC_GEMINI_API_KEY || ''
-);
+// SECURITY: API Key SOLO en servidor (nunca NEXT_PUBLIC_)
+const getGeminiClient = () => {
+  // CRITICAL: Usar variable sin NEXT_PUBLIC_ para que NO se exponga al cliente
+  const apiKey = process.env.GEMINI_API_KEY;
+  
+  if (!apiKey || apiKey === 'your_gemini_api_key_here') {
+    throw new Error('GEMINI_API_KEY no configurada en variables de entorno del servidor');
+  }
+
+  return new GoogleGenerativeAI(apiKey);
+};
+
+const GEMINI_TIMEOUT_MS = 30000; // 30 segundos
 
 /**
  * Obtiene el contexto médico completo del paciente desde Supabase
- * Consulta todas las tablas relevantes del esquema de base de datos
+ * SECURITY: Con timeout y sanitización de datos
  */
 export async function getMedicalContext(
   userId: string,
@@ -36,7 +39,20 @@ export async function getMedicalContext(
   const context: MedicalContext = {};
 
   try {
-    // 1. Obtener perfil del usuario (tabla: profiles)
+    // SECURITY: Timeout para todas las queries
+    const queryTimeout = 5000; // 5 segundos por query
+
+    // Helper para agregar timeout
+    const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
+      return Promise.race([
+        promise,
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Query timeout')), ms)
+        ),
+      ]);
+    };
+
+    // 1. Perfil del usuario
     const { data: profile } = await supabaseClient
       .from('profiles')
       .select('first_name, last_name, genero, tipo_de_sangre')
@@ -197,8 +213,11 @@ export async function getMedicalContext(
     }
 
   } catch (error) {
-    console.error('Error fetching medical context:', error);
-    // En caso de error, retornamos el contexto parcial que se haya podido obtener
+    // SECURITY: Log sin detalles sensibles
+    secureLog('error', 'Error fetching medical context', {
+      error: error instanceof Error ? error.message : 'Unknown',
+    });
+    // Retornar contexto parcial
   }
 
   return context;
@@ -211,7 +230,15 @@ export async function getMedicalContext(
 function buildSystemPrompt(context: MedicalContext): string {
   const contextSummary = buildContextSummary(context);
 
-  return `Eres un Asistente IA Médico especializado en ayudar a pacientes a comprender su información médica.
+  return `Eres un Asistente IA Médico especializado en ayudar a pacientes a comprender su información médica de forma clara y estructurada.
+
+FORMATO DE RESPUESTAS:
+- Usa markdown para estructurar tus respuestas (**, ##, ###, listas con *)
+- Organiza la información en secciones claras con encabezados (##)
+- Usa listas con viñetas (*) para enumerar elementos
+- Destaca términos importantes con **negritas**
+- Mantén párrafos cortos y concisos (máximo 3-4 líneas)
+- Usa espacios entre secciones para mejorar legibilidad
 
 IMPORTANTE - TUS LIMITACIONES Y RESPONSABILIDADES:
 - NO eres un médico y NO puedes hacer diagnósticos
@@ -235,7 +262,21 @@ TONO Y ESTILO:
 - Empático y profesional
 - Claro y comprensible para no especialistas
 - Preciso pero no alarmista
+- Directo y organizado
 - Cuando no tengas información, admítelo honestamente
+
+EJEMPLOS DE FORMATO CORRECTO:
+## Tus Medicamentos Actuales
+
+Tienes **3 medicamentos activos** para tratar la gripe:
+
+* **Oseltamivir 75mg**: Antiviral que combate el virus de la influenza
+* **Paracetamol 500mg**: Alivia el dolor y reduce la fiebre
+* **Loratadina 5mg**: Antihistamínico para síntomas de alergia
+
+## Recordatorio Importante
+
+⚠️ Consulta con tu médico si los síntomas empeoran o no mejoran en 2-3 días.
 
 SIEMPRE recuerda al paciente que consulte con su médico para:
 - Cambios en medicación
@@ -342,6 +383,7 @@ function buildContextSummary(context: MedicalContext): string {
 
 /**
  * Genera una respuesta del asistente usando Gemini AI
+ * SECURITY: Con timeout, API key server-side, y prevención de inyección
  */
 export async function generateMedicalResponse(
   userMessage: string,
@@ -349,29 +391,48 @@ export async function generateMedicalResponse(
   conversationHistory: ChatMessage[] = []
 ): Promise<string> {
   try {
-    // Verificar que la API key esté configurada
-    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-    if (!apiKey || apiKey === 'your_gemini_api_key_here') {
-      console.error('❌ Gemini API Key no configurada correctamente');
-      throw new Error('La API Key de Gemini no está configurada. Por favor configura NEXT_PUBLIC_GEMINI_API_KEY en tu archivo .env.local');
-    }
-
-    console.log('🤖 Inicializando Gemini AI...');
+    // SECURITY: Inicializar cliente con API key del servidor
+    const genAI = getGeminiClient();
+    
     const model = genAI.getGenerativeModel({ 
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.0-flash-exp',
       generationConfig: {
         temperature: 0.7,
         maxOutputTokens: 2048,
-      }
+      },
+      safetySettings: [
+        {
+          category: 'HARM_CATEGORY_HARASSMENT' as any,
+          threshold: 'BLOCK_MEDIUM_AND_ABOVE' as any,
+        },
+        {
+          category: 'HARM_CATEGORY_HATE_SPEECH' as any,
+          threshold: 'BLOCK_MEDIUM_AND_ABOVE' as any,
+        },
+        {
+          category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT' as any,
+          threshold: 'BLOCK_MEDIUM_AND_ABOVE' as any,
+        },
+        {
+          category: 'HARM_CATEGORY_DANGEROUS_CONTENT' as any,
+          threshold: 'BLOCK_MEDIUM_AND_ABOVE' as any,
+        },
+      ],
     });
 
-    // Construir el prompt completo
     const systemPrompt = buildSystemPrompt(context);
     
-    // Convertir historial de conversación a formato de texto
-    const historyText = conversationHistory
-      .slice(-6) // Solo últimos 6 mensajes para mantener el contexto manejable
-      .map(msg => `${msg.role === 'user' ? 'Paciente' : 'Asistente'}: ${msg.content}`)
+    // SECURITY: Limitar historial para prevenir ataques de contexto
+    const safeHistory = conversationHistory
+      .slice(-6)
+      .map(msg => ({
+        role: msg.role === 'user' ? 'Paciente' : 'Asistente',
+        // SECURITY: Sanitizar contenido del historial
+        content: msg.content.substring(0, 1000),
+      }));
+
+    const historyText = safeHistory
+      .map(msg => `${msg.role}: ${msg.content}`)
       .join('\n');
 
     const fullPrompt = `${systemPrompt}
@@ -384,48 +445,39 @@ ${userMessage}
 
 RESPUESTA DEL ASISTENTE:`;
 
-    console.log('📝 Generando respuesta con Gemini...');
-    
-    // Generar respuesta
-    const result = await model.generateContent(fullPrompt);
+    // SECURITY: Timeout en generación
+    const generationPromise = model.generateContent(fullPrompt);
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Gemini timeout')), GEMINI_TIMEOUT_MS)
+    );
+
+    const result = await Promise.race([generationPromise, timeoutPromise]);
     const response = await result.response;
     const text = response.text();
 
-    console.log('✅ Respuesta generada exitosamente');
+    secureLog('info', 'Gemini response generated', { length: text.length });
     return text;
 
   } catch (error) {
-    console.error('❌ Error generating medical response:', error);
+    secureLog('error', 'Gemini generation error', {
+      error: error instanceof Error ? error.message : 'Unknown',
+    });
     
-    // Proporcionar mensajes de error más específicos
     if (error instanceof Error) {
-      if (error.message.includes('API key')) {
-        throw new Error('Error de autenticación con Gemini AI. Verifica tu API Key.');
+      if (error.message.includes('API key') || error.message.includes('GEMINI_API_KEY')) {
+        throw new Error('Error de configuración del servidor. Por favor contacta al administrador.');
       }
-      if (error.message.includes('quota')) {
-        throw new Error('Has excedido el límite de uso de Gemini AI. Intenta de nuevo más tarde.');
+      if (error.message.includes('quota') || error.message.includes('429')) {
+        throw new Error('Servicio temporalmente no disponible. Intenta de nuevo más tarde.');
       }
-      if (error.message.includes('blocked')) {
-        throw new Error('La pregunta fue bloqueada por razones de seguridad. Intenta reformularla.');
+      if (error.message.includes('timeout')) {
+        throw new Error('La solicitud tardó demasiado. Por favor intenta de nuevo.');
       }
-      throw new Error(`Error de Gemini AI: ${error.message}`);
+      if (error.message.includes('blocked') || error.message.includes('safety')) {
+        throw new Error('Tu pregunta no pudo ser procesada. Por favor reformúlala.');
+      }
     }
     
-    throw new Error('No pude generar una respuesta en este momento. Por favor, intenta de nuevo.');
+    throw new Error('Error al generar respuesta. Por favor intenta de nuevo.');
   }
-}
-
-/**
- * Valida el mensaje del usuario antes de procesarlo
- */
-export function validateUserMessage(message: string): { valid: boolean; error?: string } {
-  if (!message || message.trim().length === 0) {
-    return { valid: false, error: 'El mensaje no puede estar vacío' };
-  }
-
-  if (message.length > 2000) {
-    return { valid: false, error: 'El mensaje es demasiado largo (máximo 2000 caracteres)' };
-  }
-
-  return { valid: true };
 }

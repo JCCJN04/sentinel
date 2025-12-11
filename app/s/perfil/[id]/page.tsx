@@ -376,10 +376,10 @@ export default function PerfilMedicoPublicoPage() {
                 </p>
                 <p className="text-emerald-800 dark:text-emerald-200">
                   Esta información ha sido compartida para uso exclusivo en situaciones de emergencia o atención médica. 
-                  Protegido por ZYRA Health.
+                  Protegido por HealthPal.
                 </p>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Si eres el paciente y deseas actualizar esta información, ingresa a tu cuenta de ZYRA.
+                <p className="text-sm text-muted-foreground">
+                  Si eres el paciente y deseas actualizar esta información, ingresa a tu cuenta de HealthPal.
                 </p>
               </div>
             </div>

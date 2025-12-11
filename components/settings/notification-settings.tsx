@@ -16,28 +16,33 @@ export function NotificationSettings() {
         <CardHeader>
           <CardTitle>Notificaciones del Sistema</CardTitle>
           <CardDescription>
-            Las notificaciones de medicamentos y alertas se envían automáticamente por WhatsApp
+            Servicio premium de notificaciones por WhatsApp Business
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <div className="flex items-start gap-3 p-4 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/40">
-              <Bell className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+            <div className="flex items-start gap-3 p-4 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/40">
+              <Bell className="h-5 w-5 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
               <div className="text-sm">
-                <p className="font-semibold text-blue-900 dark:text-blue-100 mb-1">
-                  Recordatorios activos:
+                <p className="font-semibold text-emerald-900 dark:text-emerald-100 mb-2">
+                  ✨ Notificaciones Premium Activas
                 </p>
-                <ul className="list-disc list-inside space-y-1 text-blue-800 dark:text-blue-200">
-                  <li>Medicamentos: 1 hora antes de cada dosis</li>
-                  <li>Documentos: Alertas de vencimiento próximo</li>
-                  <li>Alertas de seguridad automáticas</li>
+                <ul className="list-disc list-inside space-y-1 text-emerald-800 dark:text-emerald-200">
+                  <li>💊 Medicamentos: Recordatorio 1 hora antes de cada dosis</li>
+                  <li>📄 Documentos: Alertas de vencimiento (7 días antes)</li>
+                  <li>🔔 Alertas de seguridad automáticas</li>
+                  <li>✅ Confirmaciones de acciones importantes</li>
+                  <li>📱 Enviado desde WhatsApp Business oficial</li>
                 </ul>
               </div>
             </div>
 
-            <div className="text-center p-8 text-muted-foreground">
-              <p className="text-sm">
-                Configura tu WhatsApp arriba para recibir todos los recordatorios
+            <div className="rounded-lg bg-gradient-to-r from-emerald-50 to-cyan-50 dark:from-emerald-950/20 dark:to-cyan-950/20 border border-emerald-200 dark:border-emerald-900/40 p-6 text-center">
+              <p className="text-sm font-medium text-emerald-900 dark:text-emerald-100 mb-2">
+                🚀 Servicio de notificaciones profesional incluido
+              </p>
+              <p className="text-xs text-emerald-700 dark:text-emerald-300">
+                Configura tu número de WhatsApp arriba para comenzar a recibir recordatorios
               </p>
             </div>
           </div>
