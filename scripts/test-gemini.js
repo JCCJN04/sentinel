@@ -34,10 +34,10 @@ async function testGemini() {
 
   // 1. Cargar y verificar API Key
   const env = loadEnvLocal();
-  const apiKey = env.NEXT_PUBLIC_GEMINI_API_KEY;
-  
+  const apiKey = env.GEMINI_API_KEY;
+
   if (!apiKey) {
-    console.error('❌ ERROR: NEXT_PUBLIC_GEMINI_API_KEY no está definida en .env.local');
+    console.error('❌ ERROR: GEMINI_API_KEY no está definida en .env.local');
     process.exit(1);
   }
 

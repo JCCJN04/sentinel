@@ -4,8 +4,8 @@ import { useState, useRef } from "react";
 import { Camera, Upload, X, Check, Loader2, AlertCircle, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { extractRecipeDataFromImage, validatePrescriptionImage } from "@/lib/gemini-recipe-service";
 import { toast } from "sonner";
+import { createClient } from "@/lib/supabase/client";
 
 interface RecipePhotoCapperProps {
   onPhotoCapture?: (base64: string) => void;
@@ -111,35 +111,54 @@ export function RecipePhotoCapper({ onPhotoCapture, onDataExtracted }: RecipePho
     }
   };
 
-  // Procesar imagen con IA Gemini 2.5 Flash
+  // Procesar imagen con API de análisis segura (server-side)
   const processRecipeImage = async () => {
     if (!capturedPhoto) return;
 
     setIsProcessing(true);
     try {
-      // Primero validar que sea una receta
-      const validation = await validatePrescriptionImage(capturedPhoto);
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
       
-      if (!validation.isPrescription) {
-        toast.error("La imagen no parece ser una receta médica válida");
+      if (!session) {
+        toast.error("Debes iniciar sesión para analizar recetas");
         setIsProcessing(false);
         return;
       }
 
-      if (!validation.isLegible) {
-        toast.warning("La receta no es muy legible. El resultado podría ser incompleto.");
+      // Llamar a API route segura (server-side)
+      const response = await fetch('/api/ai/analyze-recipe', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          base64Image: capturedPhoto,
+          imageType: 'image/jpeg',
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al analizar receta');
       }
 
-      // Extraer datos con Gemini
-      const data = await extractRecipeDataFromImage(capturedPhoto);
+      const result = await response.json();
+      
+      if (!result.success || !result.data) {
+        throw new Error('Respuesta inválida del servidor');
+      }
+
+      const data = result.data;
       
       setExtractedData(data);
       if (onDataExtracted) onDataExtracted(data);
       
       toast.success(`Receta analizada con ${(data.confidence * 100).toFixed(0)}% de confianza`);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error al procesar imagen:", error);
-      toast.error("Error al analizar la receta. Intenta con otra imagen.");
+      toast.error(error.message || "Error al analizar la receta. Intenta con otra imagen.");
       setExtractedData({
         diagnosis: "",
         doctor_name: "",

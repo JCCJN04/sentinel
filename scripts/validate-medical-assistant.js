@@ -22,14 +22,14 @@ if (!fs.existsSync(envPath)) {
   const envContent = fs.readFileSync(envPath, 'utf-8');
   
   // Verificar Gemini API Key
-  if (!envContent.includes('NEXT_PUBLIC_GEMINI_API_KEY')) {
-    console.error('   ❌ Falta NEXT_PUBLIC_GEMINI_API_KEY en .env.local');
+  if (!envContent.includes('GEMINI_API_KEY')) {
+    console.error('   ❌ Falta GEMINI_API_KEY en .env.local');
     hasErrors = true;
-  } else if (envContent.includes('NEXT_PUBLIC_GEMINI_API_KEY=your_gemini_api_key')) {
-    console.error('   ⚠️  NEXT_PUBLIC_GEMINI_API_KEY no está configurada (usa valor de ejemplo)');
+  } else if (envContent.includes('GEMINI_API_KEY=your_gemini_api_key')) {
+    console.error('   ⚠️  GEMINI_API_KEY no está configurada (usa valor de ejemplo)');
     hasErrors = true;
   } else {
-    console.log('   ✅ NEXT_PUBLIC_GEMINI_API_KEY configurada');
+    console.log('   ✅ GEMINI_API_KEY configurada');
   }
   
   // Verificar Supabase
@@ -140,8 +140,8 @@ console.log('\n' + '='.repeat(60));
 if (hasErrors) {
   console.error('❌ VALIDACIÓN FALLIDA - Hay errores que corregir');
   console.log('\nPasos para solucionar:');
-  console.log('1. Copia .env.medical-assistant.example a .env.local');
-  console.log('2. Configura tu NEXT_PUBLIC_GEMINI_API_KEY');
+  console.log('1. Copia .env.example a .env.local');
+  console.log('2. Configura tu GEMINI_API_KEY (servidor) y otras variables');
   console.log('3. Verifica que Supabase esté configurado');
   console.log('4. Ejecuta: npm install o pnpm install');
   console.log('5. Verifica que las tablas existan en Supabase');

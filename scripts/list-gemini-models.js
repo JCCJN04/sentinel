@@ -22,7 +22,7 @@ function loadEnvLocal() {
 
 async function listModels() {
   const env = loadEnvLocal();
-  const apiKey = env.NEXT_PUBLIC_GEMINI_API_KEY;
+  const apiKey = env.GEMINI_API_KEY;
 
   console.log('📋 Listando modelos disponibles de Gemini...\n');
 

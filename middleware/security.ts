@@ -120,13 +120,20 @@ setInterval(() => {
 /**
  * Logging seguro - Sin información sensible
  */
-export function secureLog(level: 'info' | 'warn' | 'error', message: string, metadata?: any) {
+export function secureLog(
+  level: 'info' | 'warn' | 'error', 
+  message: string, 
+  metadata?: Record<string, any>
+) {
   const sanitizedMetadata = metadata ? {
     ...metadata,
     // Eliminar campos sensibles
     password: metadata.password ? '[REDACTED]' : undefined,
     token: metadata.token ? '[REDACTED]' : undefined,
+    apiKey: metadata.apiKey ? '[REDACTED]' : undefined,
+    secret: metadata.secret ? '[REDACTED]' : undefined,
     email: metadata.email ? metadata.email.replace(/(.{2}).*(@.*)/, '$1***$2') : undefined,
+    phone: metadata.phone ? metadata.phone.replace(/(\d{2}).*(\d{2})/, '$1****$2') : undefined,
     ssn: undefined,
     credit_card: undefined,
   } : undefined;

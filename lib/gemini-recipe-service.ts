@@ -1,8 +1,26 @@
 // lib/gemini-recipe-service.ts
-import { GoogleGenerativeAI } from '@google/generative-ai';
+/**
+ * DEPRECATED - This file is no longer used for client-side operations.
+ * Use /api/ai/analyze-recipe endpoint instead for secure server-side processing.
+ * 
+ * This file is kept for backwards compatibility with existing scripts only.
+ * All functions will throw errors if called from client-side code.
+ */
 
-const genAI = new GoogleGenerativeAI(process.env.NEXT_PUBLIC_GEMINI_API_KEY || 'AIzaSyDUlt_xyF8CsMFuB5_4YrWh7Ix_gG3tUlw');
+const SECURITY_ERROR = 'This service can only be used server-side. Use /api/ai/analyze-recipe instead.';
 
+/**
+ * Check if code is running on server (Node.js environment)
+ */
+function assertServerSide() {
+  if (typeof window !== 'undefined') {
+    throw new Error(SECURITY_ERROR);
+  }
+}
+
+/**
+ * @deprecated Use /api/ai/analyze-recipe endpoint instead
+ */
 export const extractRecipeDataFromImage = async (
   base64Image: string,
   imageType: string = 'image/jpeg'
@@ -21,6 +39,13 @@ export const extractRecipeDataFromImage = async (
   additional_notes: string;
   confidence: number;
 }> => {
+  assertServerSide();
+  
+  // This function should only be called from server-side scripts
+  // For client-side usage, call /api/ai/analyze-recipe instead
+  throw new Error('Use /api/ai/analyze-recipe endpoint for client-side recipe analysis');
+  
+  /* LEGACY CODE - DO NOT USE
   try {
     // Eliminar prefijo de data URL si existe
     const cleanBase64 = base64Image.includes('base64,')
@@ -159,8 +184,12 @@ export const extractRecipeDataFromImage = async (
       `Error analizando receta: ${error instanceof Error ? error.message : 'Error desconocido'}`
     );
   }
+  */
 };
 
+/**
+ * @deprecated Use /api/ai/analyze-recipe endpoint instead
+ */
 export const validatePrescriptionImage = async (
   base64Image: string,
   imageType: string = 'image/jpeg'
@@ -170,6 +199,10 @@ export const validatePrescriptionImage = async (
   quality: 'high' | 'medium' | 'low';
   message: string;
 }> => {
+  assertServerSide();
+  throw new Error('Use /api/ai/analyze-recipe endpoint instead');
+  
+  /* LEGACY CODE - DO NOT USE
   try {
     const cleanBase64 = base64Image.includes('base64,')
       ? base64Image.split('base64,')[1]
@@ -219,4 +252,5 @@ export const validatePrescriptionImage = async (
       message: 'Error al validar imagen',
     };
   }
+  */
 };

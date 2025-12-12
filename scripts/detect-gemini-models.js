@@ -38,7 +38,7 @@ async function makeRequest(url) {
 
 async function detectModels() {
   const env = loadEnvLocal();
-  const apiKey = env.NEXT_PUBLIC_GEMINI_API_KEY;
+  const apiKey = env.GEMINI_API_KEY;
 
   console.log('🔍 Detectando modelos disponibles con tu API Key...\n');
   console.log(`API Key: ${apiKey.substring(0, 20)}...\n`);

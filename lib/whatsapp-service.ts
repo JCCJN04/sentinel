@@ -1,6 +1,9 @@
 /**
  * Servicio de WhatsApp con Twilio
  * 
+ * ⚠️ SERVER-SIDE ONLY - This module contains Twilio credentials
+ * DO NOT import this in client-side code (components, pages)
+ * 
  * Envía SOLO:
  * 1. Mensaje de bienvenida al verificar número
  * 2. Recordatorios de medicamentos
@@ -8,6 +11,14 @@
 
 import twilio from 'twilio';
 import { secureLog } from '@/middleware/security';
+
+// Runtime guard - prevent client-side usage
+if (typeof window !== 'undefined') {
+  throw new Error(
+    'whatsapp-service.ts cannot be imported on the client side. ' +
+    'This module contains sensitive Twilio credentials and must only be used in API routes or server actions.'
+  );
+}
 
 // SIDs de las Content Templates aprobadas en Twilio (verificadas Dec 9, 2025)
 const TEMPLATES = {
