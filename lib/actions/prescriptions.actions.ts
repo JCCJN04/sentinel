@@ -393,10 +393,13 @@ export type ActiveMedication = {
     end_date: string | null;
     diagnosis: string;
     doctor_name: string | null;
+    is_active: boolean;
+    total_doses: number;
+    completed_doses: number;
 };
 
 /**
- * Obtiene TODOS los medicamentos activos del usuario
+ * Obtiene TODOS los medicamentos del usuario con su información de dosis
  */
 export async function getActiveMedications(): Promise<{ data: ActiveMedication[], error?: string | null }> {
     const supabase = createSupabaseClient();
@@ -406,7 +409,7 @@ export async function getActiveMedications(): Promise<{ data: ActiveMedication[]
 
     const now = new Date().toISOString();
     
-    // Obtener medicamentos de prescripciones activas (que no han terminado o no tienen fecha de fin)
+    // Obtener medicamentos de prescripciones (activas o recientes)
     const { data, error } = await supabase
         .from('prescription_medicines')
         .select(`
@@ -416,6 +419,7 @@ export async function getActiveMedications(): Promise<{ data: ActiveMedication[]
             instructions,
             frequency_hours,
             prescription_id,
+            is_active,
             prescriptions (
                 start_date,
                 end_date,
@@ -432,23 +436,37 @@ export async function getActiveMedications(): Promise<{ data: ActiveMedication[]
         return { error: 'No se pudieron cargar los medicamentos.', data: [] };
     }
 
-    // Transformar los datos
-    const mappedData: ActiveMedication[] = (data || []).map(med => {
-        const prescription = Array.isArray(med.prescriptions) ? med.prescriptions[0] : med.prescriptions;
-        
-        return {
-            id: med.id,
-            medicine_name: med.medicine_name,
-            dosage: med.dosage || '',
-            instructions: med.instructions || null,
-            frequency_hours: med.frequency_hours,
-            prescription_id: med.prescription_id,
-            start_date: prescription?.start_date || '',
-            end_date: prescription?.end_date || null,
-            diagnosis: prescription?.diagnosis || '',
-            doctor_name: prescription?.doctor_name || null,
-        };
-    });
+    // Para cada medicamento, obtener estadísticas de dosis
+    const mappedData: ActiveMedication[] = await Promise.all(
+        (data || []).map(async (med) => {
+            const prescription = Array.isArray(med.prescriptions) ? med.prescriptions[0] : med.prescriptions;
+            
+            // Obtener conteo de dosis
+            const { data: dosesData } = await supabase
+                .from('medication_doses')
+                .select('id, status', { count: 'exact' })
+                .eq('prescription_medicine_id', med.id);
+            
+            const total_doses = dosesData?.length || 0;
+            const completed_doses = dosesData?.filter(d => d.status === 'taken').length || 0;
+            
+            return {
+                id: med.id,
+                medicine_name: med.medicine_name,
+                dosage: med.dosage || '',
+                instructions: med.instructions || null,
+                frequency_hours: med.frequency_hours,
+                prescription_id: med.prescription_id,
+                start_date: prescription?.start_date || '',
+                end_date: prescription?.end_date || null,
+                diagnosis: prescription?.diagnosis || '',
+                doctor_name: prescription?.doctor_name || null,
+                is_active: med.is_active ?? true,
+                total_doses,
+                completed_doses,
+            };
+        })
+    );
 
     return { data: mappedData, error: null };
 }
@@ -588,4 +606,81 @@ export async function deletePrescription(formData: FormData) {
     revalidatePath('/dashboard');
     revalidatePath('/dashboard/prescriptions');
     redirect('/dashboard/prescriptions');
+}
+
+// Tipo para el historial de dosis
+export type DoseHistory = {
+    id: string;
+    scheduled_at: string;
+    taken_at: string | null;
+    status: string;
+    medicine_name: string;
+    dosage: string | null;
+    diagnosis: string;
+    delay_minutes: number | null; // Diferencia en minutos entre scheduled_at y taken_at
+};
+
+/**
+ * Obtiene el historial completo de todas las dosis (tomadas y programadas) del usuario
+ */
+export async function getDoseHistory(): Promise<{ data: DoseHistory[], error?: string | null }> {
+    const supabase = createSupabaseClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) return { error: 'No autorizado', data: [] };
+
+    const { data, error } = await supabase
+        .from('medication_doses')
+        .select(`
+            id,
+            scheduled_at,
+            taken_at,
+            status,
+            prescription_medicines (
+                medicine_name,
+                dosage,
+                prescriptions (
+                    diagnosis
+                )
+            )
+        `)
+        .eq('user_id', user.id)
+        .order('scheduled_at', { ascending: false })
+        .limit(100); // Últimas 100 dosis
+
+    if (error) {
+        console.error("Error fetching dose history:", error);
+        return { error: 'No se pudo cargar el historial de dosis.', data: [] };
+    }
+
+    const mappedData: DoseHistory[] = (data || []).map(dose => {
+        const medicine = Array.isArray(dose.prescription_medicines) 
+            ? dose.prescription_medicines[0] 
+            : dose.prescription_medicines;
+        
+        const prescription = medicine?.prescriptions 
+            ? (Array.isArray(medicine.prescriptions) ? medicine.prescriptions[0] : medicine.prescriptions)
+            : null;
+
+        // Calcular el retraso en minutos
+        let delay_minutes: number | null = null;
+        if (dose.taken_at && dose.scheduled_at) {
+            const scheduled = new Date(dose.scheduled_at);
+            const taken = new Date(dose.taken_at);
+            delay_minutes = Math.round((taken.getTime() - scheduled.getTime()) / 60000);
+        }
+
+        return {
+            id: dose.id,
+            scheduled_at: dose.scheduled_at,
+            taken_at: dose.taken_at || null,
+            status: dose.status,
+            medicine_name: medicine?.medicine_name || 'Medicamento desconocido',
+            dosage: medicine?.dosage || null,
+            diagnosis: prescription?.diagnosis || '',
+            delay_minutes,
+        };
+    });
+
+    return { data: mappedData, error: null };
 }

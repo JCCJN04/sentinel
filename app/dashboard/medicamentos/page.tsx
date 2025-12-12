@@ -1,5 +1,5 @@
 // app/dashboard/medicamentos/page.tsx
-import { getUpcomingDoses, getActiveMedications } from "@/lib/actions/prescriptions.actions";
+import { getUpcomingDoses, getActiveMedications, getDoseHistory } from "@/lib/actions/prescriptions.actions";
 import { MedicamentosClient } from "./medicamentos-client";
 import { WhatsAppAlertsStatus } from "@/components/medications/whatsapp-alerts-status";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,6 +23,7 @@ export default async function MedicamentosPage() {
   
   const { data: doses, error } = await getUpcomingDoses();
   const { data: medications, error: medError } = await getActiveMedications();
+  const { data: history, error: historyError } = await getDoseHistory();
 
   // Calcular métricas
   const totalMedications = medications?.length || 0;
@@ -176,7 +177,8 @@ export default async function MedicamentosPage() {
       ) : (
         <MedicamentosClient 
           doses={doses || []} 
-          medications={medications || []} 
+          medications={medications || []}
+          history={history || []}
         />
       )}
     </div>
