@@ -1,6 +1,6 @@
 import { 
   ClipboardList, HeartPulse, Shield, FileText, Home, 
-  Settings, ShieldAlert, Upload, AlertCircle, Share2, 
+  Settings, ShieldAlert, Upload, Share2, 
   BarChart3, Users, Syringe, Bot, Pill, type LucideIcon 
 } from "lucide-react";
 
@@ -15,7 +15,6 @@ export const sidebarItems: NavItem[] = [
   { title: "Dashboard", href: "/dashboard", icon: Home },
   { title: "Subir documento", href: "/dashboard/subir", icon: Upload },
   { title: "Documentos", href: "/dashboard/documentos", icon: FileText },
-  { title: "Alertas", href: "/dashboard/alertas", icon: AlertCircle },
   { title: "Recetas", href: "/dashboard/prescriptions", icon: HeartPulse },
   { title: "Medicamentos", href: "/dashboard/medicamentos", icon: Pill },
   { title: "Alergias", href: "/dashboard/alergias", icon: ShieldAlert },

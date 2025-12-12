@@ -1,6 +1,5 @@
 // lib/document-service.ts
 import { supabaseBrowserClient as supabase } from "./supabase";
-import { onDocumentUploaded } from "@/lib/alerts-hooks";
 
 // Interface definitions
 export interface Document {
@@ -185,16 +184,6 @@ export async function uploadDocument(documentData: DocumentUpload): Promise<Docu
       throw new Error(`Error al guardar datos del documento: ${insertError.message}`);
     }
     console.log("Registro del documento insertado exitosamente:", insertedDoc);
-    
-    // 🆕 Generar alerta automática si el documento tiene fecha de vencimiento
-    if (insertedDoc && insertedDoc.expiry_date) {
-      onDocumentUploaded({
-        documentId: insertedDoc.id,
-        documentName: insertedDoc.name,
-        expiryDate: insertedDoc.expiry_date,
-        userId: insertedDoc.user_id
-      }).catch(err => console.error('Error generando alerta de documento:', err));
-    }
     
     return insertedDoc as Document;
 

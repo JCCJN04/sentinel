@@ -206,8 +206,8 @@ export async function POST(request: NextRequest) {
           .from('profiles')
           .insert({
             id: user.id,
-            phone_number: validatedData.phoneNumber,
-            whatsapp_notifications_enabled: validatedData.enableNotifications ?? true,
+            phone: validatedData.phoneNumber,
+            whatsapp_enabled: validatedData.enableNotifications ?? true,
           });
 
         if (insertError) {
@@ -222,8 +222,8 @@ export async function POST(request: NextRequest) {
         const { error: updateError } = await supabase
           .from('profiles')
           .update({
-            phone_number: validatedData.phoneNumber,
-            whatsapp_notifications_enabled: validatedData.enableNotifications ?? true,
+            phone: validatedData.phoneNumber,
+            whatsapp_enabled: validatedData.enableNotifications ?? true,
           })
           .eq('id', user.id);
 

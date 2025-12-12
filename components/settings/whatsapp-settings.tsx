@@ -25,13 +25,13 @@ export function WhatsAppSettings() {
 
       const { data: profile } = await supabaseBrowserClient
         .from('profiles')
-        .select('phone_number, whatsapp_notifications_enabled')
+        .select('phone, whatsapp_enabled')
         .eq('id', user.id)
         .single();
 
       if (profile) {
-        setPhoneNumber(profile.phone_number || '');
-        setNotificationsEnabled(profile.whatsapp_notifications_enabled || false);
+        setPhoneNumber(profile.phone || '');
+        setNotificationsEnabled(profile.whatsapp_enabled || false);
       }
     }
 

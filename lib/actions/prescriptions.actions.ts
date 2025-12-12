@@ -7,7 +7,6 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { uploadRecipeImage } from './recipe-storage.actions';
-import { onPrescriptionCreated } from '@/lib/alerts-hooks';
 
 // Función helper (sin cambios)
 const createSupabaseClient = () => {
@@ -307,35 +306,19 @@ export async function createPrescription(
         console.log('⚠️ No se generaron dosis (medicamentos sin frecuencia/duración)');
     }
 
-    // 🆕 Generar alertas automáticas solo si la prescripción es reciente (no más de 1 día en el pasado)
+    // Enviar notificación por WhatsApp si está habilitado (las dosis ya generan notificaciones automáticas via trigger)
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const isFuturePrescription = prescriptionStartDate >= oneDayAgo;
     
     if (createdMedicines.length > 0 && isFuturePrescription) {
-        console.log('✅ Generando alertas automáticas para prescripción reciente');
-        const medicinesForAlert = createdMedicines.map(m => ({
-            id: m.id,
-            name: m.medicine_name,
-            dosage: m.dosage || '',
-            frequency_hours: m.frequency_hours || 24
-        }));
-        
-        // Generar alertas en la aplicación
-        onPrescriptionCreated({
-            userId: user.id,
-            prescriptionId: prescriptionId,
-            medicines: medicinesForAlert,
-            startDate: prescriptionStartDate.toISOString()
-        }).catch(err => console.error('Error generando alertas de medicamentos:', err));
-
         // 🆕 Enviar notificación de bienvenida por WhatsApp si está habilitado
         const { data: profile } = await supabase
             .from('profiles')
-            .select('first_name, phone_number, whatsapp_notifications_enabled')
+            .select('first_name, phone, whatsapp_enabled')
             .eq('id', user.id)
             .single();
 
-        if (profile?.whatsapp_notifications_enabled && profile?.phone_number) {
+        if (profile?.whatsapp_enabled && profile?.phone) {
             console.log('📱 Enviando notificación de nueva receta por WhatsApp...');
             
             // Importar dinámicamente para evitar problemas en el cliente
@@ -350,7 +333,7 @@ export async function createPrescription(
                     hour12: false,
                 });
 
-                const result = await sendMedicationReminder(profile.phone_number, {
+                const result = await sendMedicationReminder(profile.phone, {
                     patientName: profile.first_name || 'Paciente',
                     medicineName: firstMedicine.medicine_name,
                     dosage: firstMedicine.dosage || '',
@@ -366,7 +349,7 @@ export async function createPrescription(
             }
         }
     } else if (!isFuturePrescription) {
-        console.log('⏭️ Prescripción antigua detectada - no se generan alertas automáticas');
+        console.log('⏭️ Prescripción antigua detectada - no se generan notificaciones');
     }
 
     // Si hay warning de imagen, agregarlo al mensaje

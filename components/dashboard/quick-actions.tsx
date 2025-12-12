@@ -4,14 +4,14 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Upload, PlusCircle, FileText, Pill, Bell, Share2 } from "lucide-react"; // Asegúrate de que los iconos estén disponibles
+import { Upload, PlusCircle, FileText, Pill, HeartPulse, Share2 } from "lucide-react"; // Asegúrate de que los iconos estén disponibles
 
 export function QuickActions() {
   const actions = [
     { href: "/dashboard/subir", icon: Upload, label: "Subir Documento", color: "blue" },
     { href: "/dashboard/documentos", icon: FileText, label: "Ver Documentos", color: "purple" },
+    { href: "/dashboard/prescriptions", icon: HeartPulse, label: "Recetas", color: "rose" },
     { href: "/dashboard/medicamentos", icon: Pill, label: "Medicamentos", color: "emerald" },
-    { href: "/dashboard/alertas", icon: Bell, label: "Alertas", color: "amber" },
     { href: "/dashboard/compartidos", icon: Share2, label: "Compartir", color: "sky" },
   ];
 
@@ -19,7 +19,7 @@ export function QuickActions() {
     blue: { bg: "bg-blue-50 dark:bg-blue-900/20", text: "text-blue-600 dark:text-blue-400", border: "border-blue-200/50 dark:border-blue-800/50" },
     sky: { bg: "bg-sky-50 dark:bg-sky-900/20", text: "text-sky-600 dark:text-sky-400", border: "border-sky-200/50 dark:border-sky-800/50" },
     emerald: { bg: "bg-emerald-50 dark:bg-emerald-900/20", text: "text-emerald-600 dark:text-emerald-400", border: "border-emerald-200/50 dark:border-emerald-800/50" },
-    amber: { bg: "bg-amber-50 dark:bg-amber-900/20", text: "text-amber-600 dark:text-amber-400", border: "border-amber-200/50 dark:border-amber-800/50" },
+    rose: { bg: "bg-rose-50 dark:bg-rose-900/20", text: "text-rose-600 dark:text-rose-400", border: "border-rose-200/50 dark:border-rose-800/50" },
     purple: { bg: "bg-purple-50 dark:bg-purple-900/20", text: "text-purple-600 dark:text-purple-400", border: "border-purple-200/50 dark:border-purple-800/50" },
   };
 
