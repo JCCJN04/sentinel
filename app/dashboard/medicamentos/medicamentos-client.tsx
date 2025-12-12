@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { markDoseAsTaken, type UpcomingDose } from "@/lib/actions/prescriptions.actions";
+import { markDoseAsTaken, type UpcomingDose, type ActiveMedication } from "@/lib/actions/prescriptions.actions";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,7 +18,8 @@ import {
   Search,
   Calendar,
   Filter,
-  X
+  X,
+  Activity
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -262,9 +263,10 @@ function DoseCard({ dose, onDoseTaken }: { dose: UpcomingDose; onDoseTaken?: () 
   );
 }
 
-export function MedicamentosClient({ doses }: { doses: UpcomingDose[] }) {
+export function MedicamentosClient({ doses, medications }: { doses: UpcomingDose[]; medications: ActiveMedication[] }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("all");
+  const [viewMode, setViewMode] = useState<"doses" | "medications">("medications");
 
   const now = new Date();
 
@@ -301,7 +303,16 @@ export function MedicamentosClient({ doses }: { doses: UpcomingDose[] }) {
     upcoming: doses.filter(d => getDoseStatus(new Date(d.scheduled_at), now) === "upcoming").length,
   }), [doses, now]);
 
-  if (doses.length === 0) {
+  const filteredMedications = useMemo(() => {
+    if (!searchQuery) return medications;
+    const query = searchQuery.toLowerCase();
+    return medications.filter(med => 
+      med.medicine_name?.toLowerCase().includes(query) ||
+      med.diagnosis?.toLowerCase().includes(query)
+    );
+  }, [medications, searchQuery]);
+
+  if (medications.length === 0 && doses.length === 0) {
     return (
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-12">
@@ -319,9 +330,28 @@ export function MedicamentosClient({ doses }: { doses: UpcomingDose[] }) {
 
   return (
     <div className="space-y-6">
-      {/* Búsqueda y filtros */}
+      {/* Selector de vista */}
       <Card>
         <CardContent className="p-4">
+          <div className="flex gap-2 mb-4">
+            <Button
+              variant={viewMode === "medications" ? "default" : "outline"}
+              onClick={() => setViewMode("medications")}
+              className="flex-1"
+            >
+              <Activity className="mr-2 h-4 w-4" />
+              Medicamentos Activos ({medications.length})
+            </Button>
+            <Button
+              variant={viewMode === "doses" ? "default" : "outline"}
+              onClick={() => setViewMode("doses")}
+              className="flex-1"
+            >
+              <Clock className="mr-2 h-4 w-4" />
+              Próximas Dosis ({doses.length})
+            </Button>
+          </div>
+          
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -344,68 +374,138 @@ export function MedicamentosClient({ doses }: { doses: UpcomingDose[] }) {
         </CardContent>
       </Card>
 
-      {/* Tabs de filtrado */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="all" className="gap-2">
-            Todas
-            <Badge variant="secondary" className="rounded-full px-2 py-0">
-              {counts.all}
-            </Badge>
-          </TabsTrigger>
-          <TabsTrigger value="missed" className="gap-2">
-            Atrasadas
-            {counts.missed > 0 && (
-              <Badge className="rounded-full px-2 py-0 bg-red-500">
-                {counts.missed}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="due" className="gap-2">
-            Urgentes
-            {counts.due > 0 && (
-              <Badge className="rounded-full px-2 py-0 bg-amber-500">
-                {counts.due}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="soon" className="gap-2">
-            Próximas
-            {counts.soon > 0 && (
-              <Badge className="rounded-full px-2 py-0 bg-emerald-500">
-                {counts.soon}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="upcoming" className="gap-2">
-            Programadas
-            {counts.upcoming > 0 && (
-              <Badge className="rounded-full px-2 py-0 bg-sky-500">
-                {counts.upcoming}
-              </Badge>
-            )}
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value={activeTab} className="mt-6">
-          {filteredDoses.length === 0 ? (
-            <Card>
+      {/* Vista de Medicamentos Activos */}
+      {viewMode === "medications" && (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {filteredMedications.length === 0 ? (
+            <Card className="md:col-span-2 lg:col-span-3">
               <CardContent className="flex flex-col items-center justify-center py-8">
                 <Filter className="h-8 w-8 text-muted-foreground mb-2" />
                 <p className="text-muted-foreground">
-                  No se encontraron medicamentos {activeTab !== "all" && `en esta categoría`}
+                  No se encontraron medicamentos
                 </p>
               </CardContent>
             </Card>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {filteredDoses.map((dose) => (
-                <DoseCard key={dose.id} dose={dose} />
-              ))}
-            </div>
+            filteredMedications.map((med) => (
+              <Card key={med.id} className="border-indigo-200 dark:border-indigo-900/40">
+                <CardHeader className="pb-3">
+                  <div className="flex items-start gap-3">
+                    <div className="rounded-lg bg-indigo-100 dark:bg-indigo-900/30 p-2.5">
+                      <Pill className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                    </div>
+                    <div className="flex-1">
+                      <CardTitle className="text-lg">{med.medicine_name}</CardTitle>
+                      <CardDescription>{med.diagnosis}</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    {med.dosage && (
+                      <div className="rounded-lg bg-muted/50 p-3">
+                        <p className="text-xs text-muted-foreground mb-1">Dosis</p>
+                        <p className="font-semibold text-sm">{med.dosage}</p>
+                      </div>
+                    )}
+                    {med.frequency_hours && (
+                      <div className="rounded-lg bg-muted/50 p-3">
+                        <p className="text-xs text-muted-foreground mb-1">Frecuencia</p>
+                        <p className="font-semibold text-sm">Cada {med.frequency_hours}h</p>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {med.doctor_name && (
+                    <div className="text-xs text-muted-foreground">
+                      <strong>Médico:</strong> {med.doctor_name}
+                    </div>
+                  )}
+                  
+                  {med.instructions && med.instructions !== "No especificado" && (
+                    <div className="rounded-lg border bg-muted/30 p-3">
+                      <p className="text-xs font-medium text-muted-foreground mb-1">Instrucciones</p>
+                      <p className="text-sm">{med.instructions}</p>
+                    </div>
+                  )}
+                  
+                  <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t">
+                    <span>Inicio: {new Date(med.start_date).toLocaleDateString('es-MX')}</span>
+                    {med.end_date && (
+                      <span>Fin: {new Date(med.end_date).toLocaleDateString('es-MX')}</span>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))
           )}
-        </TabsContent>
-      </Tabs>
+        </div>
+      )}
+
+      {/* Vista de Próximas Dosis */}
+      {viewMode === "doses" && (
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="all" className="gap-2">
+              Todas
+              <Badge variant="secondary" className="rounded-full px-2 py-0">
+                {counts.all}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="missed" className="gap-2">
+              Atrasadas
+              {counts.missed > 0 && (
+                <Badge className="rounded-full px-2 py-0 bg-red-500">
+                  {counts.missed}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="due" className="gap-2">
+              Urgentes
+              {counts.due > 0 && (
+                <Badge className="rounded-full px-2 py-0 bg-amber-500">
+                  {counts.due}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="soon" className="gap-2">
+              Próximas
+              {counts.soon > 0 && (
+                <Badge className="rounded-full px-2 py-0 bg-emerald-500">
+                  {counts.soon}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="upcoming" className="gap-2">
+              Programadas
+              {counts.upcoming > 0 && (
+                <Badge className="rounded-full px-2 py-0 bg-sky-500">
+                  {counts.upcoming}
+                </Badge>
+              )}
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value={activeTab} className="mt-6">
+            {filteredDoses.length === 0 ? (
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center py-8">
+                  <Filter className="h-8 w-8 text-muted-foreground mb-2" />
+                  <p className="text-muted-foreground">
+                    No se encontraron dosis {activeTab !== "all" && `en esta categoría`}
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {filteredDoses.map((dose) => (
+                  <DoseCard key={dose.id} dose={dose} />
+                ))}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+      )}
     </div>
   );
 }

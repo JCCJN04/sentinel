@@ -320,12 +320,51 @@ export async function createPrescription(
             frequency_hours: m.frequency_hours || 24
         }));
         
+        // Generar alertas en la aplicación
         onPrescriptionCreated({
             userId: user.id,
             prescriptionId: prescriptionId,
             medicines: medicinesForAlert,
             startDate: prescriptionStartDate.toISOString()
         }).catch(err => console.error('Error generando alertas de medicamentos:', err));
+
+        // 🆕 Enviar notificación de bienvenida por WhatsApp si está habilitado
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('first_name, phone_number, whatsapp_notifications_enabled')
+            .eq('id', user.id)
+            .single();
+
+        if (profile?.whatsapp_notifications_enabled && profile?.phone_number) {
+            console.log('📱 Enviando notificación de nueva receta por WhatsApp...');
+            
+            // Importar dinámicamente para evitar problemas en el cliente
+            const { sendMedicationReminder } = await import('@/lib/whatsapp-service');
+            
+            // Enviar notificación para el primer medicamento
+            const firstMedicine = createdMedicines[0];
+            if (firstMedicine) {
+                const timeString = prescriptionStartDate.toLocaleTimeString('es-MX', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false,
+                });
+
+                const result = await sendMedicationReminder(profile.phone_number, {
+                    patientName: profile.first_name || 'Paciente',
+                    medicineName: firstMedicine.medicine_name,
+                    dosage: firstMedicine.dosage || '',
+                    scheduledTime: timeString,
+                    instructions: firstMedicine.instructions || 'Seguir indicaciones médicas',
+                });
+
+                if (result.success) {
+                    console.log('✅ Notificación de WhatsApp enviada exitosamente');
+                } else {
+                    console.error('❌ Error al enviar notificación de WhatsApp:', result.error);
+                }
+            }
+        }
     } else if (!isFuturePrescription) {
         console.log('⏭️ Prescripción antigua detectada - no se generan alertas automáticas');
     }
@@ -359,6 +398,78 @@ export type UpcomingDose = {
     } | null; // Es un objeto o null
 };
 
+// Tipo para medicamentos activos (desde prescription_medicines directamente)
+export type ActiveMedication = {
+    id: string;
+    medicine_name: string;
+    dosage: string;
+    instructions: string | null;
+    frequency_hours: number | null;
+    prescription_id: string;
+    start_date: string;
+    end_date: string | null;
+    diagnosis: string;
+    doctor_name: string | null;
+};
+
+/**
+ * Obtiene TODOS los medicamentos activos del usuario
+ */
+export async function getActiveMedications(): Promise<{ data: ActiveMedication[], error?: string | null }> {
+    const supabase = createSupabaseClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) return { error: 'No autorizado', data: [] };
+
+    const now = new Date().toISOString();
+    
+    // Obtener medicamentos de prescripciones activas (que no han terminado o no tienen fecha de fin)
+    const { data, error } = await supabase
+        .from('prescription_medicines')
+        .select(`
+            id,
+            medicine_name,
+            dosage,
+            instructions,
+            frequency_hours,
+            prescription_id,
+            prescriptions (
+                start_date,
+                end_date,
+                diagnosis,
+                doctor_name
+            )
+        `)
+        .eq('prescriptions.user_id', user.id)
+        .or(`end_date.is.null,end_date.gte.${now}`, { referencedTable: 'prescriptions' })
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error("Error fetching active medications:", error);
+        return { error: 'No se pudieron cargar los medicamentos.', data: [] };
+    }
+
+    // Transformar los datos
+    const mappedData: ActiveMedication[] = (data || []).map(med => {
+        const prescription = Array.isArray(med.prescriptions) ? med.prescriptions[0] : med.prescriptions;
+        
+        return {
+            id: med.id,
+            medicine_name: med.medicine_name,
+            dosage: med.dosage || '',
+            instructions: med.instructions || null,
+            frequency_hours: med.frequency_hours,
+            prescription_id: med.prescription_id,
+            start_date: prescription?.start_date || '',
+            end_date: prescription?.end_date || null,
+            diagnosis: prescription?.diagnosis || '',
+            doctor_name: prescription?.doctor_name || null,
+        };
+    });
+
+    return { data: mappedData, error: null };
+}
+
 /**
  * Obtiene las próximas 5 dosis pendientes.
  */
@@ -369,16 +480,16 @@ export async function getUpcomingDoses(): Promise<{ data: UpcomingDose[], error?
 
     if (!user) return { error: 'No autorizado', data: [] };
 
-    // Obtener solo dosis futuras (desde ahora en adelante)
-    const now = new Date().toISOString();
+    // Obtener dosis desde 24 horas atrás hasta el futuro (para incluir dosis recientes)
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const { data, error } = await supabase
         .from('medication_doses')
-        .select(`id, scheduled_at, prescription_medicines ( medicine_name, dosage, instructions, frequency_hours )`)
+        .select(`id, scheduled_at, status, prescription_medicines ( medicine_name, dosage, instructions, frequency_hours )`)
         .eq('user_id', user.id)
-        .eq('status', 'scheduled')
-        .gte('scheduled_at', now)
+        .in('status', ['scheduled', 'pending'])
+        .gte('scheduled_at', oneDayAgo)
         .order('scheduled_at', { ascending: true })
-        .limit(5);
+        .limit(50);
 
     if (error) {
         console.error("Error fetching upcoming doses:", error);

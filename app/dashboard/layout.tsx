@@ -1,9 +1,18 @@
+'use client'
+
 import { ReactNode } from "react"
 import { Sidebar } from "@/components/dashboard/sidebar"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { AIChatAssistant } from "@/components/dashboard/ai-chat-assistant"
+import { useInactivityTimeout } from "@/hooks/useInactivityTimeout"
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
+  // Implementar timeout de inactividad de 2 minutos
+  useInactivityTimeout({
+    timeoutMinutes: 2,
+    enabled: true,
+  });
+
   return (
     <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
       <Sidebar />

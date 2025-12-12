@@ -37,7 +37,8 @@ const whatsappConfigureSchema = z.object({
   action: z.literal('configure'),
   phoneNumber: z.string()
     .regex(/^\+\d{10,15}$/, 'El número debe incluir código de país (ej: +525512345678)'),
-  enableNotifications: z.boolean().optional()
+  enableNotifications: z.boolean().optional(),
+  sendWelcomeMessage: z.boolean().optional()
 });
 
 const whatsappRequestSchema = z.discriminatedUnion('action', [
@@ -129,7 +130,7 @@ export async function POST(request: NextRequest) {
         .from('profiles')
         .select('first_name, last_name')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
 
       const userName = profile?.first_name || profile?.last_name || 'Usuario';
 
@@ -172,38 +173,108 @@ export async function POST(request: NextRequest) {
         notificationsEnabled: validatedData.enableNotifications ?? true
       });
 
-      const { data: updatedProfile, error: updateError } = await supabase
+      // Obtener nombre del usuario - primero del perfil, luego del auth user
+      const { data: profile } = await supabase
         .from('profiles')
-        .update({
-          phone_number: validatedData.phoneNumber,
-          whatsapp_notifications_enabled: validatedData.enableNotifications ?? true,
-        })
+        .select('first_name, last_name')
         .eq('id', user.id)
-        .select('phone_number, whatsapp_notifications_enabled')
-        .single();
+        .maybeSingle();
 
-      if (updateError) {
-        secureLog('error', 'Failed to update WhatsApp configuration', {
-          userId: user.id,
-          errorMessage: updateError.message,
-          errorCode: updateError.code
-        });
-        
-        return NextResponse.json(
-          { error: 'Error guardando configuración: ' + updateError.message },
-          { status: 500 }
-        );
+      // Intentar obtener nombre de múltiples fuentes
+      let userName = profile?.first_name || profile?.last_name;
+      
+      // Si no hay nombre en el perfil, intentar del user metadata o email
+      if (!userName) {
+        const userMetadata = user.user_metadata;
+        userName = userMetadata?.full_name || 
+                   userMetadata?.name || 
+                   userMetadata?.first_name ||
+                   (user.email ? user.email.split('@')[0] : null) ||
+                   'Usuario';
       }
 
-      secureLog('info', 'WhatsApp configuration updated successfully', {
+      // Primero verificar si existe el perfil, si no, crearlo
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (!existingProfile) {
+        // Crear perfil si no existe
+        const { error: insertError } = await supabase
+          .from('profiles')
+          .insert({
+            id: user.id,
+            phone_number: validatedData.phoneNumber,
+            whatsapp_notifications_enabled: validatedData.enableNotifications ?? true,
+          });
+
+        if (insertError) {
+          secureLog('error', 'Failed to create profile', {
+            userId: user.id,
+            errorMessage: insertError.message,
+            errorCode: insertError.code
+          });
+        }
+      } else {
+        // Actualizar perfil existente
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({
+            phone_number: validatedData.phoneNumber,
+            whatsapp_notifications_enabled: validatedData.enableNotifications ?? true,
+          })
+          .eq('id', user.id);
+
+        if (updateError) {
+          secureLog('error', 'Failed to update WhatsApp configuration', {
+            userId: user.id,
+            errorMessage: updateError.message,
+            errorCode: updateError.code
+          });
+          
+          return NextResponse.json(
+            { error: 'Error guardando configuración: ' + updateError.message },
+            { status: 500 }
+          );
+        }
+      }
+
+      secureLog('info', 'WhatsApp configuration saved successfully', {
         userId: user.id,
-        phoneNumberSaved: updatedProfile?.phone_number?.substring(0, 6) + '***',
-        notificationsEnabled: updatedProfile?.whatsapp_notifications_enabled
+        phoneNumber: validatedData.phoneNumber.substring(0, 9) + '***',
+        notificationsEnabled: validatedData.enableNotifications ?? true
       });
+
+      // Enviar mensaje de bienvenida automáticamente
+      let welcomeMessageSent = false;
+      
+      secureLog('info', 'Sending automatic welcome message', {
+        userId: user.id,
+        userName: userName,
+        phoneNumber: validatedData.phoneNumber.substring(0, 9) + '***'
+      });
+
+      const welcomeResult = await sendTestMessage(validatedData.phoneNumber, userName);
+      welcomeMessageSent = welcomeResult.success;
+
+      if (welcomeResult.success) {
+        secureLog('info', 'Welcome message sent successfully', {
+          userId: user.id,
+          messageId: welcomeResult.messageId
+        });
+      } else {
+        secureLog('error', 'Failed to send welcome message', {
+          userId: user.id,
+          error: welcomeResult.error
+        });
+      }
 
       return NextResponse.json({
         success: true,
         message: 'Configuración guardada exitosamente',
+        welcomeMessageSent,
       });
     }
 

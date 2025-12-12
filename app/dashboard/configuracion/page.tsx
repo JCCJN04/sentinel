@@ -1,7 +1,8 @@
 // app/dashboard/configuracion/page.tsx
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ProfileSettings } from "@/components/settings/profile-settings"
@@ -13,8 +14,17 @@ import { PersonalDataSettings } from "@/components/settings/personal-data-settin
 import useMobile from "@/hooks/use-mobile" // Importa el hook que acabas de crear
 
 export default function ConfiguracionPage() {
+  const searchParams = useSearchParams()
+  const tabFromUrl = searchParams.get('tab')
   const [activeTab, setActiveTab] = useState("perfil")
   const isMobile = useMobile()
+
+  // Establecer la pestaña desde la URL al cargar
+  useEffect(() => {
+    if (tabFromUrl) {
+      setActiveTab(tabFromUrl)
+    }
+  }, [tabFromUrl])
 
   const tabs = [
     { value: "perfil", label: "Perfil" },

@@ -158,3 +158,83 @@ export async function sendWelcomeMessage(
     };
   }
 }
+
+/**
+ * Envía un mensaje de prueba - wrapper alrededor de sendWelcomeMessage para testing
+ */
+export async function sendTestMessage(
+  toPhoneNumber: string,
+  userName: string
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  secureLog('info', 'Sending test WhatsApp message', {
+    to: toPhoneNumber.substring(0, 15) + '***'
+  });
+  
+  return sendWelcomeMessage(toPhoneNumber, userName);
+}
+
+/**
+ * Envía una alerta de documento por WhatsApp (usando template de recordatorio de medicamento como fallback)
+ * TODO: Crear template específico para documentos en Twilio
+ */
+export async function sendDocumentAlert(
+  toPhoneNumber: string,
+  userName: string,
+  documentName: string,
+  expiryDate: string
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  try {
+    const client = getTwilioClient();
+    const fromNumber = process.env.TWILIO_WHATSAPP_NUMBER;
+
+    if (!fromNumber) {
+      throw new Error('TWILIO_WHATSAPP_NUMBER no configurado');
+    }
+
+    const formattedTo = toPhoneNumber.startsWith('whatsapp:') 
+      ? toPhoneNumber 
+      : `whatsapp:${toPhoneNumber}`;
+
+    const formattedFrom = fromNumber.startsWith('whatsapp:')
+      ? fromNumber
+      : `whatsapp:${fromNumber}`;
+
+    secureLog('info', 'Sending WhatsApp document alert', {
+      to: formattedTo.substring(0, 15) + '***',
+      document: documentName
+    });
+
+    // Por ahora usamos el template de medicamento con texto adaptado
+    // En producción, deberías crear un template específico para documentos
+    const result = await client.messages.create({
+      from: formattedFrom,
+      to: formattedTo,
+      contentSid: TEMPLATES.MEDICATION_REMINDER,
+      contentVariables: JSON.stringify({
+        '1': userName,
+        '2': documentName,
+        '3': `Vence el ${expiryDate}`,
+        '4': 'Revísalo pronto',
+      }),
+    });
+
+    secureLog('info', 'WhatsApp document alert sent successfully', {
+      messageSid: result.sid
+    });
+
+    return {
+      success: true,
+      messageId: result.sid,
+    };
+
+  } catch (error) {
+    secureLog('error', 'Failed to send WhatsApp document alert', {
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+    
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Error desconocido',
+    };
+  }
+}

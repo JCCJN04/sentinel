@@ -106,6 +106,28 @@ export function WhatsAppSettings() {
     setLoading(true);
 
     try {
+      // Auto-agregar +52 si el usuario solo ingresó números sin código de país
+      let formattedPhone = phoneNumber.trim();
+      if (/^\d{10}$/.test(formattedPhone)) {
+        // Si son exactamente 10 dígitos, agregar +52 (México - sin el 1)
+        formattedPhone = `+52${formattedPhone}`;
+        setPhoneNumber(formattedPhone);
+        toast({
+          title: 'Número formateado',
+          description: 'Se agregó automáticamente el código +52 de México',
+        });
+      } else if (/^\d+$/.test(formattedPhone) && !formattedPhone.startsWith('+')) {
+        // Si son solo números pero no empieza con +, agregar +
+        formattedPhone = `+${formattedPhone}`;
+        setPhoneNumber(formattedPhone);
+      }
+      
+      // Corregir formato mexicano: +521XXXXXXXXXX -> +52XXXXXXXXXX
+      if (formattedPhone.startsWith('+521') && formattedPhone.length === 14) {
+        formattedPhone = '+52' + formattedPhone.slice(4);
+        setPhoneNumber(formattedPhone);
+      }
+
       const { data: { session } } = await supabaseBrowserClient.auth.getSession();
       
       const response = await fetch('/api/whatsapp/test', {
@@ -116,8 +138,9 @@ export function WhatsAppSettings() {
         },
         body: JSON.stringify({
           action: 'configure',
-          phoneNumber,
+          phoneNumber: formattedPhone,
           enableNotifications: notificationsEnabled,
+          sendWelcomeMessage: true, // Enviar mensaje automáticamente
         }),
       });
 
@@ -126,8 +149,12 @@ export function WhatsAppSettings() {
       if (result.success) {
         toast({
           title: '✅ Configuración guardada',
-          description: 'Tus preferencias de WhatsApp han sido actualizadas',
+          description: result.welcomeMessageSent 
+            ? 'Configuración guardada y mensaje de bienvenida enviado a WhatsApp'
+            : 'Tus preferencias de WhatsApp han sido actualizadas',
         });
+        // Marcar como exitoso para mostrar el indicador de verificación
+        setTestSuccess(true);
       } else {
         toast({
           title: 'Error',
@@ -149,46 +176,6 @@ export function WhatsAppSettings() {
 
   return (
     <div className="space-y-6 rounded-lg border border-border bg-card p-6">
-      <div className="flex items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
-          <MessageCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
-        </div>
-        <div>
-          <h3 className="text-lg font-semibold">Recordatorios por WhatsApp</h3>
-          <p className="text-sm text-muted-foreground">
-            Recibe notificaciones de tus medicamentos por WhatsApp
-          </p>
-        </div>
-      </div>
-
-      {/* Información importante */}
-      <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/40 p-4">
-        <div className="flex gap-2">
-          <Check className="h-5 w-5 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
-          <div className="text-sm text-emerald-900 dark:text-emerald-100">
-            <p className="font-semibold mb-2">✨ Servicio Premium de WhatsApp Activo</p>
-            <div className="space-y-2 text-emerald-800 dark:text-emerald-200">
-              <p>
-                Tus recordatorios se envían desde nuestro número oficial de WhatsApp Business.
-                No necesitas hacer ningún join ni configuración adicional.
-              </p>
-              <div className="mt-3 p-3 bg-white dark:bg-emerald-900/30 rounded-lg border border-emerald-300 dark:border-emerald-800">
-                <p className="font-semibold text-emerald-900 dark:text-emerald-100 mb-1">Cómo configurar:</p>
-                <ol className="list-decimal list-inside space-y-1 text-sm">
-                  <li>Ingresa tu número de WhatsApp con código de país</li>
-                  <li>Activa los recordatorios</li>
-                  <li>Guarda la configuración</li>
-                  <li>¡Listo! Recibirás notificaciones automáticamente</li>
-                </ol>
-              </div>
-              <p className="mt-3 text-xs">
-                📱 Los recordatorios llegan 1 hora antes de cada dosis programada
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <div className="space-y-4">
         {/* Campo de número de teléfono */}
         <div className="space-y-2">
@@ -196,14 +183,11 @@ export function WhatsAppSettings() {
           <Input
             id="phone"
             type="tel"
-            placeholder="+521234567890"
+            placeholder="8112345678"
             value={phoneNumber}
             onChange={(e) => setPhoneNumber(e.target.value)}
             className="font-mono"
           />
-          <p className="text-xs text-muted-foreground">
-            Formato: código de país + número (sin espacios ni guiones)
-          </p>
         </div>
 
         {/* Switch para habilitar notificaciones */}
@@ -221,36 +205,12 @@ export function WhatsAppSettings() {
           />
         </div>
 
-        {/* Botones de acción */}
-        <div className="flex flex-col sm:flex-row gap-3">
-          <Button
-            onClick={handleTestMessage}
-            variant="outline"
-            disabled={testLoading || !phoneNumber}
-            className="flex-1"
-          >
-            {testLoading ? (
-              <>
-                <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                Enviando...
-              </>
-            ) : testSuccess ? (
-              <>
-                <Check className="mr-2 h-4 w-4" />
-                Mensaje Enviado
-              </>
-            ) : (
-              <>
-                <Send className="mr-2 h-4 w-4" />
-                Enviar Prueba
-              </>
-            )}
-          </Button>
-
+        {/* Botón de acción */}
+        <div>
           <Button
             onClick={handleSave}
             disabled={loading || !phoneNumber}
-            className="flex-1 bg-green-600 hover:bg-green-700"
+            className="w-full bg-green-600 hover:bg-green-700"
           >
             {loading ? (
               <>
