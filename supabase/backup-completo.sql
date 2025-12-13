@@ -1,5 +1,6 @@
 
 
+
 SET statement_timeout = 0;
 SET lock_timeout = 0;
 SET idle_in_transaction_session_timeout = 0;
@@ -187,6 +188,50 @@ $$;
 ALTER FUNCTION "public"."check_alerts_and_send_whatsapp"() OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."check_medication_completion"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+DECLARE
+  total_doses INT;
+  completed_doses INT;
+  medication_id UUID;
+BEGIN
+  -- Obtener el ID del medicamento
+  medication_id := NEW.prescription_medicine_id;
+  
+  -- Contar total de dosis programadas
+  SELECT COUNT(*) INTO total_doses
+  FROM medication_doses
+  WHERE prescription_medicine_id = medication_id;
+  
+  -- Contar dosis completadas (taken)
+  SELECT COUNT(*) INTO completed_doses
+  FROM medication_doses
+  WHERE prescription_medicine_id = medication_id
+    AND status = 'taken';
+  
+  -- Si todas las dosis están completadas, marcar medicamento como inactivo
+  IF total_doses > 0 AND completed_doses >= total_doses THEN
+    UPDATE prescription_medicines
+    SET is_active = FALSE, updated_at = NOW()
+    WHERE id = medication_id;
+    
+    RAISE NOTICE 'Medicamento % marcado como inactivo (% de % dosis completadas)', 
+      medication_id, completed_doses, total_doses;
+  END IF;
+  
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."check_medication_completion"() OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."check_medication_completion"() IS 'Verifica si todas las dosis de un medicamento han sido completadas y actualiza is_active en consecuencia.';
+
+
+
 CREATE OR REPLACE FUNCTION "public"."cleanup_old_alerts"() RETURNS "void"
     LANGUAGE "plpgsql" SECURITY DEFINER
     AS $$
@@ -213,6 +258,29 @@ $$;
 
 
 ALTER FUNCTION "public"."cleanup_old_alerts"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."cleanup_old_whatsapp_notifications"() RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+BEGIN
+  -- Eliminar notificaciones enviadas o fallidas hace más de 7 días
+  DELETE FROM whatsapp_notifications
+  WHERE status IN ('sent', 'failed', 'cancelled')
+    AND updated_at < now() - INTERVAL '7 days';
+    
+  -- Eliminar logs de más de 30 días
+  DELETE FROM whatsapp_notification_logs
+  WHERE created_at < now() - INTERVAL '30 days';
+END;
+$$;
+
+
+ALTER FUNCTION "public"."cleanup_old_whatsapp_notifications"() OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."cleanup_old_whatsapp_notifications"() IS 'Limpia notificaciones y logs antiguos para mantener la base de datos liviana';
+
 
 
 CREATE OR REPLACE FUNCTION "public"."close_other_sessions"("current_session_id" "uuid") RETURNS "void"
@@ -250,6 +318,89 @@ $$;
 
 
 ALTER FUNCTION "public"."enable_document_history_trigger"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."generate_medication_notifications"("p_medication_dose_id" "uuid") RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+DECLARE
+  v_dose RECORD;
+  v_profile RECORD;
+  v_medicine RECORD;
+  v_5min_before TIMESTAMPTZ;
+BEGIN
+  -- Obtener información de la dosis
+  SELECT md.*, pm.medicine_name, pm.dosage, pm.reminder_enabled, p.user_id as prescription_user_id
+  INTO v_dose
+  FROM medication_doses md
+  JOIN prescription_medicines pm ON pm.id = md.prescription_medicine_id
+  JOIN prescriptions p ON p.id = pm.prescription_id
+  WHERE md.id = p_medication_dose_id;
+  
+  -- Si no existe o recordatorios deshabilitados, salir
+  IF v_dose IS NULL OR NOT v_dose.reminder_enabled THEN
+    RETURN;
+  END IF;
+  
+  -- Obtener perfil del usuario
+  SELECT * INTO v_profile
+  FROM profiles
+  WHERE id = v_dose.user_id;
+  
+  -- Si WhatsApp no está habilitado o no hay teléfono, salir
+  IF v_profile IS NULL OR NOT COALESCE(v_profile.whatsapp_enabled, false) OR v_profile.phone IS NULL THEN
+    RETURN;
+  END IF;
+  
+  -- Calcular 5 minutos antes
+  v_5min_before := v_dose.scheduled_at - INTERVAL '5 minutes';
+  
+  -- Insertar notificación 5 minutos antes (si aún no pasó)
+  IF v_5min_before > now() THEN
+    INSERT INTO whatsapp_notifications (
+      user_id, medication_dose_id, prescription_medicine_id,
+      phone_number, patient_name, medicine_name, dosage,
+      scheduled_time, notification_type, scheduled_at
+    ) VALUES (
+      v_dose.user_id, v_dose.id, v_dose.prescription_medicine_id,
+      v_profile.phone,
+      COALESCE(v_profile.first_name, 'Usuario'),
+      v_dose.medicine_name,
+      v_dose.dosage,
+      TO_CHAR(v_dose.scheduled_at AT TIME ZONE COALESCE(v_profile.timezone, 'America/Mexico_City'), 'HH24:MI'),
+      'reminder_5min',
+      v_5min_before
+    )
+    ON CONFLICT (user_id, medication_dose_id, notification_type) DO NOTHING;
+  END IF;
+  
+  -- Insertar notificación a la hora exacta (si aún no pasó)
+  IF v_dose.scheduled_at > now() THEN
+    INSERT INTO whatsapp_notifications (
+      user_id, medication_dose_id, prescription_medicine_id,
+      phone_number, patient_name, medicine_name, dosage,
+      scheduled_time, notification_type, scheduled_at
+    ) VALUES (
+      v_dose.user_id, v_dose.id, v_dose.prescription_medicine_id,
+      v_profile.phone,
+      COALESCE(v_profile.first_name, 'Usuario'),
+      v_dose.medicine_name,
+      v_dose.dosage,
+      TO_CHAR(v_dose.scheduled_at AT TIME ZONE COALESCE(v_profile.timezone, 'America/Mexico_City'), 'HH24:MI'),
+      'reminder_exact',
+      v_dose.scheduled_at
+    )
+    ON CONFLICT (user_id, medication_dose_id, notification_type) DO NOTHING;
+  END IF;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."generate_medication_notifications"("p_medication_dose_id" "uuid") OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."generate_medication_notifications"("p_medication_dose_id" "uuid") IS 'Genera notificaciones WhatsApp pendientes para una dosis de medicamento';
+
 
 
 CREATE OR REPLACE FUNCTION "public"."generate_recurring_alerts"() RETURNS "void"
@@ -339,6 +490,37 @@ $$;
 ALTER FUNCTION "public"."increment_share_access_count"("share_id" "uuid") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."invoke_medication_reminders"() RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+DECLARE
+  v_request_id BIGINT;
+BEGIN
+  -- Hacer HTTP POST a la Edge Function
+  SELECT INTO v_request_id net.http_post(
+    url := 'https://ouhyjucktnlvarnehcvd.supabase.co/functions/v1/send-medication-reminders',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im91aHlqdWNrdG5sdmFybmVoY3ZkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NTMyNjcwOSwiZXhwIjoyMDgwOTAyNzA5fQ.vylJ5KnMG2QXEn4Qua_6YBZ1fEFdoy2OQh3DyJdUgng'
+    ),
+    body := jsonb_build_object(
+      'source', 'pg_cron',
+      'timestamp', now()::text
+    )
+  );
+  
+  RAISE NOTICE 'Invoked Edge Function, request_id: %', v_request_id;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."invoke_medication_reminders"() OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."invoke_medication_reminders"() IS 'Invoca la Edge Function que procesa y envía los recordatorios de medicamentos por WhatsApp';
+
+
+
 CREATE OR REPLACE FUNCTION "public"."log_activity"("activity_type" "text", "description" "text", "ip_address" "text" DEFAULT NULL::"text", "user_agent" "text" DEFAULT NULL::"text") RETURNS "uuid"
     LANGUAGE "plpgsql" SECURITY DEFINER
     AS $$
@@ -371,6 +553,64 @@ $$;
 
 
 ALTER FUNCTION "public"."mark_alerts_as_read"("alert_ids" "uuid"[]) OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."process_pending_notifications_direct"() RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+DECLARE
+  v_notification RECORD;
+  v_twilio_url TEXT;
+  v_twilio_auth TEXT;
+  v_request_id BIGINT;
+BEGIN
+  -- Esta función es una ALTERNATIVA si no quieres usar Edge Functions
+  -- Procesa directamente las notificaciones pendientes
+  
+  FOR v_notification IN 
+    SELECT * FROM whatsapp_notifications
+    WHERE status = 'pending'
+      AND scheduled_at <= now()
+      AND retry_count < max_retries
+    ORDER BY scheduled_at
+    LIMIT 10  -- Procesar en batches
+    FOR UPDATE SKIP LOCKED  -- Evitar race conditions
+  LOOP
+    -- Marcar como procesando
+    UPDATE whatsapp_notifications
+    SET status = 'processing', updated_at = now()
+    WHERE id = v_notification.id;
+    
+    -- Aquí llamarías a Twilio via pg_net
+    -- NOTA: Requiere configurar las credenciales de Twilio como secrets
+    
+    -- Por seguridad, es mejor usar Edge Functions
+    -- Esta es solo una demostración del patrón
+    
+  END LOOP;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."process_pending_notifications_direct"() OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."reactivate_medication"("med_id" "uuid") RETURNS "void"
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+  UPDATE prescription_medicines
+  SET is_active = TRUE, updated_at = NOW()
+  WHERE id = med_id;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."reactivate_medication"("med_id" "uuid") OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "public"."reactivate_medication"("med_id" "uuid") IS 'Reactiva manualmente un medicamento que fue marcado como inactivo.';
+
 
 
 CREATE OR REPLACE FUNCTION "public"."register_session"("device" "text", "location" "text" DEFAULT NULL::"text", "ip_address" "text" DEFAULT NULL::"text") RETURNS "uuid"
@@ -424,6 +664,22 @@ $$;
 
 
 ALTER FUNCTION "public"."run_sql_with_results"("query" "text") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."trigger_generate_notifications"() RETURNS "trigger"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+BEGIN
+  -- Solo generar para nuevas dosis programadas en el futuro
+  IF NEW.scheduled_at > now() AND NEW.status = 'scheduled' THEN
+    PERFORM public.generate_medication_notifications(NEW.id);
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."trigger_generate_notifications"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."update_document_reminders_updated_at"() RETURNS "trigger"
@@ -754,7 +1010,10 @@ CREATE TABLE IF NOT EXISTS "public"."prescription_medicines" (
     "instructions" "text",
     "created_at" timestamp with time zone DEFAULT "now"(),
     "updated_at" timestamp with time zone DEFAULT "now"(),
-    "frequency_hours" integer
+    "frequency_hours" integer,
+    "first_dose_time" time without time zone DEFAULT '08:00:00'::time without time zone,
+    "reminder_enabled" boolean DEFAULT true,
+    "is_active" boolean DEFAULT true
 );
 
 
@@ -762,6 +1021,18 @@ ALTER TABLE "public"."prescription_medicines" OWNER TO "postgres";
 
 
 COMMENT ON COLUMN "public"."prescription_medicines"."frequency_hours" IS 'Frecuencia de la toma en horas (ej: 8, 12, 24).';
+
+
+
+COMMENT ON COLUMN "public"."prescription_medicines"."first_dose_time" IS 'Hora de la primera toma del día (formato 24h)';
+
+
+
+COMMENT ON COLUMN "public"."prescription_medicines"."reminder_enabled" IS 'Si se deben enviar recordatorios para este medicamento';
+
+
+
+COMMENT ON COLUMN "public"."prescription_medicines"."is_active" IS 'Indica si el medicamento está activo. Se marca automáticamente como FALSE cuando todas las dosis han sido completadas.';
 
 
 
@@ -805,7 +1076,8 @@ CREATE TABLE IF NOT EXISTS "public"."profiles" (
     "contacto_emergencia" "jsonb",
     "direccion" "jsonb",
     "phone_number" "text",
-    "whatsapp_notifications_enabled" boolean DEFAULT false
+    "whatsapp_notifications_enabled" boolean DEFAULT false,
+    "whatsapp_enabled" boolean DEFAULT false
 );
 
 
@@ -817,6 +1089,10 @@ COMMENT ON COLUMN "public"."profiles"."phone_number" IS 'Número de teléfono co
 
 
 COMMENT ON COLUMN "public"."profiles"."whatsapp_notifications_enabled" IS 'Si el usuario desea recibir recordatorios por WhatsApp';
+
+
+
+COMMENT ON COLUMN "public"."profiles"."whatsapp_enabled" IS 'Indica si el usuario tiene habilitados los recordatorios por WhatsApp';
 
 
 
@@ -967,6 +1243,68 @@ COMMENT ON TABLE "public"."vaccine_catalog" IS 'Catálogo de vacunas comunes par
 
 
 
+CREATE TABLE IF NOT EXISTS "public"."whatsapp_notification_logs" (
+    "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
+    "notification_id" "uuid",
+    "user_id" "uuid" NOT NULL,
+    "phone_number" "text" NOT NULL,
+    "message_type" "text" NOT NULL,
+    "twilio_message_sid" "text",
+    "twilio_status" "text",
+    "twilio_error_code" "text",
+    "twilio_error_message" "text",
+    "success" boolean NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."whatsapp_notification_logs" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."whatsapp_notification_logs" IS 'Historial de todas las notificaciones WhatsApp enviadas (auditoría)';
+
+
+
+CREATE TABLE IF NOT EXISTS "public"."whatsapp_notifications" (
+    "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
+    "user_id" "uuid" NOT NULL,
+    "medication_dose_id" "uuid",
+    "prescription_medicine_id" "uuid",
+    "phone_number" "text" NOT NULL,
+    "patient_name" "text" NOT NULL,
+    "medicine_name" "text" NOT NULL,
+    "dosage" "text",
+    "scheduled_time" "text" NOT NULL,
+    "notification_type" "text" NOT NULL,
+    "scheduled_at" timestamp with time zone NOT NULL,
+    "status" "text" DEFAULT 'pending'::"text" NOT NULL,
+    "retry_count" integer DEFAULT 0,
+    "max_retries" integer DEFAULT 3,
+    "last_error" "text",
+    "twilio_message_sid" "text",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "sent_at" timestamp with time zone,
+    CONSTRAINT "whatsapp_notifications_notification_type_check" CHECK (("notification_type" = ANY (ARRAY['reminder_5min'::"text", 'reminder_exact'::"text"]))),
+    CONSTRAINT "whatsapp_notifications_status_check" CHECK (("status" = ANY (ARRAY['pending'::"text", 'processing'::"text", 'sent'::"text", 'failed'::"text", 'cancelled'::"text"])))
+);
+
+
+ALTER TABLE "public"."whatsapp_notifications" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."whatsapp_notifications" IS 'Cola de notificaciones WhatsApp pendientes para recordatorios de medicamentos';
+
+
+
+COMMENT ON COLUMN "public"."whatsapp_notifications"."notification_type" IS 'reminder_5min = 5 minutos antes, reminder_exact = a la hora exacta';
+
+
+
+COMMENT ON COLUMN "public"."whatsapp_notifications"."scheduled_at" IS 'Momento exacto en que debe enviarse la notificación (TIMESTAMPTZ)';
+
+
+
 ALTER TABLE ONLY "public"."active_sessions"
     ADD CONSTRAINT "active_sessions_pkey" PRIMARY KEY ("id");
 
@@ -1097,6 +1435,11 @@ ALTER TABLE ONLY "public"."categories"
 
 
 
+ALTER TABLE ONLY "public"."whatsapp_notifications"
+    ADD CONSTRAINT "unique_notification" UNIQUE ("user_id", "medication_dose_id", "notification_type");
+
+
+
 ALTER TABLE ONLY "public"."user_allergies"
     ADD CONSTRAINT "user_allergies_pkey" PRIMARY KEY ("id");
 
@@ -1124,6 +1467,16 @@ ALTER TABLE ONLY "public"."vaccine_catalog"
 
 ALTER TABLE ONLY "public"."vaccine_catalog"
     ADD CONSTRAINT "vaccine_catalog_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."whatsapp_notification_logs"
+    ADD CONSTRAINT "whatsapp_notification_logs_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."whatsapp_notifications"
+    ADD CONSTRAINT "whatsapp_notifications_pkey" PRIMARY KEY ("id");
 
 
 
@@ -1187,6 +1540,10 @@ CREATE INDEX "idx_medication_doses_user_id_status" ON "public"."medication_doses
 
 
 
+CREATE INDEX "idx_prescription_medicines_is_active" ON "public"."prescription_medicines" USING "btree" ("is_active", "prescription_id");
+
+
+
 CREATE INDEX "idx_profiles_phone_number" ON "public"."profiles" USING "btree" ("phone_number") WHERE ("phone_number" IS NOT NULL);
 
 
@@ -1203,6 +1560,30 @@ CREATE INDEX "idx_shared_links_access_token" ON "public"."shared_links" USING "b
 
 
 
+CREATE INDEX "idx_whatsapp_logs_created_at" ON "public"."whatsapp_notification_logs" USING "btree" ("created_at");
+
+
+
+CREATE INDEX "idx_whatsapp_logs_notification_id" ON "public"."whatsapp_notification_logs" USING "btree" ("notification_id");
+
+
+
+CREATE INDEX "idx_whatsapp_logs_user_id" ON "public"."whatsapp_notification_logs" USING "btree" ("user_id");
+
+
+
+CREATE INDEX "idx_whatsapp_notifications_pending" ON "public"."whatsapp_notifications" USING "btree" ("scheduled_at", "status") WHERE ("status" = 'pending'::"text");
+
+
+
+CREATE INDEX "idx_whatsapp_notifications_scheduled_at" ON "public"."whatsapp_notifications" USING "btree" ("scheduled_at");
+
+
+
+CREATE INDEX "idx_whatsapp_notifications_user_id" ON "public"."whatsapp_notifications" USING "btree" ("user_id");
+
+
+
 CREATE OR REPLACE TRIGGER "add_document_history_trigger" AFTER INSERT OR UPDATE ON "public"."documents" FOR EACH ROW EXECUTE FUNCTION "public"."add_document_history"();
 
 
@@ -1211,11 +1592,19 @@ CREATE OR REPLACE TRIGGER "add_family_share_activity_trigger" AFTER INSERT ON "p
 
 
 
+CREATE OR REPLACE TRIGGER "auto_generate_notifications" AFTER INSERT ON "public"."medication_doses" FOR EACH ROW EXECUTE FUNCTION "public"."trigger_generate_notifications"();
+
+
+
 CREATE OR REPLACE TRIGGER "document_shares_updated_at" BEFORE UPDATE ON "public"."document_shares" FOR EACH ROW EXECUTE FUNCTION "public"."update_document_shares_updated_at"();
 
 
 
 CREATE OR REPLACE TRIGGER "on_categories_update" BEFORE UPDATE ON "public"."categories" FOR EACH ROW EXECUTE FUNCTION "public"."handle_updated_at"();
+
+
+
+CREATE OR REPLACE TRIGGER "trigger_check_medication_completion" AFTER UPDATE OF "status", "taken_at" ON "public"."medication_doses" FOR EACH ROW WHEN ((("new"."status" = 'taken'::"text") AND ("old"."status" <> 'taken'::"text"))) EXECUTE FUNCTION "public"."check_medication_completion"();
 
 
 
@@ -1260,6 +1649,10 @@ CREATE OR REPLACE TRIGGER "update_recipe_uploads_updated_at" BEFORE UPDATE ON "p
 
 
 CREATE OR REPLACE TRIGGER "update_user_allergies_updated_at" BEFORE UPDATE ON "public"."user_allergies" FOR EACH ROW EXECUTE FUNCTION "public"."update_modified_column"();
+
+
+
+CREATE OR REPLACE TRIGGER "update_whatsapp_notifications_updated_at" BEFORE UPDATE ON "public"."whatsapp_notifications" FOR EACH ROW EXECUTE FUNCTION "public"."update_modified_column"();
 
 
 
@@ -1433,6 +1826,31 @@ ALTER TABLE ONLY "public"."vaccinations"
 
 
 
+ALTER TABLE ONLY "public"."whatsapp_notification_logs"
+    ADD CONSTRAINT "whatsapp_notification_logs_notification_id_fkey" FOREIGN KEY ("notification_id") REFERENCES "public"."whatsapp_notifications"("id") ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY "public"."whatsapp_notification_logs"
+    ADD CONSTRAINT "whatsapp_notification_logs_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."whatsapp_notifications"
+    ADD CONSTRAINT "whatsapp_notifications_medication_dose_id_fkey" FOREIGN KEY ("medication_dose_id") REFERENCES "public"."medication_doses"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."whatsapp_notifications"
+    ADD CONSTRAINT "whatsapp_notifications_prescription_medicine_id_fkey" FOREIGN KEY ("prescription_medicine_id") REFERENCES "public"."prescription_medicines"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."whatsapp_notifications"
+    ADD CONSTRAINT "whatsapp_notifications_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+
+
+
 CREATE POLICY "Allow authenticated users to create their own categories" ON "public"."categories" FOR INSERT TO "authenticated" WITH CHECK (("auth"."uid"() = "user_id"));
 
 
@@ -1522,6 +1940,14 @@ CREATE POLICY "Permitir borrado a due├▒os y globales por usuarios autentic" 
 
 
 CREATE POLICY "Permitir_borrado_carpetas_propias_o_globales" ON "public"."categories" FOR DELETE USING ((("auth"."uid"() = "user_id") OR (("user_id" IS NULL) AND ("auth"."role"() = 'authenticated'::"text"))));
+
+
+
+CREATE POLICY "Service role can manage all whatsapp logs" ON "public"."whatsapp_notification_logs" TO "service_role" USING (true) WITH CHECK (true);
+
+
+
+CREATE POLICY "Service role can manage all whatsapp notifications" ON "public"."whatsapp_notifications" TO "service_role" USING (true) WITH CHECK (true);
 
 
 
@@ -1749,6 +2175,14 @@ CREATE POLICY "Users can view their own shared documents with family" ON "public
 
 
 
+CREATE POLICY "Users can view their own whatsapp logs" ON "public"."whatsapp_notification_logs" FOR SELECT TO "authenticated" USING (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "Users can view their own whatsapp notifications" ON "public"."whatsapp_notifications" FOR SELECT TO "authenticated" USING (("auth"."uid"() = "user_id"));
+
+
+
 ALTER TABLE "public"."active_sessions" ENABLE ROW LEVEL SECURITY;
 
 
@@ -1841,6 +2275,12 @@ ALTER TABLE "public"."vaccinations" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."vaccine_catalog" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."whatsapp_notification_logs" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."whatsapp_notifications" ENABLE ROW LEVEL SECURITY;
 
 
 
@@ -2063,9 +2503,21 @@ GRANT ALL ON FUNCTION "public"."check_alerts_and_send_whatsapp"() TO "service_ro
 
 
 
+GRANT ALL ON FUNCTION "public"."check_medication_completion"() TO "anon";
+GRANT ALL ON FUNCTION "public"."check_medication_completion"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."check_medication_completion"() TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."cleanup_old_alerts"() TO "anon";
 GRANT ALL ON FUNCTION "public"."cleanup_old_alerts"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."cleanup_old_alerts"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."cleanup_old_whatsapp_notifications"() TO "anon";
+GRANT ALL ON FUNCTION "public"."cleanup_old_whatsapp_notifications"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."cleanup_old_whatsapp_notifications"() TO "service_role";
 
 
 
@@ -2084,6 +2536,12 @@ GRANT ALL ON FUNCTION "public"."disable_document_history_trigger"() TO "service_
 GRANT ALL ON FUNCTION "public"."enable_document_history_trigger"() TO "anon";
 GRANT ALL ON FUNCTION "public"."enable_document_history_trigger"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."enable_document_history_trigger"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."generate_medication_notifications"("p_medication_dose_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."generate_medication_notifications"("p_medication_dose_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."generate_medication_notifications"("p_medication_dose_id" "uuid") TO "service_role";
 
 
 
@@ -2209,6 +2667,12 @@ GRANT ALL ON FUNCTION "public"."increment_share_access_count"("share_id" "uuid")
 
 
 
+GRANT ALL ON FUNCTION "public"."invoke_medication_reminders"() TO "anon";
+GRANT ALL ON FUNCTION "public"."invoke_medication_reminders"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."invoke_medication_reminders"() TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."log_activity"("activity_type" "text", "description" "text", "ip_address" "text", "user_agent" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."log_activity"("activity_type" "text", "description" "text", "ip_address" "text", "user_agent" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."log_activity"("activity_type" "text", "description" "text", "ip_address" "text", "user_agent" "text") TO "service_role";
@@ -2218,6 +2682,18 @@ GRANT ALL ON FUNCTION "public"."log_activity"("activity_type" "text", "descripti
 GRANT ALL ON FUNCTION "public"."mark_alerts_as_read"("alert_ids" "uuid"[]) TO "anon";
 GRANT ALL ON FUNCTION "public"."mark_alerts_as_read"("alert_ids" "uuid"[]) TO "authenticated";
 GRANT ALL ON FUNCTION "public"."mark_alerts_as_read"("alert_ids" "uuid"[]) TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."process_pending_notifications_direct"() TO "anon";
+GRANT ALL ON FUNCTION "public"."process_pending_notifications_direct"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."process_pending_notifications_direct"() TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."reactivate_medication"("med_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."reactivate_medication"("med_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."reactivate_medication"("med_id" "uuid") TO "service_role";
 
 
 
@@ -2243,6 +2719,12 @@ GRANT ALL ON FUNCTION "public"."text_to_bytea"("data" "text") TO "postgres";
 GRANT ALL ON FUNCTION "public"."text_to_bytea"("data" "text") TO "anon";
 GRANT ALL ON FUNCTION "public"."text_to_bytea"("data" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."text_to_bytea"("data" "text") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."trigger_generate_notifications"() TO "anon";
+GRANT ALL ON FUNCTION "public"."trigger_generate_notifications"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."trigger_generate_notifications"() TO "service_role";
 
 
 
@@ -2462,6 +2944,18 @@ GRANT ALL ON TABLE "public"."vaccine_catalog" TO "service_role";
 
 
 
+GRANT ALL ON TABLE "public"."whatsapp_notification_logs" TO "anon";
+GRANT ALL ON TABLE "public"."whatsapp_notification_logs" TO "authenticated";
+GRANT ALL ON TABLE "public"."whatsapp_notification_logs" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."whatsapp_notifications" TO "anon";
+GRANT ALL ON TABLE "public"."whatsapp_notifications" TO "authenticated";
+GRANT ALL ON TABLE "public"."whatsapp_notifications" TO "service_role";
+
+
+
 
 
 
@@ -2492,3 +2986,34 @@ ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TAB
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "anon";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "authenticated";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "service_role";
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

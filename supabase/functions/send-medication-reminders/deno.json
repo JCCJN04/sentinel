@@ -1,7 +1,0 @@
-{
-  "compilerOptions": {
-    "lib": ["deno.window"],
-    "strict": true,
-    "noImplicitAny": true
-  }
-}
