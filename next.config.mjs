@@ -7,6 +7,10 @@ const nextConfig = {
         protocol: 'https',
         hostname: 'kzmpxobbo9z9b0benlfw.supabase.co',
       },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+      },
     ],
   },
   // Asegurarnos de que la ruta principal sea la landing page
