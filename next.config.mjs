@@ -17,6 +17,11 @@ const nextConfig = {
   async redirects() {
     return []
   },
+  // Deshabilitar webpack cache temporalmente para evitar WasmHash error
+  webpack: (config, { isServer }) => {
+    config.cache = false
+    return config
+  },
 }
 
 export default nextConfig

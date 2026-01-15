@@ -6,6 +6,8 @@ import { getPatientInvitations } from "@/lib/invitation-service"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Stethoscope, Info } from "lucide-react"
 
+export const dynamic = 'force-dynamic'
+
 export default async function DoctorsPage() {
   let doctors: any[] = []
   let invitations: any[] = []

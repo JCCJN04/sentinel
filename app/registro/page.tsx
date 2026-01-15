@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
@@ -14,7 +14,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, Users, Stethoscope } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 
-export default function RegisterPage() {
+function RegisterForm() {
   const searchParams = useSearchParams()
   const userType = searchParams.get('tipo') || 'paciente' // 'paciente' o 'doctor'
   
@@ -220,5 +220,17 @@ export default function RegisterPage() {
         </form>
       </Card>
     </div>
+  )
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    }>
+      <RegisterForm />
+    </Suspense>
   )
 }

@@ -18,7 +18,12 @@ export async function createDoctorConsultation(input: {
     scheduled_at: input.scheduledAt,
     reason: input.reason,
     status: (input.status as any) || "scheduled",
-    notes: input.notes?.trim() || undefined,
+    notes: input.notes?.trim() || null,
+    symptoms: null,
+    diagnosis: null,
+    treatment_plan: null,
+    cancellation_reason: null,
+    follow_up_date: null,
   }
 
   return createConsultation(payload)

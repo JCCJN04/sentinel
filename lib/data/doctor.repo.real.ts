@@ -228,6 +228,8 @@ export const doctorRepoReal: DoctorRepo = {
         symptoms: null,
         diagnosis: null,
         treatment_plan: null,
+        cancellation_reason: null,
+        follow_up_date: null,
       });
 
       return {

@@ -39,7 +39,7 @@ export type CreatePrescriptionInput = {
   notes?: string;
 };
 
-export type ConsultationStatus = "scheduled" | "completed" | "cancelled";
+export type ConsultationStatus = "scheduled" | "in_progress" | "completed" | "cancelled" | "no_show";
 
 export type ConsultationImage = {
   id: string;

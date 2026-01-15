@@ -17,12 +17,15 @@ export async function createPrescriptionAction(input: {
   const payload: CreateDoctorPrescriptionInput = {
     doctor_id: doctorProfile.id,
     patient_id: input.patientId,
+    consultation_id: null,
     medication_name: input.medicationName,
     dosage: input.dosage,
     frequency: input.frequency,
+    duration: null,
     start_date: input.startDate,
-    end_date: input.endDate,
-    notes: input.notes?.trim() || undefined,
+    end_date: input.endDate || null,
+    instructions: null,
+    notes: input.notes?.trim() || null,
   }
 
   return createDoctorPrescription(payload)

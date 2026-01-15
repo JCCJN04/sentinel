@@ -17,7 +17,7 @@ export default async function DoctorNewPrescriptionPage({ searchParams }: Doctor
     const patients = patientsData.map((p: any) => ({
       id: p.patient_id,
       name: getFullName(p.patient?.profiles),
-      age: 'N/A',
+      age: 0,
       sex: p.patient?.profiles?.sex || 'no especificado',
       lastVisit: p.last_consultation_date || new Date().toISOString(),
       conditions: [],

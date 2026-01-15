@@ -47,7 +47,14 @@ export default async function DoctorConsultationDetailPage({ params }: DoctorCon
       treatmentPlan: consultationData.treatment_plan,
       followUpRequired: consultationData.follow_up_required,
       followUpDate: consultationData.follow_up_date,
-      images: consultationData.attachments || [],
+      images: (consultationData.attachments || []).map(att => ({
+        id: att.id,
+        consultationId: att.consultation_id,
+        title: att.title,
+        description: att.description || undefined,
+        url: att.file_url,
+        uploadedAt: att.created_at,
+      })),
     }
 
     const patient = {
@@ -155,29 +162,8 @@ export default async function DoctorConsultationDetailPage({ params }: DoctorCon
                   <p className="font-medium text-slate-900 dark:text-slate-100">{patient.age} años</p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-emerald-900/70 dark:text-emerald-200/70">Última visita</p>
-                  <p className="font-medium text-slate-900 dark:text-slate-100">
-                    {format(new Date(patient.lastVisit), "dd MMM yyyy")}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-emerald-900/70 dark:text-emerald-200/70">Condiciones</p>
-                  <div className="mt-1 flex flex-wrap gap-2">
-                    {patient.conditions.length > 0 ? (
-                      patient.conditions.map((condition) => (
-                        <Badge
-                          key={condition}
-                          className="border-emerald-500/40 bg-emerald-500/15 text-emerald-800 dark:text-emerald-200"
-                        >
-                          {condition}
-                        </Badge>
-                      ))
-                    ) : (
-                      <Badge className="border-slate-300/40 bg-slate-200/30 text-slate-700 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-200">
-                        Sin condiciones
-                      </Badge>
-                    )}
-                  </div>
+                  <p className="text-emerald-900/70 dark:text-emerald-200/70">Sexo</p>
+                  <p className="font-medium text-slate-900 dark:text-slate-100">{patient.sex}</p>
                 </div>
               </>
             ) : (
