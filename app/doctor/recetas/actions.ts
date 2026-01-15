@@ -1,13 +1,29 @@
 "use server"
 
-import { doctorRepo } from "@/lib/data/doctor.repo.mock"
-import type { CreatePrescriptionInput, Prescription } from "@/lib/data/doctor.repo"
+import { createDoctorPrescription, getCurrentDoctorProfile } from "@/lib/doctor-service"
+import type { CreateDoctorPrescriptionInput } from "@/types/doctor"
 
-export async function createMockPrescription(input: CreatePrescriptionInput): Promise<Prescription> {
-  const payload = {
-    ...input,
+export async function createPrescriptionAction(input: {
+  patientId: string
+  medicationName: string
+  dosage: string
+  frequency: string
+  startDate: string
+  endDate?: string
+  notes?: string
+}) {
+  const doctorProfile = await getCurrentDoctorProfile()
+  
+  const payload: CreateDoctorPrescriptionInput = {
+    doctor_id: doctorProfile.id,
+    patient_id: input.patientId,
+    medication_name: input.medicationName,
+    dosage: input.dosage,
+    frequency: input.frequency,
+    start_date: input.startDate,
+    end_date: input.endDate,
     notes: input.notes?.trim() || undefined,
   }
 
-  return doctorRepo.createPrescription(payload)
+  return createDoctorPrescription(payload)
 }

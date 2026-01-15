@@ -3,12 +3,11 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import { format } from "date-fns"
 import { CalendarDays, Clock, FileText, User } from "lucide-react"
-import { doctorRepo } from "@/lib/data/doctor.repo.mock"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ConsultationAttachments } from "@/components/doctor/consultation-attachments"
-
+import { getConsultation } from "@/lib/doctor-service"import { getFullName } from "@/lib/utils/profile-helpers"
 const statusLabels: Record<string, string> = {
   scheduled: "Programada",
   completed: "Completada",
@@ -28,13 +27,33 @@ export type DoctorConsultationDetailPageProps = {
 }
 
 export default async function DoctorConsultationDetailPage({ params }: DoctorConsultationDetailPageProps) {
-  const consultation = await doctorRepo.getConsultation(params.id)
+  try {
+    const consultationData = await getConsultation(params.id)
 
-  if (!consultation) {
-    notFound()
-  }
+    if (!consultationData) {
+      notFound()
+    }
+    
+    const consultation = {
+      id: consultationData.id,
+      patientId: consultationData.patient_id,
+      scheduledAt: consultationData.scheduled_at,
+      status: consultationData.status,
+      reason: consultationData.reason || 'Consulta general',
+      notes: consultationData.notes,
+      diagnosis: consultationData.diagnosis,
+      treatmentPlan: consultationData.treatment_plan,
+      followUpRequired: consultationData.follow_up_required,
+      followUpDate: consultationData.follow_up_date,
+      images: consultationData.attachments || [],
+    }
 
-  const patient = await doctorRepo.getPatient(consultation.patientId)
+    const patient = {
+      id: consultationData.patient_id,
+      name: getFullName(consultationData.patient?.profiles),
+      age: 'N/A',
+      sex: consultationData.patient?.profiles?.sex || 'no especificado',
+    }
 
   return (
     <div className="space-y-6">
@@ -167,6 +186,25 @@ export default async function DoctorConsultationDetailPage({ params }: DoctorCon
       </div>
     </div>
   )
+  } catch (error) {
+    return (
+      <div className="space-y-6">
+        <div className="overflow-hidden rounded-2xl border border-rose-500/20 bg-gradient-to-r from-rose-500/10 via-orange-500/10 to-amber-500/10 p-6 shadow-lg shadow-rose-500/10">
+          <div className="space-y-3">
+            <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-rose-600 via-orange-500 to-amber-500 bg-clip-text text-transparent">
+              Error al cargar consulta
+            </h1>
+            <p className="text-sm text-rose-900/80 dark:text-rose-100/80">
+              No se pudo cargar la información de la consulta. Por favor, verifica que hayas iniciado sesión como doctor.
+            </p>
+            <Button asChild variant="outline">
+              <Link href="/doctor/consultas">Volver a consultas</Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 }
 
 type InfoRowProps = {

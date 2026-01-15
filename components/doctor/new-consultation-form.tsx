@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
-import { createMockConsultation } from "@/app/doctor/consultas/actions"
+import { createDoctorConsultation } from "@/app/doctor/consultas/actions"
 
 export type NewConsultationFormProps = {
   patients: Patient[]
@@ -75,7 +75,7 @@ export function NewConsultationForm({ patients, defaultPatientId, defaultSchedul
     setIsSubmitting(true)
 
     try {
-      await createMockConsultation({
+      await createDoctorConsultation({
         patientId: formState.patientId,
         scheduledAt: new Date(formState.scheduledAt).toISOString(),
         reason: formState.reason,
@@ -85,14 +85,14 @@ export function NewConsultationForm({ patients, defaultPatientId, defaultSchedul
 
       toast({
         title: "Consulta creada",
-        description: "La consulta mock se registró correctamente.",
+        description: "La consulta se registró correctamente.",
       })
 
       router.push("/doctor/consultas")
       router.refresh()
     } catch (submissionError) {
       console.error(submissionError)
-      setError("No se pudo crear la consulta mock. Intenta nuevamente.")
+      setError("No se pudo crear la consulta. Intenta nuevamente.")
     } finally {
       setIsSubmitting(false)
     }

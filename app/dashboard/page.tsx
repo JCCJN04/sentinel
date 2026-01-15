@@ -5,7 +5,7 @@ import { RecentDocuments } from "@/components/dashboard/recent-documents";
 import { UpcomingMedication } from "@/components/dashboard/upcoming-medication";
 import { UpcomingReminders } from "@/components/dashboard/upcoming-reminders";
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
   return (
     <>
       {/* Welcome Section with gradient background */}
@@ -19,7 +19,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats Section with Insights */}
-      <div className="animate-in fade-in slide-in-from-top-4 duration-500 delay-100">
+      <div className="animate-in fade-in slide-in-from-top-4 duration-500 delay-150">
         <div className="rounded-xl border border-slate-200/50 dark:border-slate-700/50 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm p-6 shadow-sm">
           <DashboardStats />
         </div>

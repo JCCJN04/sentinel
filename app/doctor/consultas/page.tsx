@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { format } from "date-fns"
-import { doctorRepo } from "@/lib/data/doctor.repo.mock"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { getFullName } from "@/lib/utils/profile-helpers"
 import {
   Table,
   TableBody,
@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { SearchBar } from "@/components/doctor/search-bar"
 import { ConsultationCalendar } from "@/components/doctor/consultation-calendar"
+import { getCurrentDoctorProfile, getConsultations, getDoctorPatients } from "@/lib/doctor-service"
 
 const statusLabels: Record<string, string> = {
   scheduled: "Programada",
@@ -35,10 +36,29 @@ export type DoctorConsultationsPageProps = {
 }
 
 export default async function DoctorConsultationsPage({ searchParams }: DoctorConsultationsPageProps) {
-  const [consultations, patients] = await Promise.all([
-    doctorRepo.listConsultations(),
-    doctorRepo.listPatients(),
-  ])
+  try {
+    const doctorProfile = await getCurrentDoctorProfile()
+    
+    const [consultationsData, patientsData] = await Promise.all([
+      getConsultations(doctorProfile.id),
+      getDoctorPatients(doctorProfile.id),
+    ])
+
+    // Transform patient data
+    const patients = patientsData.map((p: any) => ({
+      id: p.patient_id,
+      name: getFullName(p.patient?.profiles),
+    }))
+
+    // Transform consultations data
+    const consultations = consultationsData.map((c: any) => ({
+      id: c.id,
+      patientId: c.patient_id,
+      scheduledAt: c.scheduled_at,
+      status: c.status,
+      reason: c.reason || 'Consulta general',
+      notes: c.notes,
+    }))
 
   const patientNameById = new Map(patients.map((patient) => [patient.id, patient.name]))
   const rawQuery = searchParams?.q ?? ""
@@ -199,4 +219,20 @@ export default async function DoctorConsultationsPage({ searchParams }: DoctorCo
       )}
     </div>
   )
+  } catch (error) {
+    return (
+      <div className="space-y-6">
+        <div className="overflow-hidden rounded-2xl border border-rose-500/20 bg-gradient-to-r from-rose-500/10 via-orange-500/10 to-amber-500/10 p-6 shadow-lg shadow-rose-500/10">
+          <div className="space-y-1">
+            <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-rose-600 via-orange-500 to-amber-500 bg-clip-text text-transparent">
+              Error al cargar consultas
+            </h1>
+            <p className="text-sm text-rose-900/80 dark:text-rose-100/80">
+              No se pudo cargar la lista de consultas. Por favor, verifica que hayas iniciado sesión como doctor.
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 }

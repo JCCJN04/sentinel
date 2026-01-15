@@ -2,19 +2,22 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Loader2 } from "lucide-react"
+import { Loader2, Users, Stethoscope } from "lucide-react"
 import { useToast } from "@/components/ui/use-toast"
 
 export default function RegisterPage() {
+  const searchParams = useSearchParams()
+  const userType = searchParams.get('tipo') || 'paciente' // 'paciente' o 'doctor'
+  
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -24,6 +27,8 @@ export default function RegisterPage() {
   const { signUp } = useAuth()
   const router = useRouter()
   const { toast } = useToast()
+  
+  const isDoctor = userType === 'doctor'
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -49,7 +54,11 @@ export default function RegisterPage() {
       }
 
       // Intentar registrar al usuario
-      const { error: signUpError, data } = await signUp(email, password)
+      const { error: signUpError, data } = await signUp(email, password, {
+        data: {
+          user_type: isDoctor ? 'doctor' : 'paciente'
+        }
+      })
 
       if (signUpError) {
         console.error("Error de registro:", signUpError)
@@ -69,18 +78,25 @@ export default function RegisterPage() {
         // Registro exitoso con sesión automática
         toast({
           title: "¡Bienvenido!",
-          description: "Tu cuenta ha sido creada correctamente",
+          description: `Tu cuenta ${isDoctor ? 'de doctor' : ''} ha sido creada correctamente`,
         })
-        router.push("/dashboard")
+        
+        // Redirigir según el tipo de usuario
+        router.push(isDoctor ? "/doctor" : "/dashboard")
       } else {
         // Se requiere confirmación de correo
         setSuccess(
-          "Te hemos enviado un enlace de confirmación. Revisa tu correo electrónico.",
+          `Te hemos enviado un enlace de confirmación. Revisa tu correo electrónico y luego inicia sesión en el portal de ${isDoctor ? 'doctores' : 'pacientes'}.`,
         )
         toast({
           title: "Cuenta creada",
           description: "Revisa tu correo para confirmar tu cuenta",
         })
+        
+        // Redirigir al login correspondiente después de 3 segundos
+        setTimeout(() => {
+          router.push(`/login?tipo=${isDoctor ? 'doctor' : 'paciente'}`)
+        }, 3000)
       }
     } catch (err: any) {
       console.error("Error de registro:", err)
@@ -94,10 +110,37 @@ export default function RegisterPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1 text-center">
-          <CardTitle className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
-            Crear Cuenta
+          <div className="flex items-center justify-center gap-2 mb-2">
+            {isDoctor ? (
+              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 dark:from-blue-400 dark:to-indigo-500 p-2.5 shadow-lg">
+                <Stethoscope className="h-full w-full text-white" />
+              </div>
+            ) : (
+              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-500 to-cyan-600 dark:from-emerald-400 dark:to-cyan-500 p-2.5 shadow-lg">
+                <Users className="h-full w-full text-white" />
+              </div>
+            )}
+          </div>
+          <CardTitle className={`text-2xl font-bold ${
+            isDoctor 
+              ? 'bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400' 
+              : 'bg-gradient-to-r from-emerald-600 to-cyan-600 dark:from-emerald-400 dark:to-cyan-400'
+          } bg-clip-text text-transparent`}>
+            {isDoctor ? 'Registro para Doctores' : 'Crear Cuenta'}
           </CardTitle>
-          <CardDescription>Ingresa tus datos para registrarte</CardDescription>
+          <CardDescription>
+            {isDoctor 
+              ? 'Únete a nuestra plataforma médica profesional' 
+              : 'Ingresa tus datos para registrarte'}
+          </CardDescription>
+          <div className="pt-2">
+            <Link 
+              href={`/registro?tipo=${isDoctor ? 'paciente' : 'doctor'}`}
+              className="text-xs text-muted-foreground hover:text-primary transition-colors"
+            >
+              ¿Quieres registrarte como {isDoctor ? 'paciente' : 'doctor'}? Haz clic aquí
+            </Link>
+          </div>
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
@@ -146,14 +189,25 @@ export default function RegisterPage() {
             </div>
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button 
+              type="submit" 
+              className={`w-full ${
+                isDoctor 
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700' 
+                  : 'bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-700 hover:to-cyan-700'
+              }`}
+              disabled={isLoading}
+            >
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Registrando...
                 </>
               ) : (
-                "Registrarse"
+                <>
+                  {isDoctor ? <Stethoscope className="mr-2 h-4 w-4" /> : <Users className="mr-2 h-4 w-4" />}
+                  Registrarse como {isDoctor ? 'Doctor' : 'Paciente'}
+                </>
               )}
             </Button>
             <div className="text-center text-sm">

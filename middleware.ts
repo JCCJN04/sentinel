@@ -72,11 +72,12 @@ export async function middleware(req: NextRequest) {
     secureLog('error', 'Session fetch error', { error: sessionError.message });
   }
 
-  const protectedRoutes = ["/dashboard"];
+  const protectedRoutes = ["/dashboard", "/doctor"];
   const authRoutes = ["/login", "/registro", "/recuperar-password"];
 
   const isProtectedRoute = protectedRoutes.some((route) => pathname.startsWith(route));
   const isAuthRoute = authRoutes.some((route) => pathname === route);
+  const isDoctorRoute = pathname.startsWith("/doctor");
 
   // SECURITY: Redirigir a login si no hay sesión en ruta protegida
   if (isProtectedRoute && !session) {
@@ -87,12 +88,36 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  // Redirigir al dashboard si hay sesión en ruta de auth
-  if (isAuthRoute && session) {
-    const redirectUrl = req.nextUrl.clone();
-    redirectUrl.pathname = "/dashboard";
-    redirectUrl.search = "";
-    return NextResponse.redirect(redirectUrl);
+  // Verificar tipo de usuario y redirigir correctamente
+  if (session) {
+    const { data: { user } } = await supabase.auth.getUser();
+    const userType = user?.user_metadata?.user_type || 'paciente';
+    const isDoctor = userType === 'doctor';
+
+    // Si está en ruta de auth, redirigir según su tipo
+    if (isAuthRoute) {
+      const redirectUrl = req.nextUrl.clone();
+      redirectUrl.pathname = isDoctor ? "/doctor" : "/dashboard";
+      redirectUrl.search = "";
+      return NextResponse.redirect(redirectUrl);
+    }
+
+    // Verificar que el usuario esté en la ruta correcta
+    if (isDoctorRoute && !isDoctor) {
+      // Un paciente intenta acceder a rutas de doctor
+      const redirectUrl = req.nextUrl.clone();
+      redirectUrl.pathname = "/dashboard";
+      secureLog('warn', 'Patient attempted to access doctor route', { pathname });
+      return NextResponse.redirect(redirectUrl);
+    }
+
+    if (pathname.startsWith("/dashboard") && isDoctor) {
+      // Un doctor intenta acceder a rutas de paciente
+      const redirectUrl = req.nextUrl.clone();
+      redirectUrl.pathname = "/doctor";
+      secureLog('warn', 'Doctor attempted to access patient route', { pathname });
+      return NextResponse.redirect(redirectUrl);
+    }
   }
 
   return response;

@@ -14,7 +14,7 @@ interface AuthContextType {
   session: Session | null
   isLoading: boolean
   signIn: (email: string, password: string) => Promise<{ error: any | null }>
-  signUp: (email: string, password: string) => Promise<{ error: any | null; data: any | null }>
+  signUp: (email: string, password: string, options?: { data?: any }) => Promise<{ error: any | null; data: any | null }>
   signOut: () => Promise<void>
   resetPassword: (email: string) => Promise<{ error: any | null }>
 }
@@ -98,7 +98,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   // Function to handle user sign-up
-  const signUp = async (email: string, password: string) => {
+  const signUp = async (email: string, password: string, additionalOptions?: { data?: any }) => {
     setIsLoading(true);
     try {
       const { data, error } = await supabase.auth.signUp({
@@ -107,6 +107,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         options: {
           // Ensure this URL points to a page that handles the callback
           emailRedirectTo: `${window.location.origin}/auth/callback`,
+          // Merge additional data (like user_type)
+          data: additionalOptions?.data || {},
         },
       })
 

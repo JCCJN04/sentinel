@@ -4,11 +4,11 @@ import { DoctorHeader } from "@/components/doctor/header"
 
 export default function DoctorLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[260px_1fr]">
+    <div className="grid min-h-screen w-full md:grid-cols-[280px_1fr]">
       <DoctorSidebar />
-      <div className="flex flex-col bg-muted/40">
+      <div className="flex flex-col">
         <DoctorHeader />
-        <main className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 lg:gap-6 lg:p-6">
+        <main className="flex-1 overflow-y-auto bg-gradient-to-br from-background via-background to-muted/10 p-6 lg:p-8">
           {children}
         </main>
       </div>

@@ -22,13 +22,13 @@ export default function LandingPage() {
             />
           </Link>
           <nav className="hidden md:flex items-center gap-8">
-            <Link href="#beneficios" className="text-sm font-medium text-muted-foreground hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors relative group">
-              Beneficios
-              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-indigo-600 to-blue-600 group-hover:w-full transition-all duration-300"></span>
+            <Link href="#beneficios-pacientes" className="text-sm font-medium text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors relative group">
+              Para Pacientes
+              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-emerald-600 to-cyan-600 group-hover:w-full transition-all duration-300"></span>
             </Link>
-            <Link href="#casos-de-uso" className="text-sm font-medium text-muted-foreground hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors relative group">
-              Casos de Uso
-              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-indigo-600 to-blue-600 group-hover:w-full transition-all duration-300"></span>
+            <Link href="#beneficios-doctores" className="text-sm font-medium text-muted-foreground hover:text-blue-600 dark:hover:text-blue-400 transition-colors relative group">
+              Para Doctores
+              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-blue-600 to-indigo-600 group-hover:w-full transition-all duration-300"></span>
             </Link>
             <Link href="#caracteristicas" className="text-sm font-medium text-muted-foreground hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors relative group">
               Características
@@ -44,9 +44,20 @@ export default function LandingPage() {
             </Link>
           </nav>
           <div className="flex items-center gap-2">
-            <Button asChild variant="ghost" size="sm" className="hover:bg-indigo-50 dark:hover:bg-indigo-950/30">
-              <Link href="/login">Iniciar sesión</Link>
-            </Button>
+            <div className="hidden md:flex items-center gap-1">
+              <Button asChild variant="ghost" size="sm" className="hover:bg-emerald-50 dark:hover:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400">
+                <Link href="/login?tipo=paciente">
+                  <Users className="h-4 w-4 mr-1" />
+                  Login Paciente
+                </Link>
+              </Button>
+              <Button asChild variant="ghost" size="sm" className="hover:bg-blue-50 dark:hover:bg-blue-950/30 text-blue-700 dark:text-blue-400">
+                <Link href="/login?tipo=doctor">
+                  <Stethoscope className="h-4 w-4 mr-1" />
+                  Login Doctor
+                </Link>
+              </Button>
+            </div>
             <Button asChild size="sm" className="bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white shadow-lg hover:shadow-indigo-500/50 transition-all duration-300">
               <Link href="/registro">Comenzar Gratis</Link>
             </Button>
@@ -95,9 +106,15 @@ export default function LandingPage() {
                 {/* CTA Buttons */}
                 <div className="flex flex-col sm:flex-row gap-4 justify-center pt-6">
                   <Button asChild size="lg" className="bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-700 hover:to-cyan-700 text-white h-14 px-8 text-base font-semibold shadow-2xl hover:shadow-emerald-500/50 transition-all duration-300 group">
-                    <Link href="/registro">
-                      Comienza gratis ahora
-                      <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                    <Link href="/registro?tipo=paciente">
+                      Soy Paciente
+                      <Users className="ml-2 h-5 w-5 group-hover:scale-110 transition-transform" />
+                    </Link>
+                  </Button>
+                  <Button asChild size="lg" variant="outline" className="border-2 border-blue-600 dark:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 h-14 px-8 text-base font-semibold hover:shadow-xl hover:border-blue-700 dark:hover:border-blue-300 transition-all duration-300 group">
+                    <Link href="/registro?tipo=doctor">
+                      Soy Doctor
+                      <Stethoscope className="ml-2 h-5 w-5 group-hover:scale-110 transition-transform" />
                     </Link>
                   </Button>
                 </div>
@@ -122,77 +139,186 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Benefits Section */}
-        <section id="beneficios" className="py-24 md:py-32 bg-background relative overflow-hidden">
+        {/* Benefits for Patients Section */}
+        <section id="beneficios-pacientes" className="py-24 md:py-32 bg-gradient-to-br from-emerald-50/50 via-background to-cyan-50/50 dark:from-emerald-950/20 dark:via-background dark:to-cyan-950/20 relative overflow-hidden">
           {/* Background decoration */}
           <div className="absolute inset-0 bg-grid-slate-100 dark:bg-grid-slate-800 [mask-image:linear-gradient(0deg,white,rgba(255,255,255,0.6))] dark:[mask-image:linear-gradient(0deg,rgba(255,255,255,0.1),rgba(255,255,255,0.05))]"></div>
           
           <div className="container px-4 md:px-6 relative">
             <div className="text-center mb-20">
-              <div className="inline-flex items-center gap-2 px-4 py-1.5 mb-6 bg-indigo-100/80 dark:bg-indigo-900/30 rounded-full border border-indigo-200/50 dark:border-indigo-800/50">
-                <Sparkles className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                <span className="text-sm font-medium text-indigo-700 dark:text-indigo-300">Por qué elegir HealthPal</span>
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 mb-6 bg-emerald-100/80 dark:bg-emerald-900/30 rounded-full border border-emerald-200/50 dark:border-emerald-800/50">
+                <Users className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Para Pacientes</span>
               </div>
               <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tighter mb-6">
-                Tranquilidad en cada clic
+                Tu salud familiar, <span className="bg-gradient-to-r from-emerald-600 to-cyan-600 dark:from-emerald-400 dark:to-cyan-400 bg-clip-text text-transparent">bajo control</span>
               </h2>
               <p className="mx-auto max-w-2xl text-lg md:text-xl text-muted-foreground leading-relaxed">
-                HealthPal te da las herramientas para que la gestión de tu salud familiar sea <span className="text-foreground font-medium">simple, segura e inteligente.</span>
+                Gestiona tu historial médico y el de tu familia de forma <span className="text-foreground font-medium">segura, simple e inteligente.</span>
               </p>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
-              <div className="group relative p-8 rounded-2xl bg-gradient-to-br from-emerald-50 via-emerald-50/50 to-background dark:from-emerald-950/30 dark:via-emerald-950/20 dark:to-background border border-emerald-200/50 dark:border-emerald-800/50 hover:shadow-2xl hover:scale-105 hover:border-emerald-400/80 dark:hover:border-emerald-600/80 transition-all duration-500 overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/0 to-emerald-500/0 group-hover:from-emerald-500/5 group-hover:to-emerald-500/10 transition-all duration-500"></div>
-                <div className="relative z-10">
-                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 dark:from-emerald-400 dark:to-emerald-500 p-3 mb-6 shadow-lg group-hover:shadow-emerald-500/50 group-hover:scale-110 group-hover:rotate-3 transition-all duration-500">
-                    <FileText className="h-full w-full text-white" />
-                  </div>
-                  <h3 className="text-xl font-bold mb-3 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">Todo centralizado</h3>
-                  <p className="text-muted-foreground leading-relaxed">
-                    Almacena análisis, recetas, estudios y más. Tu historial médico completo, organizado y accesible al instante.
-                  </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
+              <div className="group relative p-8 rounded-2xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-emerald-200/50 dark:border-emerald-800/50 hover:shadow-2xl hover:scale-105 hover:border-emerald-400/80 dark:hover:border-emerald-600/80 transition-all duration-500">
+                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 dark:from-emerald-400 dark:to-emerald-500 p-3 mb-6 shadow-lg group-hover:shadow-emerald-500/50 group-hover:scale-110 group-hover:rotate-3 transition-all duration-500">
+                  <FileText className="h-full w-full text-white" />
                 </div>
+                <h3 className="text-xl font-bold mb-3 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">Todo centralizado</h3>
+                <p className="text-muted-foreground leading-relaxed">
+                  Almacena análisis, recetas, estudios y vacunas. Tu historial médico completo, organizado y accesible al instante.
+                </p>
               </div>
               
-              <div className="group relative p-8 rounded-2xl bg-gradient-to-br from-cyan-50 via-cyan-50/50 to-background dark:from-cyan-950/30 dark:via-cyan-950/20 dark:to-background border border-cyan-200/50 dark:border-cyan-800/50 hover:shadow-2xl hover:scale-105 hover:border-cyan-400/80 dark:hover:border-cyan-600/80 transition-all duration-500 overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/0 to-cyan-500/0 group-hover:from-cyan-500/5 group-hover:to-cyan-500/10 transition-all duration-500"></div>
-                <div className="relative z-10">
-                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-cyan-500 to-cyan-600 dark:from-cyan-400 dark:to-cyan-500 p-3 mb-6 shadow-lg group-hover:shadow-cyan-500/50 group-hover:scale-110 group-hover:rotate-3 transition-all duration-500">
-                    <ShieldCheck className="h-full w-full text-white" />
-                  </div>
-                  <h3 className="text-xl font-bold mb-3 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">Máxima seguridad</h3>
-                  <p className="text-muted-foreground leading-relaxed">
-                    Cifrado AES-256 nivel bancario. Tus datos médicos están blindados. Solo tú decides quién tiene acceso.
-                  </p>
+              <div className="group relative p-8 rounded-2xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-cyan-200/50 dark:border-cyan-800/50 hover:shadow-2xl hover:scale-105 hover:border-cyan-400/80 dark:hover:border-cyan-600/80 transition-all duration-500">
+                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-cyan-500 to-cyan-600 dark:from-cyan-400 dark:to-cyan-500 p-3 mb-6 shadow-lg group-hover:shadow-cyan-500/50 group-hover:scale-110 group-hover:rotate-3 transition-all duration-500">
+                  <Users className="h-full w-full text-white" />
                 </div>
+                <h3 className="text-xl font-bold mb-3 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">Gestión familiar</h3>
+                <p className="text-muted-foreground leading-relaxed">
+                  Administra el expediente de tus hijos, padres y familiares desde una sola cuenta. Simple y organizado.
+                </p>
               </div>
               
-              <div className="group relative p-8 rounded-2xl bg-gradient-to-br from-blue-50 via-blue-50/50 to-background dark:from-blue-950/30 dark:via-blue-950/20 dark:to-background border border-blue-200/50 dark:border-blue-800/50 hover:shadow-2xl hover:scale-105 hover:border-blue-400/80 dark:hover:border-blue-600/80 transition-all duration-500 overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-500/0 to-blue-500/0 group-hover:from-blue-500/5 group-hover:to-blue-500/10 transition-all duration-500"></div>
-                <div className="relative z-10">
-                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 dark:from-blue-400 dark:to-blue-500 p-3 mb-6 shadow-lg group-hover:shadow-blue-500/50 group-hover:scale-110 group-hover:rotate-3 transition-all duration-500">
-                    <Users className="h-full w-full text-white" />
-                  </div>
-                  <h3 className="text-xl font-bold mb-3 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">Control familiar</h3>
-                  <p className="text-muted-foreground leading-relaxed">
-                    Gestiona el historial de tus hijos, padres y familiares desde una sola cuenta. Simple y organizado.
-                  </p>
+              <div className="group relative p-8 rounded-2xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-rose-200/50 dark:border-rose-800/50 hover:shadow-2xl hover:scale-105 hover:border-rose-400/80 dark:hover:border-rose-600/80 transition-all duration-500">
+                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-rose-500 to-rose-600 dark:from-rose-400 dark:to-rose-500 p-3 mb-6 shadow-lg group-hover:shadow-rose-500/50 group-hover:scale-110 group-hover:rotate-3 transition-all duration-500">
+                  <HeartPulse className="h-full w-full text-white" />
                 </div>
+                <h3 className="text-xl font-bold mb-3 group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors">Emergencias cubiertas</h3>
+                <p className="text-muted-foreground leading-relaxed">
+                  Resumen médico instantáneo. Comparte información vital con médicos en segundos cuando más importa.
+                </p>
               </div>
               
-              <div className="group relative p-8 rounded-2xl bg-gradient-to-br from-rose-50 via-rose-50/50 to-background dark:from-rose-950/30 dark:via-rose-950/20 dark:to-background border border-rose-200/50 dark:border-rose-800/50 hover:shadow-2xl hover:scale-105 hover:border-rose-400/80 dark:hover:border-rose-600/80 transition-all duration-500 overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-rose-500/0 to-rose-500/0 group-hover:from-rose-500/5 group-hover:to-rose-500/10 transition-all duration-500"></div>
-                <div className="relative z-10">
-                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-rose-500 to-rose-600 dark:from-rose-400 dark:to-rose-500 p-3 mb-6 shadow-lg group-hover:shadow-rose-500/50 group-hover:scale-110 group-hover:rotate-3 transition-all duration-500">
-                    <HeartPulse className="h-full w-full text-white" />
-                  </div>
-                  <h3 className="text-xl font-bold mb-3 group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors">Emergencias cubiertas</h3>
-                  <p className="text-muted-foreground leading-relaxed">
-                    Resumen médico instantáneo. Comparte información vital con médicos en segundos cuando más importa.
-                  </p>
+              <div className="group relative p-8 rounded-2xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-purple-200/50 dark:border-purple-800/50 hover:shadow-2xl hover:scale-105 hover:border-purple-400/80 dark:hover:border-purple-600/80 transition-all duration-500">
+                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 dark:from-purple-400 dark:to-purple-500 p-3 mb-6 shadow-lg group-hover:shadow-purple-500/50 group-hover:scale-110 group-hover:rotate-3 transition-all duration-500">
+                  <Bell className="h-full w-full text-white" />
                 </div>
+                <h3 className="text-xl font-bold mb-3 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">Recordatorios inteligentes</h3>
+                <p className="text-muted-foreground leading-relaxed">
+                  Recibe alertas de medicamentos, citas médicas y renovación de recetas. Nunca olvides nada importante.
+                </p>
               </div>
+              
+              <div className="group relative p-8 rounded-2xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-blue-200/50 dark:border-blue-800/50 hover:shadow-2xl hover:scale-105 hover:border-blue-400/80 dark:hover:border-blue-600/80 transition-all duration-500">
+                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 dark:from-blue-400 dark:to-blue-500 p-3 mb-6 shadow-lg group-hover:shadow-blue-500/50 group-hover:scale-110 group-hover:rotate-3 transition-all duration-500">
+                  <Shield className="h-full w-full text-white" />
+                </div>
+                <h3 className="text-xl font-bold mb-3 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">Máxima seguridad</h3>
+                <p className="text-muted-foreground leading-relaxed">
+                  Cifrado AES-256 nivel bancario. Tus datos médicos están blindados. Solo tú decides quién tiene acceso.
+                </p>
+              </div>
+              
+              <div className="group relative p-8 rounded-2xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-indigo-200/50 dark:border-indigo-800/50 hover:shadow-2xl hover:scale-105 hover:border-indigo-400/80 dark:hover:border-indigo-600/80 transition-all duration-500">
+                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 dark:from-indigo-400 dark:to-indigo-500 p-3 mb-6 shadow-lg group-hover:shadow-indigo-500/50 group-hover:scale-110 group-hover:rotate-3 transition-all duration-500">
+                  <Smartphone className="h-full w-full text-white" />
+                </div>
+                <h3 className="text-xl font-bold mb-3 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Acceso desde cualquier lugar</h3>
+                <p className="text-muted-foreground leading-relaxed">
+                  Consulta tu información desde tu teléfono, tablet o computadora. Siempre disponible cuando lo necesites.
+                </p>
+              </div>
+            </div>
+            
+            <div className="text-center mt-16">
+              <Button asChild size="lg" className="bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-700 hover:to-cyan-700 text-white h-14 px-10 text-base font-semibold shadow-2xl hover:shadow-emerald-500/50 transition-all duration-300 group">
+                <Link href="/registro?tipo=paciente">
+                  Comenzar como Paciente
+                  <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </section>
+
+        {/* Benefits for Doctors Section */}
+        <section id="beneficios-doctores" className="py-24 md:py-32 bg-gradient-to-br from-blue-50/50 via-background to-indigo-50/50 dark:from-blue-950/20 dark:via-background dark:to-indigo-950/20 relative overflow-hidden">
+          {/* Background decoration */}
+          <div className="absolute inset-0 bg-grid-slate-100 dark:bg-grid-slate-800 [mask-image:linear-gradient(0deg,white,rgba(255,255,255,0.6))] dark:[mask-image:linear-gradient(0deg,rgba(255,255,255,0.1),rgba(255,255,255,0.05))]"></div>
+          
+          <div className="container px-4 md:px-6 relative">
+            <div className="text-center mb-20">
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 mb-6 bg-blue-100/80 dark:bg-blue-900/30 rounded-full border border-blue-200/50 dark:border-blue-800/50">
+                <Stethoscope className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                <span className="text-sm font-medium text-blue-700 dark:text-blue-300">Para Doctores</span>
+              </div>
+              <h2 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tighter mb-6">
+                Gestiona tu práctica <span className="bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 bg-clip-text text-transparent">con eficiencia</span>
+              </h2>
+              <p className="mx-auto max-w-2xl text-lg md:text-xl text-muted-foreground leading-relaxed">
+                Herramientas profesionales para administrar pacientes, consultas y expedientes médicos de forma <span className="text-foreground font-medium">rápida y segura.</span>
+              </p>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
+              <div className="group relative p-8 rounded-2xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-blue-200/50 dark:border-blue-800/50 hover:shadow-2xl hover:scale-105 hover:border-blue-400/80 dark:hover:border-blue-600/80 transition-all duration-500">
+                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 dark:from-blue-400 dark:to-blue-500 p-3 mb-6 shadow-lg group-hover:shadow-blue-500/50 group-hover:scale-110 group-hover:rotate-3 transition-all duration-500">
+                  <Users className="h-full w-full text-white" />
+                </div>
+                <h3 className="text-xl font-bold mb-3 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">Gestión de pacientes</h3>
+                <p className="text-muted-foreground leading-relaxed">
+                  Administra tu lista de pacientes, historial de consultas y expedientes médicos desde un solo lugar.
+                </p>
+              </div>
+              
+              <div className="group relative p-8 rounded-2xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-indigo-200/50 dark:border-indigo-800/50 hover:shadow-2xl hover:scale-105 hover:border-indigo-400/80 dark:hover:border-indigo-600/80 transition-all duration-500">
+                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 dark:from-indigo-400 dark:to-indigo-500 p-3 mb-6 shadow-lg group-hover:shadow-indigo-500/50 group-hover:scale-110 group-hover:rotate-3 transition-all duration-500">
+                  <Clock className="h-full w-full text-white" />
+                </div>
+                <h3 className="text-xl font-bold mb-3 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Agenda inteligente</h3>
+                <p className="text-muted-foreground leading-relaxed">
+                  Programa consultas, gestiona tu disponibilidad y optimiza tu tiempo. Mantén todo organizado automáticamente.
+                </p>
+              </div>
+              
+              <div className="group relative p-8 rounded-2xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-purple-200/50 dark:border-purple-800/50 hover:shadow-2xl hover:scale-105 hover:border-purple-400/80 dark:hover:border-purple-600/80 transition-all duration-500">
+                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 dark:from-purple-400 dark:to-purple-500 p-3 mb-6 shadow-lg group-hover:shadow-purple-500/50 group-hover:scale-110 group-hover:rotate-3 transition-all duration-500">
+                  <FileText className="h-full w-full text-white" />
+                </div>
+                <h3 className="text-xl font-bold mb-3 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">Recetas digitales</h3>
+                <p className="text-muted-foreground leading-relaxed">
+                  Emite recetas médicas digitales rápidamente. Vinculadas automáticamente al expediente del paciente.
+                </p>
+              </div>
+              
+              <div className="group relative p-8 rounded-2xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-cyan-200/50 dark:border-cyan-800/50 hover:shadow-2xl hover:scale-105 hover:border-cyan-400/80 dark:hover:border-cyan-600/80 transition-all duration-500">
+                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-cyan-500 to-cyan-600 dark:from-cyan-400 dark:to-cyan-500 p-3 mb-6 shadow-lg group-hover:shadow-cyan-500/50 group-hover:scale-110 group-hover:rotate-3 transition-all duration-500">
+                  <Database className="h-full w-full text-white" />
+                </div>
+                <h3 className="text-xl font-bold mb-3 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">Expedientes compartidos</h3>
+                <p className="text-muted-foreground leading-relaxed">
+                  Accede a documentos que tus pacientes comparten contigo. Historial completo siempre disponible.
+                </p>
+              </div>
+              
+              <div className="group relative p-8 rounded-2xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-emerald-200/50 dark:border-emerald-800/50 hover:shadow-2xl hover:scale-105 hover:border-emerald-400/80 dark:hover:border-emerald-600/80 transition-all duration-500">
+                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 dark:from-emerald-400 dark:to-emerald-500 p-3 mb-6 shadow-lg group-hover:shadow-emerald-500/50 group-hover:scale-110 group-hover:rotate-3 transition-all duration-500">
+                  <BarChart3 className="h-full w-full text-white" />
+                </div>
+                <h3 className="text-xl font-bold mb-3 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">Estadísticas y reportes</h3>
+                <p className="text-muted-foreground leading-relaxed">
+                  Visualiza métricas de tu práctica: consultas por mes, pacientes activos, y más. Toma mejores decisiones.
+                </p>
+              </div>
+              
+              <div className="group relative p-8 rounded-2xl bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-rose-200/50 dark:border-rose-800/50 hover:shadow-2xl hover:scale-105 hover:border-rose-400/80 dark:hover:border-rose-600/80 transition-all duration-500">
+                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-rose-500 to-rose-600 dark:from-rose-400 dark:to-rose-500 p-3 mb-6 shadow-lg group-hover:shadow-rose-500/50 group-hover:scale-110 group-hover:rotate-3 transition-all duration-500">
+                  <ShieldCheck className="h-full w-full text-white" />
+                </div>
+                <h3 className="text-xl font-bold mb-3 group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors">Cumplimiento y seguridad</h3>
+                <p className="text-muted-foreground leading-relaxed">
+                  Cumple con normativas de privacidad médica. Encriptación de datos y control de acceso profesional.
+                </p>
+              </div>
+            </div>
+            
+            <div className="text-center mt-16">
+              <Button asChild size="lg" className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white h-14 px-10 text-base font-semibold shadow-2xl hover:shadow-blue-500/50 transition-all duration-300 group">
+                <Link href="/registro?tipo=doctor">
+                  Comenzar como Doctor
+                  <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                </Link>
+              </Button>
             </div>
           </div>
         </section>

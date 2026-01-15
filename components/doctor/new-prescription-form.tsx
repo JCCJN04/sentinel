@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
-import { createMockPrescription } from "@/app/doctor/recetas/actions"
+import { createPrescriptionAction } from "@/app/doctor/recetas/actions"
 
 export type NewPrescriptionFormProps = {
   patients: Patient[]
@@ -60,9 +60,9 @@ export function NewPrescriptionForm({ patients, defaultPatientId }: NewPrescript
     setIsSubmitting(true)
 
     try {
-      await createMockPrescription({
+      await createPrescriptionAction({
         patientId: formState.patientId,
-        medication: formState.medication,
+        medicationName: formState.medication,
         dosage: formState.dosage,
         frequency: formState.frequency,
         startDate: formState.startDate,
@@ -72,14 +72,14 @@ export function NewPrescriptionForm({ patients, defaultPatientId }: NewPrescript
 
       toast({
         title: "Receta creada",
-        description: "La receta mock se registró correctamente.",
+        description: "La receta se registró correctamente.",
       })
 
       router.push("/doctor/recetas")
       router.refresh()
     } catch (submissionError) {
       console.error(submissionError)
-      setError("No se pudo crear la receta mock. Intenta nuevamente.")
+      setError("No se pudo crear la receta. Intenta nuevamente.")
     } finally {
       setIsSubmitting(false)
     }

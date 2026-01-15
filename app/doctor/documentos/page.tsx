@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { format } from "date-fns"
-import { doctorRepo } from "@/lib/data/doctor.repo.mock"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { getFullName } from "@/lib/utils/profile-helpers"
 import {
   Table,
   TableBody,
@@ -13,6 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { SearchBar } from "@/components/doctor/search-bar"
+import { getCurrentDoctorProfile, getSharedDocumentsWithDoctor } from "@/lib/doctor-service"
 
 export type DoctorDocumentsPageProps = {
   searchParams?: {
@@ -21,21 +22,29 @@ export type DoctorDocumentsPageProps = {
 }
 
 export default async function DoctorDocumentsPage({ searchParams }: DoctorDocumentsPageProps) {
-  const [documents, patients] = await Promise.all([
-    doctorRepo.listSharedDocuments(),
-    doctorRepo.listPatients(),
-  ])
+  try {
+    const doctorProfile = await getCurrentDoctorProfile()
+    const documentsData = await getSharedDocumentsWithDoctor(doctorProfile.id)
 
-  const patientNameById = new Map(patients.map((patient) => [patient.id, patient.name]))
-  const searchTerm = searchParams?.q?.toLowerCase().trim() ?? ""
+    // Transform documents data
+    const documents = documentsData.map((d: any) => ({
+      id: d.id,
+      title: d.document?.title || 'Sin título',
+      category: d.document?.category || 'General',
+      patientId: d.patient_id,
+      patientName: getFullName(d.patient?.profiles),
+      uploadedAt: d.shared_at || d.document?.uploaded_at,
+      url: d.document?.file_path || '#',
+    }))
 
-  const filteredDocuments = searchTerm
-    ? documents.filter((doc) => {
-        const patientName = patientNameById.get(doc.patientId) ?? ""
-        const haystack = [doc.title, doc.category, patientName].join(" ").toLowerCase()
-        return haystack.includes(searchTerm)
-      })
-    : documents
+    const searchTerm = searchParams?.q?.toLowerCase().trim() ?? ""
+
+    const filteredDocuments = searchTerm
+      ? documents.filter((doc: any) => {
+          const haystack = [doc.title, doc.category, doc.patientName].join(" ").toLowerCase()
+          return haystack.includes(searchTerm)
+        })
+      : documents
 
   return (
     <div className="space-y-6">
@@ -76,14 +85,14 @@ export default async function DoctorDocumentsPage({ searchParams }: DoctorDocume
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredDocuments.map((doc) => (
+                filteredDocuments.map((doc: any) => (
                   <TableRow
                     key={doc.id}
                     className="transition-colors hover:bg-indigo-500/10 dark:hover:bg-indigo-500/20"
                   >
                     <TableCell className="font-medium">{doc.title}</TableCell>
                     <TableCell className="hidden md:table-cell">
-                      {patientNameById.get(doc.patientId) ?? doc.patientId}
+                      {doc.patientName}
                     </TableCell>
                     <TableCell className="hidden lg:table-cell">
                       <Badge variant="outline" className="border-indigo-500/40 bg-indigo-500/15 text-indigo-700 dark:text-indigo-300">
@@ -109,4 +118,20 @@ export default async function DoctorDocumentsPage({ searchParams }: DoctorDocume
       </Card>
     </div>
   )
+  } catch (error) {
+    return (
+      <div className="space-y-6">
+        <div className="overflow-hidden rounded-2xl border border-rose-500/20 bg-gradient-to-r from-rose-500/10 via-orange-500/10 to-amber-500/10 p-6 shadow-lg shadow-rose-500/10">
+          <div className="space-y-1">
+            <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-rose-600 via-orange-500 to-amber-500 bg-clip-text text-transparent">
+              Error al cargar documentos
+            </h1>
+            <p className="text-sm text-rose-900/80 dark:text-rose-100/80">
+              No se pudo cargar la lista de documentos. Por favor, verifica que hayas iniciado sesión como doctor.
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 }

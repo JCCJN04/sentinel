@@ -4,10 +4,17 @@ import { UserNav } from "@/components/dashboard/user-nav"
 
 export function DoctorHeader() {
   return (
-    <header className="sticky top-0 z-30 flex h-20 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6 sm:py-4">
+    <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background/80 backdrop-blur-xl px-6 lg:h-20 transition-all">
       <DoctorMobileNav />
-      <div className="ml-auto flex items-center gap-4">
-        <ModeToggle />
+      
+      {/* Spacer para empujar elementos a la derecha */}
+      <div className="flex-1" />
+      
+      {/* Actions con hover effects premium */}
+      <div className="flex items-center gap-3">
+        <div className="hover-scale">
+          <ModeToggle />
+        </div>
         <UserNav />
       </div>
     </header>

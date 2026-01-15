@@ -1,7 +1,7 @@
 import { 
   ClipboardList, HeartPulse, Shield, FileText, Home, 
   Settings, ShieldAlert, Upload, Share2, 
-  BarChart3, Users, Syringe, Bot, Pill, type LucideIcon 
+  BarChart3, Users, Syringe, Bot, Pill, Stethoscope, type LucideIcon 
 } from "lucide-react";
 
 export interface NavItem {
@@ -21,6 +21,7 @@ export const sidebarItems: NavItem[] = [
   { title: "Vacunas", href: "/dashboard/vacunas", icon: Syringe },
   { title: "Antecedentes", href: "/dashboard/antecedentes", icon: ClipboardList },
   { title: "Reportes", href: "/dashboard/reportes", icon: BarChart3 },
+  { title: "Mis Doctores", href: "/dashboard/doctores", icon: Stethoscope },
   { title: "Compartir", href: "/dashboard/compartidos", icon: Share2 },
   { title: "Familia", href: "/dashboard/familia", icon: Users },
   { title: "Asistente IA", href: "/dashboard/asistente-ia", icon: Bot },

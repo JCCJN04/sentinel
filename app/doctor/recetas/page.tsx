@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { format } from "date-fns"
-import { doctorRepo } from "@/lib/data/doctor.repo.mock"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { getFullName } from "@/lib/utils/profile-helpers"
 import {
   Table,
   TableBody,
@@ -13,6 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { SearchBar } from "@/components/doctor/search-bar"
+import { getCurrentDoctorProfile, getDoctorPrescriptions, getDoctorPatients } from "@/lib/doctor-service"
 
 export type DoctorPrescriptionsPageProps = {
   searchParams?: {
@@ -21,10 +22,31 @@ export type DoctorPrescriptionsPageProps = {
 }
 
 export default async function DoctorPrescriptionsPage({ searchParams }: DoctorPrescriptionsPageProps) {
-  const [prescriptions, patients] = await Promise.all([
-    doctorRepo.listPrescriptions(),
-    doctorRepo.listPatients(),
-  ])
+  try {
+    const doctorProfile = await getCurrentDoctorProfile()
+    
+    const [prescriptionsData, patientsData] = await Promise.all([
+      getDoctorPrescriptions(doctorProfile.id),
+      getDoctorPatients(doctorProfile.id),
+    ])
+
+    // Transform patient data
+    const patients = patientsData.map((p: any) => ({
+      id: p.patient_id,
+      name: getFullName(p.patient?.profiles),
+    }))
+
+    // Transform prescriptions data
+    const prescriptions = prescriptionsData.map((p: any) => ({
+      id: p.id,
+      patientId: p.patient_id,
+      medication: p.medication_name || 'Medicamento',
+      dosage: p.dosage || 'N/A',
+      frequency: p.frequency || 'N/A',
+      startDate: p.start_date || p.created_at,
+      endDate: p.end_date,
+      notes: p.notes,
+    }))
 
   const patientNameById = new Map(patients.map((patient) => [patient.id, patient.name]))
   const searchTerm = searchParams?.q?.toLowerCase().trim() ?? ""
@@ -110,9 +132,15 @@ export default async function DoctorPrescriptionsPage({ searchParams }: DoctorPr
                     </TableCell>
                     <TableCell className="hidden lg:table-cell">{item.dosage}</TableCell>
                     <TableCell className="hidden lg:table-cell">
-                      <Badge variant="outline" className="border-rose-500/40 bg-rose-500/15 text-rose-700 dark:text-rose-300">
-                        {format(new Date(item.startDate), "dd MMM")} - {format(new Date(item.endDate), "dd MMM")}
-                      </Badge>
+                      {item.endDate ? (
+                        <Badge variant="outline" className="border-rose-500/40 bg-rose-500/15 text-rose-700 dark:text-rose-300">
+                          {format(new Date(item.startDate), "dd MMM")} - {format(new Date(item.endDate), "dd MMM")}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="border-blue-500/40 bg-blue-500/15 text-blue-700 dark:text-blue-300">
+                          Desde {format(new Date(item.startDate), "dd MMM")}
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell className="hidden xl:table-cell text-muted-foreground text-sm">
                       {item.notes ?? "Sin notas"}
@@ -126,4 +154,20 @@ export default async function DoctorPrescriptionsPage({ searchParams }: DoctorPr
       </Card>
     </div>
   )
+  } catch (error) {
+    return (
+      <div className="space-y-6">
+        <div className="overflow-hidden rounded-2xl border border-rose-500/20 bg-gradient-to-r from-rose-500/10 via-orange-500/10 to-amber-500/10 p-6 shadow-lg shadow-rose-500/10">
+          <div className="space-y-1">
+            <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-rose-600 via-orange-500 to-amber-500 bg-clip-text text-transparent">
+              Error al cargar recetas
+            </h1>
+            <p className="text-sm text-rose-900/80 dark:text-rose-100/80">
+              No se pudo cargar la lista de recetas. Por favor, verifica que hayas iniciado sesión como doctor.
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 }
