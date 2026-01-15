@@ -48,7 +48,7 @@ export default async function ShareWithDoctorPage({ params }: PageProps) {
 
   // Get current shares with this doctor
   const currentShares = await getSharedResourcesWithDoctor(doctorId)
-  const doctorName = getFullName(doctor.first_name, doctor.last_name)
+  const doctorName = getFullName(doctor)
 
   return (
     <div className="space-y-8 pb-12 animate-in fade-in slide-in-from-bottom-4 duration-500">

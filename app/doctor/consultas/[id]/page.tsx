@@ -7,7 +7,9 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ConsultationAttachments } from "@/components/doctor/consultation-attachments"
-import { getConsultation } from "@/lib/doctor-service"import { getFullName } from "@/lib/utils/profile-helpers"
+import { getConsultation } from "@/lib/doctor-service"
+import { getFullName } from "@/lib/utils/profile-helpers"
+
 const statusLabels: Record<string, string> = {
   scheduled: "Programada",
   completed: "Completada",
@@ -50,9 +52,9 @@ export default async function DoctorConsultationDetailPage({ params }: DoctorCon
 
     const patient = {
       id: consultationData.patient_id,
-      name: getFullName(consultationData.patient?.profiles),
+      name: getFullName(consultationData.patient),
       age: 'N/A',
-      sex: consultationData.patient?.profiles?.sex || 'no especificado',
+      sex: (consultationData.patient as any)?.profiles?.sex || 'no especificado',
     }
 
   return (
@@ -133,7 +135,7 @@ export default async function DoctorConsultationDetailPage({ params }: DoctorCon
               </p>
             </div>
 
-            <ConsultationAttachments initialAttachments={consultation.attachments} />
+            <ConsultationAttachments initialAttachments={consultation.images} />
           </CardContent>
         </Card>
 
