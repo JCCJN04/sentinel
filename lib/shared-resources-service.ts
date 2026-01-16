@@ -376,38 +376,52 @@ export async function getDoctorAccessibleDocuments(patientId: string): Promise<a
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   
-  if (!user) return []
+  if (!user) {
+    console.log('[getDoctorAccessibleDocuments] No user authenticated')
+    return []
+  }
 
   const serviceClient = createServiceClient()
   
   // Get doctor profile
-  const { data: doctorProfile } = await serviceClient
+  const { data: doctorProfile, error: doctorError } = await serviceClient
     .from('doctor_profiles')
     .select('id')
     .eq('user_id', user.id)
     .single()
 
-  if (!doctorProfile) return []
+  if (!doctorProfile || doctorError) {
+    console.log('[getDoctorAccessibleDocuments] Doctor profile not found:', doctorError)
+    return []
+  }
+
+  console.log('[getDoctorAccessibleDocuments] Doctor ID:', doctorProfile.id, 'Patient ID:', patientId)
 
   // Check if doctor has access to documents
-  const { data: sharedResources } = await serviceClient
+  const { data: sharedResources, error: sharedError } = await serviceClient
     .from('shared_resources_with_doctor')
     .select('resource_type, resource_id')
     .eq('doctor_id', doctorProfile.id)
     .eq('patient_id', patientId)
     .or('resource_type.eq.all_documents,resource_type.eq.document')
 
-  if (!sharedResources || sharedResources.length === 0) return []
+  console.log('[getDoctorAccessibleDocuments] Shared resources:', sharedResources, 'Error:', sharedError)
+
+  if (!sharedResources || sharedResources.length === 0) {
+    console.log('[getDoctorAccessibleDocuments] No shared resources found')
+    return []
+  }
 
   // Check if has access to all documents
   const hasAllAccess = sharedResources.some(r => r.resource_type === 'all_documents')
+  console.log('[getDoctorAccessibleDocuments] Has all access:', hasAllAccess)
 
   // Get documents
   let query = serviceClient
     .from('documents')
     .select('*')
     .eq('user_id', patientId)
-    .order('uploaded_at', { ascending: false })
+    .order('created_at', { ascending: false })
 
   // If not all access, filter by specific IDs
   if (!hasAllAccess) {
@@ -415,11 +429,43 @@ export async function getDoctorAccessibleDocuments(patientId: string): Promise<a
       .filter(r => r.resource_type === 'document' && r.resource_id)
       .map(r => r.resource_id!)
     
-    if (documentIds.length === 0) return []
+    console.log('[getDoctorAccessibleDocuments] Specific document IDs:', documentIds)
+    
+    if (documentIds.length === 0) {
+      console.log('[getDoctorAccessibleDocuments] No specific document IDs found')
+      return []
+    }
     query = query.in('id', documentIds)
   }
 
-  const { data } = await query
+  const { data, error: docsError } = await query
+  console.log('[getDoctorAccessibleDocuments] Documents found:', data?.length, 'Error:', docsError)
+  
+  // Generate signed URLs for documents
+  if (data && data.length > 0) {
+    const documentsWithUrls = await Promise.all(
+      data.map(async (doc) => {
+        try {
+          const { data: urlData } = await serviceClient.storage
+            .from('documents')
+            .createSignedUrl(doc.file_path, 3600) // URL válida por 1 hora
+          
+          return {
+            ...doc,
+            signed_url: urlData?.signedUrl || null
+          }
+        } catch (error) {
+          console.error('[getDoctorAccessibleDocuments] Error generating signed URL for:', doc.id, error)
+          return {
+            ...doc,
+            signed_url: null
+          }
+        }
+      })
+    )
+    return documentsWithUrls
+  }
+  
   return data || []
 }
 

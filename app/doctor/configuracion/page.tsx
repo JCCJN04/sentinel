@@ -1,8 +1,12 @@
+import { getCurrentDoctorProfile, updateDoctorProfile } from "@/lib/doctor-service"
+import { DoctorSettingsForm } from "@/components/doctor/settings/doctor-settings-form"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 
-export default function DoctorSettingsPage() {
+export default async function DoctorSettingsPage() {
+  const doctorProfile = await getCurrentDoctorProfile()
+
   return (
     <div className="space-y-6">
       <div className="overflow-hidden rounded-2xl border border-purple-500/20 bg-gradient-to-r from-purple-500/10 via-sky-500/10 to-emerald-500/15 p-6 shadow-lg shadow-purple-500/15">
@@ -11,10 +15,12 @@ export default function DoctorSettingsPage() {
             Configuración
           </h1>
           <p className="text-sm text-purple-900/80 dark:text-purple-100/80">
-            Ajustes generales del panel de doctor basados en datos mock.
+            Gestiona tu información personal y configuraciones del consultorio.
           </p>
         </div>
       </div>
+
+      <DoctorSettingsForm doctorProfile={doctorProfile} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card className="border-sky-500/20 bg-gradient-to-br from-sky-500/10 via-cyan-500/10 to-purple-500/15">
